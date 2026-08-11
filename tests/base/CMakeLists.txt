@@ -21,3 +21,7 @@ gtest_discover_tests(rw_lock_test)
 add_executable(sync_test sync_test.cc)
 target_link_libraries(sync_test PRIVATE tianshu GTest::gtest_main)
 gtest_discover_tests(sync_test)
+
+add_executable(atomic_hash_map_test atomic_hash_map_test.cc)
+target_link_libraries(atomic_hash_map_test PRIVATE tianshu GTest::gtest_main)
+gtest_discover_tests(atomic_hash_map_test)

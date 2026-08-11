@@ -55,3 +55,13 @@ cc_test(
     ],
     size = "small",
 )
+
+cc_test(
+    name = "atomic_hash_map_test",
+    srcs = ["atomic_hash_map_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)
