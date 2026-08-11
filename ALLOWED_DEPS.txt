@@ -1,0 +1,33 @@
+# =============================================================================
+# TIANSHU Allowed Dependencies
+# =============================================================================
+#
+# Per ADR-0005, every third-party dependency must be listed here.
+# CI (INFRA-DEPS-3) guards against unlisted dependencies.
+#
+# Format:
+#   <name> | <version> | <license> | <tier> | <approved_by_adr> | <description>
+#
+# Tier:
+#   allowed   — can be used directly
+#   restricted — specific subsets only (see ADR for scope)
+#   review    — requires case-by-case review before each use
+#   forbidden — must not be used
+#
+# To add a new dependency:
+#   1. Submit PR with ADR draft (purpose / size / alternatives / profile impact)
+#   2. Architecture review + embedded feasibility review
+#   3. On approval: add entry below + merge ADR
+#   4. CI auto-validates: any dep not listed here → build fail
+# =============================================================================
+
+# =============================================================================
+# Build-time only (test / benchmark, NOT linked into production binaries)
+# =============================================================================
+googletest         | >=1.17.0  | BSD-3-Clause  | allowed   | ADR-0018 | Unit testing + mocking (includes GoogleMock since 1.10+)
+google-benchmark   | >=1.9.0   | Apache-2.0    | allowed   | ADR-0018 | Microbenchmark framework
+
+# =============================================================================
+# Build system rules (compile-time, not shipped)
+# =============================================================================
+rules_cc           | 0.0.17    | Apache-2.0    | allowed   | ADR-0003 | Bazel C++ rules (required by Bazel 9+)

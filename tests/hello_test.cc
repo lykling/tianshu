@@ -12,57 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TIANSHU smoke test (Phase 0).
-// Validates that the version info API works as expected.
-// Returns 0 on success, non-zero on failure.
+// TIANSHU smoke test using GoogleTest (includes GoogleMock).
+// Validates that the version info C ABI works as expected.
 
-#include <cstdio>
 #include <cstring>
+
+#include <gtest/gtest.h>
 
 #include "tianshu/version.h"
 
-namespace {
+TEST(VersionTest, MajorMatchesMacro) { EXPECT_EQ(tianshu_version_major(), TIANSHU_VERSION_MAJOR); }
 
-int check_version_major() {
-  if (tianshu_version_major() != TIANSHU_VERSION_MAJOR) {
-    std::printf("FAIL: version major mismatch: got %d, expected %d\n", tianshu_version_major(),
-                TIANSHU_VERSION_MAJOR);
-    return 1;
-  }
-  return 0;
+TEST(VersionTest, MinorMatchesMacro) { EXPECT_EQ(tianshu_version_minor(), TIANSHU_VERSION_MINOR); }
+
+TEST(VersionTest, PatchMatchesMacro) { EXPECT_EQ(tianshu_version_patch(), TIANSHU_VERSION_PATCH); }
+
+TEST(VersionTest, StringMatchesMacro) {
+  EXPECT_STREQ(tianshu_version_string(), TIANSHU_VERSION_STRING);
 }
 
-int check_version_string() {
-  const char* v = tianshu_version_string();
-  if (std::strcmp(v, TIANSHU_VERSION_STRING) != 0) {
-    std::printf("FAIL: version string mismatch: got %s, expected %s\n", v, TIANSHU_VERSION_STRING);
-    return 1;
-  }
-  return 0;
+TEST(VersionTest, StringContainsVersionNumbers) {
+  const char* version = tianshu_version_string();
+  EXPECT_NE(version, nullptr);
+  EXPECT_GT(std::strlen(version), 0u);
 }
 
-int check_build_profile() {
-  const char* p = tianshu_build_profile();
-  if (p == nullptr || std::strlen(p) == 0) {
-    std::printf("FAIL: build profile is empty\n");
-    return 1;
+TEST(VersionTest, BuildProfileIsValid) {
+  const char* profile = tianshu_build_profile();
+  EXPECT_NE(profile, nullptr);
+  EXPECT_GT(std::strlen(profile), 0u);
+
+  const char* known_profiles[] = {"desktop", "server", "vehicle", "embedded", "mcu"};
+  bool found = false;
+  for (const char* p : known_profiles) {
+    if (std::strcmp(profile, p) == 0) {
+      found = true;
+      break;
+    }
   }
-  return 0;
-}
-
-}  // namespace
-
-int main() {
-  int failures = 0;
-  failures += check_version_major();
-  failures += check_version_string();
-  failures += check_build_profile();
-
-  if (failures == 0) {
-    std::printf("PASS: all checks succeeded (version=%s, profile=%s)\n", tianshu_version_string(),
-                tianshu_build_profile());
-    return 0;
-  }
-  std::printf("FAIL: %d check(s) failed\n", failures);
-  return 1;
+  EXPECT_TRUE(found) << "Unknown profile: " << profile;
 }

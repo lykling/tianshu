@@ -17,6 +17,9 @@ module(
 # =============================================================================
 bazel_dep(name = "rules_cc", version = "0.0.17")
 
+# GoogleTest (includes GoogleMock) — build-time only, per ALLOWED_DEPS.txt.
+bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
+
 # =============================================================================
 # Phase 1+ dependencies (placeholder, will be added when needed):
 # =============================================================================

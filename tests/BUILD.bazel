@@ -6,11 +6,12 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 
 package(default_visibility = ["//visibility:public"])
 
-# Phase 0: minimal smoke test (no gtest yet).
-# Phase 1+: replace with cc_test + @googletest dep.
 cc_test(
     name = "hello_test",
     srcs = ["hello_test.cc"],
-    deps = ["//tianshu:tianshu"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
     size = "small",
 )
