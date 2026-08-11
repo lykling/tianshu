@@ -2,7 +2,7 @@
 
 > **文档定位**：按"架构层 → 框架 → 功能点"三级拆解到 issue 粒度，每个功能点可直接入 GitHub Issue。
 > **维护者**：Pride Leong
-> **状态**：v0.1（2026-08）
+> **状态**：v0.1（2026-08） · Phase 0 **完成** · Phase 1 **待启动**
 > **关联**：[00-overview.md](./00-overview.md) · [01-roadmap.md](./01-roadmap.md) · [adr/0001](./adr/0001-dsl-form.md) · [adr/0002](./adr/0002-cyber-relation.md)
 
 ---
@@ -45,6 +45,40 @@
 | **T** | 工具链 | 上层 | L1-L4 |
 
 **自底向上建设顺序**：INFRA → L4 → L1 → L2/L3（并行）→ X → T。
+
+---
+
+## 当前进度
+
+> 更新时间：2026-08-11 · 详见 [CHANGELOG.md](../CHANGELOG.md)
+
+### Phase 完成度
+
+| Phase | 状态 | 完成功能点 | 工作量（点） | 备注 |
+|---|---|---|---|---|
+| **Phase 0** | ✅ **完成** | 见下方清单 | ~30/30 | 双构建系统 + 测试 + CI + 风格规范 |
+| Phase 1 | ⏳ 待启动 | 0/~155 | 0/~155 | L4-PRIM 起点 |
+| Phase 2 | ❌ 未开始 | 0/~210 | 0/~210 | - |
+| Phase 3 | ❌ 未开始 | 0/~290 | 0/~290 | - |
+
+### Phase 0 已完成功能点
+
+| 架构层 | 已完成 ID | 数量 |
+|---|---|---|
+| **INFRA-BUILD** | 1, 3, 4, 7, 8, 9, 11, 15, 16, 18 | 10 |
+| **INFRA-DEPS** | 1, 2 | 2 |
+| **INFRA-PROFILE** | 1, 2 | 2 |
+| **INFRA-CI** | 1, 2, 12 | 3 |
+| **INFRA-TEST** | 1, 2, 3 | 3 |
+| **INFRA-BENCH** | 1 | 1 |
+| **INFRA-DOC** | 1, 3, 7 | 3 |
+| **INFRA-API** | 2, 3, 4 | 3 |
+| **INFRA-LOG** | — (设计完成，实现待 Phase 1) | 0 |
+| **INFRA-PARAM** | — (设计完成，实现待 Phase 1) | 0 |
+| **Library** | version.h/.cc + hello_world + hello_test + version_benchmark | 4 文件 |
+| **ADR** | 0001-0018 | 18 份 |
+| **Evaluation** | 0001-0003 | 3 份 |
+| **合计** | | **~27 功能点** |
 
 > 📌 **轻架构与多端约束**：所有框架设计必须支持 5 个 profile（desktop/server/vehicle/embedded/mcu），详见 [adr/0005](./adr/0005-lightweight-multiplatform.md)。依赖治理（[F-INFRA-DEPS](#f-infra-deps--依赖治理)）、OSAL/HAL 抽象（[F-INFRA-OSAL](#f-infra-osal--os-抽象层) / [F-INFRA-HAL](#f-infra-hal--硬件抽象层)）是横切硬约束。
 
