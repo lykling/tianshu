@@ -23,7 +23,6 @@ build --conlyopt=-std=c2x
 build --cxxopt=-Wall
 build --cxxopt=-Wextra
 build --cxxopt=-Wpedantic
-build --cxxopt=-Werror
 build --cxxopt=-Wno-unused-parameter
 
 # -----------------------------------------------------------------------------

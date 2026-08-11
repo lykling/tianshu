@@ -14,3 +14,12 @@ cc_binary(
         "@google_benchmark//:benchmark",
     ],
 )
+
+cc_binary(
+    name = "object_pool_benchmark",
+    srcs = ["object_pool_benchmark.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@google_benchmark//:benchmark",
+    ],
+)
