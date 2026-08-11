@@ -1,15 +1,9 @@
 # =============================================================================
-# TIANSHU tests CMake build
+# TIANSHU tests CMake build (top-level)
 # =============================================================================
 
 add_executable(hello_test hello_test.cc)
 target_link_libraries(hello_test PRIVATE tianshu GTest::gtest_main)
 gtest_discover_tests(hello_test)
 
-add_executable(object_pool_test object_pool_test.cc)
-target_link_libraries(object_pool_test PRIVATE tianshu GTest::gtest_main)
-gtest_discover_tests(object_pool_test)
-
-add_executable(cache_buffer_test cache_buffer_test.cc)
-target_link_libraries(cache_buffer_test PRIVATE tianshu GTest::gtest_main)
-gtest_discover_tests(cache_buffer_test)
+add_subdirectory(base)

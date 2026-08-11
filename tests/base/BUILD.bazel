@@ -1,5 +1,5 @@
 # =============================================================================
-# TIANSHU tests Bazel build (top-level)
+# TIANSHU tests/base Bazel build
 # =============================================================================
 
 load("@rules_cc//cc:defs.bzl", "cc_test")
@@ -7,8 +7,18 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 package(default_visibility = ["//visibility:public"])
 
 cc_test(
-    name = "hello_test",
-    srcs = ["hello_test.cc"],
+    name = "object_pool_test",
+    srcs = ["object_pool_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)
+
+cc_test(
+    name = "cache_buffer_test",
+    srcs = ["cache_buffer_test.cc"],
     deps = [
         "//tianshu:tianshu",
         "@googletest//:gtest_main",
