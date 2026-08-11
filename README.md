@@ -113,6 +113,7 @@ mainboard 启动时 dry-run 一次 → trace 出全局数据流图 → 六阶段
 - [docs/adr/0016-config-format.md](./docs/adr/0016-config-format.md) — 配置格式选型（TOML 主推 + YAML 兼容 + JSON 导入导出）
 - [docs/adr/0017-license.md](./docs/adr/0017-license.md) — 许可证 Apache-2.0
 - [docs/adr/0018-cpp-style-guide.md](./docs/adr/0018-cpp-style-guide.md) — C++ 风格指南（Google 基础 + clang-format/tidy 强制）
+- [docs/adr/0019-coroutine-strategy.md](./docs/adr/0019-coroutine-strategy.md) — 协程策略（Phase 1 回调调度 / Phase 2 C++20 stackless）
 - [docs/evaluation/0003-console.md](./docs/evaluation/0003-console.md) — 控制台方案评估（独立进程访问任意节点对象，**待用户拍板**，Phase 3）
 
 ## 命名与品牌

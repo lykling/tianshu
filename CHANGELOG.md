@@ -106,6 +106,7 @@ Phase 1 PoC — not yet started.
 | 0016 | Config format: TOML primary + YAML fallback + JSON export |
 | 0017 | License: Apache-2.0 |
 | 0018 | C++ style guide: Google base + clang-format/tidy enforcement |
+| 0019 | Coroutine strategy: Phase 1 callback / Phase 2 C++20 stackless |
 
 ### Verification
 

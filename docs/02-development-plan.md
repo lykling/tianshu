@@ -291,14 +291,14 @@
 
 | ID | 描述 | 依赖 | 优先级 | 估算 | Phase | 验收 |
 |---|---|---|---|---|---|---|
-| L4-CORO-1 | `RoutineContext`（汇编 swap，x86_64 + aarch64） | - | P0 | 4 | 1 | 单架构上下文切换 < 200ns |
-| L4-CORO-2 | `RoutineContext` 起步替代：`ucontext` 版（Phase 1 用） | - | P0 | 1 | 1 | 单测通过 |
-| L4-CORO-3 | `CRoutine`（协程抽象，state + context + fn） | 1 或 2 | P0 | 2 | 1 | Yield/Resume/Stale 单测 |
-| L4-CORO-4 | `RoutineFactory`（包装 component proc 为 CRoutine） | 3 | P0 | 1 | 1 | 与 component 联调通过 |
-| L4-CORO-5 | 协程栈管理（固定栈 vs 共享栈，可配） | 1 | P1 | 2 | 2 | 内存占用可观测 |
-| L4-CORO-6 | 协程级超时（`with_timeout`，强杀） | 3 | P2 | 2 | 3 | 超时协程安全清理 |
-| L4-CORO-7 | MCU profile 禁用协程（纯回调模式，profile 条件编译） | L4-CORO-3, INFRA-PROFILE-2 | P1 | 1 | 2 | `--config=mcu` 时无协程依赖 |
-| L4-CORO-8 | 极简协程变体（基于 setjmp/longjmp，embedded profile 可选） | L4-CORO-2 | P2 | 2 | 3 | embedded profile 跑通 |
+| L4-CORO-1 | `RoutineContext`（汇编 swap，x86_64 + aarch64） | - | ~~P0~~ | 4 | ~~1~~ | **跳过**（ADR-0019） |
+| L4-CORO-2 | `RoutineContext` 起步替代：`ucontext` 版（Phase 1 用） | - | ~~P0~~ | 1 | ~~1~~ | **跳过**（ADR-0019） |
+| L4-CORO-3 | `CRoutine`（协程抽象，state + context + fn） | 1 或 2 | ~~P0~~ | 2 | ~~1~~ | **跳过**（ADR-0019） |
+| L4-CORO-4 | `RoutineFactory`（包装 component proc 为 CRoutine） | 3 | ~~P0~~ | 1 | ~~1~~ | **跳过**（ADR-0019） |
+| L4-CORO-5 | 协程栈管理（固定栈 vs 共享栈，可配） | 1 | P2 | 2 | 2 | Phase 2 C++20 协程按需评估 |
+| L4-CORO-6 | 协程级超时（`with_timeout`，强杀） | 3 | P2 | 2 | 3 | Phase 2 按需 |
+| L4-CORO-7 | MCU profile 禁用协程（纯回调模式，profile 条件编译） | L4-CORO-3, INFRA-PROFILE-2 | ~~P1~~ | 1 | ~~2~~ | **不需要**（Phase 1 本来无协程，ADR-0019） |
+| L4-CORO-8 | 极简协程变体（基于 setjmp/longjmp，embedded profile 可选） | L4-CORO-2 | P2 | 2 | 3 | Phase 3 按需 |
 
 ### F-L4-SCHED · 调度器
 
