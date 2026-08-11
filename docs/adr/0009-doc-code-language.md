@@ -148,7 +148,7 @@
 所有 C++ 文件必须有英文版权 + 简短说明：
 
 ```cpp
-// Copyright 2026 The TIANSHU Team. All Rights Reserved.
+// Copyright 2026 Pride Leong.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

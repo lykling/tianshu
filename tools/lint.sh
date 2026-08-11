@@ -31,7 +31,7 @@ FILES=$(find tianshu tests examples \
     -type f \( -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) 2>/dev/null || true)
 
 for f in ${FILES}; do
-    if ! head -3 "${f}" | grep -q "Copyright 2026 The TIANSHU Team"; then
+    if ! head -3 "${f}" | grep -q "Copyright 2026"; then
         echo "[lint] FAIL: missing license header: ${f}"
         FAILED=1
     fi

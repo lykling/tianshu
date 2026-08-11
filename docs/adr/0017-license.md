@@ -49,7 +49,7 @@ tianshu/
 
 ```
 TIANSHU
-Copyright 2026 The TIANSHU Team. All Rights Reserved.
+Copyright 2026 Pride Leong.
 
 This product includes software developed by the TIANSHU project
 (https://github.com/lykling/tianshu).
@@ -70,7 +70,7 @@ This product includes software developed by:
 所有源码文件必须有英文版权头（与 [ADR-0009](./0009-doc-code-language.md) 协同）：
 
 ```cpp
-// Copyright 2026 The TIANSHU Team. All Rights Reserved.
+// Copyright 2026 Pride Leong.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -90,7 +90,7 @@ This product includes software developed by:
 每份文档（双语版本）顶部加：
 
 ```markdown
-> Copyright 2026 The TIANSHU Team. All Rights Reserved.
+> Copyright 2026 Pride Leong.
 > Licensed under the Apache License, Version 2.0.
 ```
 
