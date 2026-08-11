@@ -19,6 +19,7 @@ cc_library(
         "include/tianshu/base/rw_lock.h",
         "include/tianshu/base/spin_lock.h",
         "include/tianshu/base/sync.h",
+        "include/tianshu/sched/scheduler.h",
         "include/tianshu/version.h",
     ],
     # Public include path: <tianshu/*.h> maps to include/tianshu/*.h

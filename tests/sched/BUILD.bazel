@@ -1,5 +1,5 @@
 # =============================================================================
-# TIANSHU tests Bazel build (top-level)
+# TIANSHU tests/sched Bazel build
 # =============================================================================
 
 load("@rules_cc//cc:defs.bzl", "cc_test")
@@ -7,14 +7,11 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 package(default_visibility = ["//visibility:public"])
 
 cc_test(
-    name = "hello_test",
-    srcs = ["hello_test.cc"],
+    name = "scheduler_test",
+    srcs = ["scheduler_test.cc"],
     deps = [
         "//tianshu:tianshu",
         "@googletest//:gtest_main",
     ],
     size = "small",
 )
-
-# Subdirectories have their own BUILD.bazel files.
-# Bazel discovers them automatically via //...

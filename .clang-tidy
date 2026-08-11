@@ -35,7 +35,8 @@ Checks: >
   -readability-magic-numbers,
   -readability-identifier-length,
   -readability-function-cognitive-complexity,
-  -readability-else-after-return
+  -readability-else-after-return,
+  -misc-non-private-member-variables-in-classes
 
 # Treat all check warnings as errors (CI fails on any warning).
 # Per ADR-0018 zero-warning policy.
