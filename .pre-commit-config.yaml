@@ -1,0 +1,63 @@
+# =============================================================================
+# TIANSHU Pre-commit Hooks
+# =============================================================================
+#
+# Install:
+#   pip install pre-commit
+#   pre-commit install
+#   pre-commit install --hook-type commit-msg
+#
+# Per ADR-0004 (no wrap), ADR-0009 (English comments + commits),
+# ADR-0017 (license headers), ADR-0018 (C++ style).
+
+minimum_pre_commit_version: 3.7.0
+
+repos:
+  # ---------------------------------------------------------------------------
+  # Generic code quality
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-symlinks
+
+  # ---------------------------------------------------------------------------
+  # Conventional Commits (commit-msg hook, per ADR-0009)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.0.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert]
+
+  # ---------------------------------------------------------------------------
+  # Local hooks (project-specific checks via tools/)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      # clang-format (per ADR-0018)
+      - id: clang-format
+        name: clang-format
+        entry: ./tools/format.sh --check
+        language: system
+        files: \.(cc|cpp|h|hpp)$
+        pass_filenames: false
+
+      # License + no-wrap + no-chinese-comments (per ADR-0004/0009/0017)
+      - id: tianshu-lint
+        name: tianshu lint (license + wrap-guard + language)
+        entry: ./tools/lint.sh
+        language: system
+        pass_filenames: false

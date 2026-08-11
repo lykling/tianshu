@@ -16,9 +16,13 @@ module(
 # Phase 0: rules_cc required by Bazel 9+ for cc_library / cc_binary rules.
 # =============================================================================
 bazel_dep(name = "rules_cc", version = "0.0.17")
+bazel_dep(name = "rules_python", version = "2.2.0")
 
 # GoogleTest (includes GoogleMock) — build-time only, per ALLOWED_DEPS.txt.
 bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
+
+# GoogleBenchmark — build-time only, per ALLOWED_DEPS.txt.
+bazel_dep(name = "google_benchmark", version = "1.9.5")
 
 # =============================================================================
 # Phase 1+ dependencies (placeholder, will be added when needed):

@@ -811,4 +811,3 @@ INFRA-BUILD-* → L4-PRIM → L4-TRANS → L4-CORE → L1-DSL → L1-TRACE → L
 | 0023 | 国产 NPU adapter（华为昇腾 vs 地平线 BPU vs 寒武纪） | INFRA-HAL-7 启动前（按需） |
 | 0024 | 多语言 SDK 绑定技术 v1（pybind11 / cxx / cgo / napi-rs 具体方案） | INFRA-API-8 启动前 |
 | 0025 | 第三方依赖白名单 v1（首批 10-20 条具体库：Zenoh / Protobuf / FlatBuffers / nlohmann/json / yaml-cpp / toml++ 等） | Phase 0 内定 |
-

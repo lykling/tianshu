@@ -194,12 +194,12 @@ class offset_ptr {
  public:
   offset_ptr() : offset_(0) {}
   offset_ptr(T* p) : offset_(reinterpret_cast<char*>(p) - reinterpret_cast<char*>(this)) {}
-  
+
   T* get() const { return reinterpret_cast<T*>(reinterpret_cast<char*>(const_cast<offset_ptr*>(this)) + offset_); }
   T* operator->() const { return get(); }
   T& operator*() const { return *get(); }
   explicit operator bool() const { return offset_ != 0; }
-  
+
  private:
   intptr_t offset_;  // 相对偏移
 };

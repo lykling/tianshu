@@ -12,29 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef TIANSHU_INCLUDE_TIANSHU_VERSION_H_
-#define TIANSHU_INCLUDE_TIANSHU_VERSION_H_
+// TIANSHU version info (C ABI-safe, per ADR-0007).
 
-// =============================================================================
-// TIANSHU version info (C ABI-safe, per ADR-0007)
-// =============================================================================
+#pragma once
 
 #include <cstdint>
 
-// Macros form (compile-time usable in static_assert / preprocessor)
+// Version macros (compile-time usable in static_assert / preprocessor).
+// NOLINTBEGIN(modernize-macro-to-enum): must be macros for C preprocessor.
 #define TIANSHU_VERSION_MAJOR 0
 #define TIANSHU_VERSION_MINOR 1
 #define TIANSHU_VERSION_PATCH 0
 #define TIANSHU_VERSION_STRING "0.1.0"
+// NOLINTEND(modernize-macro-to-enum)
 
-// Compile-time profile (set via build system, per ADR-0005)
+// Compile-time profile (set via build system, per ADR-0005).
 // Exactly one of the following is defined to 1:
 //   TIANSHU_PROFILE_DESKTOP / TIANSHU_PROFILE_SERVER / TIANSHU_PROFILE_VEHICLE
 //   TIANSHU_PROFILE_EMBEDDED / TIANSHU_PROFILE_MCU
 // Default (if none set) is TIANSHU_PROFILE_DESKTOP.
-#if !defined(TIANSHU_PROFILE_DESKTOP) && !defined(TIANSHU_PROFILE_SERVER) &&   \
-    !defined(TIANSHU_PROFILE_VEHICLE) && !defined(TIANSHU_PROFILE_EMBEDDED) && \
-    !defined(TIANSHU_PROFILE_MCU)
+// Uses arithmetic sum trick: defined(X) returns 0 or 1 in preprocessor.
+#if defined(TIANSHU_PROFILE_DESKTOP) + defined(TIANSHU_PROFILE_SERVER) +       \
+        defined(TIANSHU_PROFILE_VEHICLE) + defined(TIANSHU_PROFILE_EMBEDDED) + \
+        defined(TIANSHU_PROFILE_MCU) ==                                        \
+    0
 #define TIANSHU_PROFILE_DESKTOP 1
 #endif
 
@@ -60,5 +61,3 @@ const char* tianshu_build_profile(void);
 #ifdef __cplusplus
 }  // extern "C"
 #endif
-
-#endif  // TIANSHU_INCLUDE_TIANSHU_VERSION_H_

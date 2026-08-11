@@ -74,6 +74,10 @@ CheckOptions:
     value: UPPER_CASE
   - key: readability-identifier-naming.ConstexprVariableCase
     value: UPPER_CASE
+  - key: readability-identifier-naming.LocalConstantCase
+    value: lower_case
+  - key: readability-identifier-naming.LocalConstantPrefix
+    value: ''
   - key: readability-identifier-naming.MemberCase
     value: lower_case
   - key: readability-identifier-naming.PrivateMemberSuffix

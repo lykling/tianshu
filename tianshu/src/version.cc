@@ -17,6 +17,8 @@
 
 #include "tianshu/version.h"
 
+#include <cstdint>
+
 int32_t tianshu_version_major(void) { return TIANSHU_VERSION_MAJOR; }
 
 int32_t tianshu_version_minor(void) { return TIANSHU_VERSION_MINOR; }
@@ -26,7 +28,7 @@ int32_t tianshu_version_patch(void) { return TIANSHU_VERSION_PATCH; }
 const char* tianshu_version_string(void) { return TIANSHU_VERSION_STRING; }
 
 const char* tianshu_build_profile(void) {
-#if defined(TIANSHU_PROFILE_DESKTOP)
+#ifdef TIANSHU_PROFILE_DESKTOP
   return "desktop";
 #elif defined(TIANSHU_PROFILE_SERVER)
   return "server";

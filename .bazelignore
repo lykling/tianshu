@@ -1,0 +1,3 @@
+# Bazel ignores these directories (per ADR-0003 dual build system)
+# CMake build outputs (contains third-party BUILD files from FetchContent)
+build/

@@ -30,19 +30,18 @@ TEST(VersionTest, PatchMatchesMacro) { EXPECT_EQ(tianshu_version_patch(), TIANSH
 TEST(VersionTest, StringMatchesMacro) {
   EXPECT_STREQ(tianshu_version_string(), TIANSHU_VERSION_STRING);
 }
-
 TEST(VersionTest, StringContainsVersionNumbers) {
   const char* version = tianshu_version_string();
   EXPECT_NE(version, nullptr);
-  EXPECT_GT(std::strlen(version), 0u);
+  EXPECT_GT(std::strlen(version), 0U);
 }
 
 TEST(VersionTest, BuildProfileIsValid) {
   const char* profile = tianshu_build_profile();
   EXPECT_NE(profile, nullptr);
-  EXPECT_GT(std::strlen(profile), 0u);
+  EXPECT_GT(std::strlen(profile), 0U);
 
-  const char* known_profiles[] = {"desktop", "server", "vehicle", "embedded", "mcu"};
+  const char* const known_profiles[] = {"desktop", "server", "vehicle", "embedded", "mcu"};
   bool found = false;
   for (const char* p : known_profiles) {
     if (std::strcmp(profile, p) == 0) {

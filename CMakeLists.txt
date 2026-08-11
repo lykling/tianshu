@@ -187,12 +187,37 @@ if(TIANSHU_BUILD_TESTS)
     include(GoogleTest)
 endif()
 
+option(TIANSHU_BUILD_BENCHMARKS "Build benchmarks (requires GoogleBenchmark)" ON)
+if(TIANSHU_BUILD_BENCHMARKS)
+    if(NOT googletest_SOURCE_DIR)
+        include(FetchContent)
+    endif()
+    FetchContent_Declare(
+        googlebenchmark
+        GIT_REPOSITORY https://github.com/google/benchmark.git
+        GIT_TAG v1.9.0
+    )
+    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googlebenchmark)
+endif()
+
+# Third-party libraries should not be held to our -Werror standard.
+foreach(_target benchmark gtest gtest_main gmock gmock_main)
+    if(TARGET ${_target})
+        target_compile_options(${_target} PRIVATE -Wno-error)
+    endif()
+endforeach()
+
 # -----------------------------------------------------------------------------
 # Subdirectories
 # -----------------------------------------------------------------------------
 add_subdirectory(tianshu)
 add_subdirectory(examples)
 add_subdirectory(tests)
+if(TIANSHU_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif()
 
 # -----------------------------------------------------------------------------
 # Install rules (Phase 2+: pkg-config and find_package)
