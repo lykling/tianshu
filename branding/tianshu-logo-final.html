@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>天枢 TIANSHU · 最终 Logo 资产</title>
+<style>
+  :root {
+    --bg: #f5efe0;
+    --panel: rgba(255,255,255,0.7);
+    --panel-dark: #0d1424;
+    --ink: #1a1410;
+    --muted: rgba(26,20,16,0.55);
+    --border: rgba(26,20,16,0.1);
+    --gold: #c9a961;
+  }
+  body.dark {
+    --bg: #0a0e1f;
+    --panel: rgba(255,255,255,0.04);
+    --ink: #ede4d0;
+    --muted: rgba(237,228,208,0.55);
+    --border: rgba(201,169,97,0.2);
+  }
+  body {
+    margin: 0; padding: 40px 24px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Songti SC", "STSong", "Noto Serif CJK SC", Georgia, serif;
+    transition: background 0.3s, color 0.3s;
+  }
+  .toggle {
+    position: fixed; top: 20px; right: 20px;
+    padding: 8px 16px; cursor: pointer;
+    background: var(--ink); color: var(--bg);
+    border: none; border-radius: 2px;
+    font-family: inherit; font-size: 13px;
+  }
+  h1 {
+    font-weight: 500; letter-spacing: 12px;
+    text-align: center; margin: 0 0 4px;
+    font-size: 28px;
+  }
+  .subtitle {
+    text-align: center; opacity: 0.65; font-size: 12px;
+    letter-spacing: 5px; margin-bottom: 8px;
+    font-family: Georgia, serif;
+  }
+  .tagline {
+    text-align: center; opacity: 0.5; font-size: 12px;
+    letter-spacing: 2px; margin-bottom: 50px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 30px;
+    max-width: 1400px;
+    margin: 0 auto 50px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 28px 24px;
+    border-radius: 2px;
+    text-align: center;
+  }
+  .card h2 {
+    font-weight: 500; font-size: 15px;
+    letter-spacing: 5px; margin: 0 0 4px;
+  }
+  .card .pinyin {
+    font-size: 10px; letter-spacing: 3px;
+    opacity: 0.55;
+    font-family: Georgia, serif;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .card .desc {
+    margin-top: 16px;
+    font-size: 11px;
+    line-height: 1.7;
+    opacity: 0.7;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+  .card .use-case {
+    margin-top: 8px;
+    font-size: 10px; opacity: 0.55;
+    font-family: "Courier New", monospace;
+  }
+  .card img {
+    display: block; margin: 0 auto;
+    max-width: 100%; height: auto;
+  }
+  .logo-frame {
+    width: 280px; height: 280px;
+    margin: 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px;
+  }
+  .logo-frame.light-bg { background: #fff; color: #1a1410; }
+  .logo-frame.dark-bg { background: #0d1424; color: #ede4d0; }
+  .logo-frame.gold-bg { background: linear-gradient(135deg, #1a2a55, #070b1f); }
+  .logo-frame.transparent {
+    background:
+      linear-gradient(45deg, rgba(128,128,128,0.15) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(128,128,128,0.15) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgba(128,128,128,0.15) 75%),
+      linear-gradient(-45deg, transparent 75%, rgba(128,128,128,0.15) 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  }
+  .fav-row {
+    display: flex; gap: 20px; justify-content: center;
+    align-items: flex-end; margin-top: 10px;
+  }
+  .fav-row > div { text-align: center; }
+  .fav-row img { display: block; margin: 0 auto; }
+  .fav-row .label {
+    font-size: 10px; opacity: 0.6;
+    margin-top: 6px;
+    font-family: "Courier New", monospace;
+  }
+
+  h2.section-title {
+    text-align: center; font-weight: 500;
+    font-size: 18px; letter-spacing: 4px;
+    margin: 60px 0 30px;
+    opacity: 0.7;
+  }
+  .usage {
+    max-width: 800px; margin: 0 auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 24px 32px;
+    font-family: "Courier New", monospace;
+    font-size: 12px; line-height: 1.7;
+    overflow-x: auto;
+  }
+  .usage code {
+    background: rgba(201,169,97,0.15);
+    padding: 1px 6px; border-radius: 2px;
+    color: var(--gold);
+  }
+  .footer {
+    margin-top: 60px; text-align: center;
+    font-size: 11px; opacity: 0.4;
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body class="dark">
+<button class="toggle" onclick="document.body.classList.toggle('dark')">明 / 暗</button>
+
+<h1>天 ✦ 枢</h1>
+<div class="subtitle">TIANSHU · FINAL LOGO ASSETS</div>
+<div class="tagline">北斗第一星 · 天道之枢纽</div>
+
+<h2 class="section-title">主 Logo · 古星图方向</h2>
+<div class="grid">
+
+  <div class="card">
+    <h2>古星图 · 彩色版</h2>
+    <div class="pinyin">Starchart Color</div>
+    <div class="logo-frame gold-bg">
+      <img src="./assets/tianshu-starchart-color.svg" width="260" height="260" alt="天枢彩色 logo">
+    </div>
+    <div class="desc">
+      <strong>夜空圆盘 + 鎏金北斗 + 天枢高亮</strong><br/>
+      24 节气刻度环 + 北极指示虚线
+    </div>
+    <div class="use-case">→ README hero / 项目主页 / 文档封面</div>
+  </div>
+
+  <div class="card">
+    <h2>古星图 · 单色版</h2>
+    <div class="pinyin">Starchart Monochrome</div>
+    <div class="logo-frame dark-bg">
+      <img src="./assets/tianshu-starchart-mono.svg" width="260" height="260" alt="天枢单色 logo" style="color: #ede4d0;">
+    </div>
+    <div class="desc">
+      <strong>纯线条 + currentColor 自适应</strong><br/>
+      透明背景，可染色用于任何介质
+    </div>
+    <div class="use-case">→ 印章 / 烫金 / 单色印刷 / 深色背景</div>
+  </div>
+
+</div>
+
+<h2 class="section-title">辅 Logo · 极简几何方向</h2>
+<div class="grid">
+
+  <div class="card">
+    <h2>极简几何 · 彩色版</h2>
+    <div class="pinyin">Geometric Color</div>
+    <div class="logo-frame transparent">
+      <img src="./assets/tianshu-geometric-color.svg" width="260" height="260" alt="天枢极简彩色">
+    </div>
+    <div class="desc">
+      <strong>透明背景 + 鎏金渐变</strong><br/>
+      北斗七星简化为 DAG 拓扑
+    </div>
+    <div class="use-case">→ 文档 logo / 头像 / 卡片 / 名片</div>
+  </div>
+
+  <div class="card">
+    <h2>极简几何 · 单色版</h2>
+    <div class="pinyin">Geometric Monochrome</div>
+    <div class="logo-frame light-bg">
+      <img src="./assets/tianshu-geometric-mono.svg" width="260" height="260" alt="天枢极简单色" style="color: #1a1410;">
+    </div>
+    <div class="desc">
+      <strong>纯黑/白线条 + currentColor</strong><br/>
+      最小可识别版本，适合各种尺寸
+    </div>
+    <div class="use-case">→ 文档水印 / 单色印刷 / 演示文稿</div>
+  </div>
+
+</div>
+
+<h2 class="section-title">Favicon · 多尺寸演示</h2>
+<div class="grid">
+  <div class="card">
+    <h2>Favicon</h2>
+    <div class="pinyin">Browser Tab · 16 / 32 / 64</div>
+    <div class="logo-frame dark-bg">
+      <div class="fav-row">
+        <div>
+          <img src="./assets/tianshu-favicon.svg" width="64" height="64" alt="favicon 64" style="background:#0d1424; border-radius:4px;">
+          <div class="label">64px</div>
+        </div>
+        <div>
+          <img src="./assets/tianshu-favicon.svg" width="32" height="32" alt="favicon 32" style="background:#0d1424; border-radius:2px;">
+          <div class="label">32px</div>
+        </div>
+        <div>
+          <img src="./assets/tianshu-favicon.svg" width="16" height="16" alt="favicon 16" style="background:#0d1424; border-radius:1px;">
+          <div class="label">16px</div>
+        </div>
+      </div>
+    </div>
+    <div class="desc">
+      <strong>极简到 16×16 仍可识别</strong><br/>
+      仅保留北斗七星 + 天枢高亮
+    </div>
+    <div class="use-case">→ 浏览器标签 / app icon / pin</div>
+  </div>
+</div>
+
+<h2 class="section-title">使用方式</h2>
+<div class="usage">
+<pre>
+# 文件位置
+
+
+# 在 HTML 中使用
+&lt;img src=&quot;assets/tianshu-starchart-color.svg&quot; width=&quot;280&quot; alt=&quot;天枢&quot;&gt;
+
+# 单色版染色（通过 CSS color）
+&lt;img src=&quot;assets/tianshu-starchart-mono.svg&quot; style=&quot;color: #fff;&quot;&gt;
+&lt;img src=&quot;assets/tianshu-starchart-mono.svg&quot; style=&quot;color: #b8302d;&quot;&gt;  &lt;!-- 朱砂红印章 --&gt;
+&lt;img src=&quot;assets/tianshu-starchart-mono.svg&quot; style=&quot;color: #c9a961;&quot;&gt;  &lt;!-- 鎏金 --&gt;
+
+# 内嵌 SVG（推荐用于文档/网页，可被 CSS 控制）
+&lt;object data=&quot;assets/tianshu-starchart-color.svg&quot; type=&quot;image/svg+xml&quot;&gt;&lt;/object&gt;
+
+# Favicon (放在站点根目录)
+&lt;link rel=&quot;icon&quot; type=&quot;image/svg+xml&quot; href=&quot;/tianshu-favicon.svg&quot;&gt;
+
+# Markdown 引用
+![天枢](assets/tianshu-geometric-color.svg)
+</pre>
+</div>
+
+<div class="footer">
+  天枢 TIANSHU · α Ursae Majoris · Final Logo Assets · 2026
+</div>
+
+</body>
+</html>

@@ -1,0 +1,53 @@
+# C++ / CMake / IDE 通用忽略
+build/
+cmake-build-*/
+out/
+*.o
+*.obj
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.a
+*.lib
+*.pyc
+__pycache__/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Bazel（即使主用 CMake 也兼容）
+bazel-*
+.cache/
+
+# 工具产物
+compile_commands.json
+*.pdb
+*.ilk
+coverage/
+*.gcno
+*.gcda
+valgrind-out.*
+
+# 本地开发临时
+.scratch/
+tmp/
+local_notes.md
+
+# OpenCode 内部
+.omo/
+.opencode/
+
+# Codegraph 索引
+.codegraph
+.codegraph -> *
+
+# 不忽略
+!branding/assets/*.svg
+!docs/**/*.md
