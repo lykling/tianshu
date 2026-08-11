@@ -25,3 +25,33 @@ cc_test(
     ],
     size = "small",
 )
+
+cc_test(
+    name = "spin_lock_test",
+    srcs = ["spin_lock_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)
+
+cc_test(
+    name = "rw_lock_test",
+    srcs = ["rw_lock_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)
+
+cc_test(
+    name = "sync_test",
+    srcs = ["sync_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)
