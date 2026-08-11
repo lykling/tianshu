@@ -210,3 +210,98 @@ session.trigger_replay("/perception/front", start_seq=1000, end_seq=2000)
 - 如果 Web UI 强需求 → 加 Grafana 集成（Prometheus exporter）
 - 如果 OTel 强需求 → 适配 OpenTelemetry Logs/Traces/Metrics API
 - 如果车端场景强需求 → 加 OTA 集成（远程升级 + 控制台确认）
+
+## 附录：对象追踪设计（TraceRegistry）
+
+### 原则：外部注册表，不做 Traceable 基类
+
+控制台需要"列出所有活跃对象 + 检查状态"。不通过继承 `Traceable` 基类实现，
+而是用**外部 TraceRegistry**（注册表模式）。
+
+### 方案选型
+
+| 方案 | 开销 | POD 兼容 | SHM 兼容 | 评价 |
+|---|---|---|---|---|
+| ❌ Traceable 基类（vtable） | 每实例 +8B vtable | ❌ 破坏 POD | ❌ vtable 跨进程不安全 | 反模式 |
+| ✅ 外部 TraceRegistry | 追踪关闭时零开销 | ✅ | ✅ | 与 lineage 设计一致 |
+
+### 设计
+
+```cpp
+namespace tianshu::trace {
+
+struct ObjectMeta {
+  uint64_t id;
+  std::string_view type_name;
+  void* ptr;
+  std::chrono::steady_clock::time_point created;
+};
+
+class TraceRegistry {
+ public:
+  static TraceRegistry& instance();
+
+  // 追踪开关（默认 OFF，零开销）
+  bool is_enabled() const;
+  void set_enabled(bool on);
+
+  // 注册/注销（只在 enabled 时有开销）
+  uint64_t register_object(void* ptr, std::string_view type);
+  void unregister_object(uint64_t id);
+
+  // 查询（控制台用）
+  std::vector<ObjectMeta> list_all() const;
+  std::vector<ObjectMeta> list_by_type(std::string_view type) const;
+};
+
+// RAII 自动注册/注销
+class ScopedTrace {
+ public:
+  ScopedTrace(void* ptr, std::string_view type);
+  ~ScopedTrace();
+};
+
+}  // namespace tianshu::trace
+```
+
+### 用法
+
+```cpp
+template <MessageConcept TMsg>
+class Reader {
+ public:
+  Reader(...) {
+    if (trace::TraceRegistry::instance().is_enabled()) {
+      trace_ = std::make_unique<trace::ScopedTrace>(this, "Reader<...>");
+    }
+  }
+ private:
+  std::unique_ptr<trace::ScopedTrace> trace_;  // disabled 时 nullptr
+};
+```
+
+### 为什么不做 Traceable 基类
+
+1. **零开销原则**：vtable 每实例 +8B，对高频对象（每帧消息）不可接受
+2. **POD 兼容**：ADR-0008 POD 消息不能用虚函数表
+3. **SHM 兼容**：vtable 指针跨进程不安全（指向不同进程的 .rodata）
+4. **编译期开关**：TraceRegistry 可以完全编译掉（`#ifdef TIANSHU_ENABLE_TRACING`），
+   Traceable 基类无法编译掉
+5. **与 lineage 一致**：L2-LIN 血缘也是外部追踪，不是侵入式
+
+### 与 lineage 的关系
+
+| 系统 | 追踪什么 | 粒度 |
+|---|---|---|
+| TraceRegistry | 对象实例（哪个 Reader 存在、谁创建的） | 对象级 |
+| L2-LIN 血缘 | 消息流（每条消息从哪来、到哪去） | 消息级 |
+
+控制台同时查询两者。
+
+### 实现时序
+
+| Phase | 做什么 |
+|---|---|
+| Phase 0/1 | **不实现**。ObjectPool/CacheBuffer/Node 正常写，不加追踪代码 |
+| Phase 2 | 实现 TraceRegistry + 在 Node/Reader/Writer 加 `ScopedTrace` |
+| Phase 3 | 控制台通过 TraceRegistry 查询对象 |

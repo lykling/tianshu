@@ -25,3 +25,13 @@ cc_test(
     ],
     size = "small",
 )
+
+cc_test(
+    name = "cache_buffer_test",
+    srcs = ["cache_buffer_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)

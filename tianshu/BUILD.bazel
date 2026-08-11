@@ -13,6 +13,7 @@ cc_library(
     name = "tianshu",
     srcs = ["src/version.cc"],
     hdrs = [
+        "include/tianshu/base/cache_buffer.h",
         "include/tianshu/base/object_pool.h",
         "include/tianshu/version.h",
     ],

@@ -377,6 +377,48 @@ tianshu_status_t tianshu_transport_create_writer(
 - 如果未来 SHM allocator 需求复杂 → 引入更先进的 allocator（如 mimalloc / jemalloc SHM 版本）
 - 如果未来 offset_ptr 自研不够用 → 退回 Boost.Interprocess（已评估可单 header 提取）
 
+## 附录：基础类 SHM 兼容策略
+
+### 原则：统一在分配器层解决，不在每个类上加 SHM 变体
+
+ObjectPool / CacheBuffer / AtomicHashMap 等基础类**不感知 SHM**。
+SHM 兼容通过以下机制实现：
+
+1. **Index-based free-list（ObjectPool 已采用）**：内部用 index 而非指针管理 free-list，
+   天然跨进程安全。不需要 `offset_ptr`。
+
+2. **外部内存构造**：基础类提供"接收外部内存"的构造函数，由 ShmPool 分配后传入：
+
+```cpp
+// 当前（堆分配）
+ObjectPool<T> pool(1024);
+
+// 未来（SHM 分配，同一套代码）
+void* mem = shm_pool.allocate(1024 * sizeof(ObjectPool<T>::Slot));
+ObjectPool<T> pool(mem, 1024);
+```
+
+3. **`std::atomic` 跨进程安全**：x86/ARM 硬件保证 cache-coherent atomic 跨进程可见。
+   C++ 标准标记为 implementation-defined，但 GCC/Clang 实现依赖硬件保证。
+   实践中安全（Phase 2 加运行期检测注释）。
+
+### 各基础类的 SHM 兼容方式
+
+| 类 | 需要改什么 | SHM 变体？ | 原因 |
+|---|---|---|---|
+| ObjectPool<T> | 加 1 个外部内存构造函数 | ❌ 不需要 | Index-based free-list 已跨进程安全 |
+| CacheBuffer<T> | 加 1 个外部内存构造函数 | ❌ 不需要 | 环形 buffer 用 index 头尾指针 |
+| AtomicHashMap<K,V> | 加 1 个外部内存构造函数 | ❌ 不需要 | 开放寻址 + atomic CAS，index-based |
+| AtomicRWLock | 不需要改 | ❌ 不需要 | 基于 atomic flag，无指针 |
+| SpinLock / TicketLock | 不需要改 | ❌ 不需要 | 纯 atomic 整数 |
+| BlockingCounter | 不需要改 | ❌ 不需要 | atomic + futex/eventfd |
+| ShmPool | - | ✅ 它本身就是 SHM 层 | 4 池策略 + offset_ptr 支持 |
+
+### Phase 1 落地
+
+Phase 1 写基础类时**只写堆版本**（`new[]` 内部分配），SHM 兼容构造函数在 Phase 2
+（ShmPool 实现后）统一加。这样 Phase 1 不引入 SHM 依赖，保持简单。
+
 ## 参考
 
 - Boost.Interprocess: https://www.boost.org/doc/libs/release/doc/html/interprocess.html
