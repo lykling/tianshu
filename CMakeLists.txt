@@ -34,8 +34,20 @@ project(tianshu
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Cache FetchContent downloads outside build/ so rm -rf build/ doesn't re-clone.
-set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/.cache/fetchcontent")
+# Cache FetchContent source outside build/ so rm -rf build/ doesn't re-clone.
+# Build artifacts stay in build/ (cleaned with rm -rf).
+# Only -src/ dirs persist in .cache/; -build/ and -subbuild/ go to build/.
+set(_fc_src_cache "${CMAKE_SOURCE_DIR}/.cache/fetchcontent")
+
+function(tianshu_fetchcontent_declare name url tag)
+  fetchcontent_declare(
+    ${name}
+    GIT_REPOSITORY ${url}
+    GIT_TAG ${tag}
+    SOURCE_DIR "${_fc_src_cache}/${name}-src"
+    BINARY_DIR "${CMAKE_BINARY_DIR}/_deps/${name}-build"
+  )
+endfunction()
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)  # Disable C++ modules (phase 0 simplicity)
 
@@ -179,10 +191,10 @@ enable_testing()
 option(TIANSHU_BUILD_TESTS "Build unit tests (requires GoogleTest)" ON)
 if(TIANSHU_BUILD_TESTS)
     include(FetchContent)
-    FetchContent_Declare(
+    tianshu_fetchcontent_declare(
         googletest
-        GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG v1.17.0
+        https://github.com/google/googletest.git
+        v1.17.0
     )
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
@@ -195,10 +207,10 @@ if(TIANSHU_BUILD_BENCHMARKS)
     if(NOT googletest_SOURCE_DIR)
         include(FetchContent)
     endif()
-    FetchContent_Declare(
+    tianshu_fetchcontent_declare(
         googlebenchmark
-        GIT_REPOSITORY https://github.com/google/benchmark.git
-        GIT_TAG v1.9.0
+        https://github.com/google/benchmark.git
+        v1.9.0
     )
     set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
     set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
