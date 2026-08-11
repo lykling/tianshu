@@ -1,0 +1,115 @@
+# =============================================================================
+# TIANSHU Bazel Configuration
+# =============================================================================
+#
+# This is the canonical Bazel configuration. Per ADR-0004, all build entry
+# points must use the native `bazel` command. Scenario overrides go through
+# `--config=<name>` flags defined below.
+#
+# References:
+#   - ADR-0003: Build system dual-track (CMake + Bazel)
+#   - ADR-0004: Build entry standardization (no wrap scripts)
+#   - ADR-0005: Lightweight multi-platform architecture
+
+# -----------------------------------------------------------------------------
+# Common defaults
+# -----------------------------------------------------------------------------
+# Per ADR-0003, Bazel 7+ uses Bzlmod (MODULE.bazel) for dependency management.
+# WORKSPACE is deprecated and kept only as an empty placeholder for compat.
+common --enable_bzlmod
+
+build --cxxopt=-std=c++20
+build --conlyopt=-std=c2x
+build --cxxopt=-Wall
+build --cxxopt=-Wextra
+build --cxxopt=-Wpedantic
+build --cxxopt=-Werror
+build --cxxopt=-Wno-unused-parameter
+
+# -----------------------------------------------------------------------------
+# Linker selection
+# -----------------------------------------------------------------------------
+# Bazel 9 + rules_cc 0.0.17 emits `--start-lib` / `--end-lib` flags for
+# cc_library archives. The linker MUST support these flags:
+#   - lld (any modern version) ✅
+#   - GNU ld.bfd >= 2.26 (most distros) ✅
+#   - Gentoo binutils (compiled with --start-lib disabled) ❌ - use lld
+#
+# We do NOT hard-code the linker here. Two options:
+#
+# 1. If your system default ld supports --start-lib (most distros), do nothing.
+#
+# 2. If you need lld (e.g., Gentoo), ensure lld is in your shell PATH
+#    (e.g., /usr/lib/llvm/<ver>/bin), then enable lld explicitly:
+#       bazel build //... --config=lld
+#    Or set in .bazelrc.local:
+#       build --linkopt=-fuse-ld=lld
+#       build --action_env=PATH=<your-path-with-llvm-bin>
+#
+# Note: Bazel intentionally uses a hermetic PATH (/bin:/usr/bin:/usr/local/bin)
+# for build reproducibility. Machine-specific PATH extensions go to
+# .bazelrc.local (per ADR-0004), which is gitignored.
+
+build:lld --linkopt=-fuse-ld=lld
+build:bfd --linkopt=-fuse-ld=bfd
+
+# Action cache (persistent)
+build --disk_cache=%workspace%/.bazel/cache
+
+# -----------------------------------------------------------------------------
+# Profile configs (mutually exclusive, select one)
+# -----------------------------------------------------------------------------
+build:desktop --copt=-DTIANSHU_PROFILE_DESKTOP
+build:server   --copt=-DTIANSHU_PROFILE_SERVER
+build:vehicle  --copt=-DTIANSHU_PROFILE_VEHICLE
+build:embedded --copt=-DTIANSHU_PROFILE_EMBEDDED
+build:mcu      --copt=-DTIANSHU_PROFILE_MCU --config=embedded
+
+# -----------------------------------------------------------------------------
+# Compilation modes
+# -----------------------------------------------------------------------------
+build:debug    --compilation_mode=dbg
+build:release  --compilation_mode=opt --copt=-DNDEBUG --copt=-O3
+
+# -----------------------------------------------------------------------------
+# Cross-compilation toolchains
+# -----------------------------------------------------------------------------
+build:aarch64 --cpu=aarch64 --crosstool_top=@bazel_tools//tools/cpp:toolchain
+build:qnx     --cpu=aarch64 --crosstool_top=//bazel/toolchains:qnx
+build:armv7m  --cpu=cortex-m7 --crosstool_top=//bazel/toolchains:armv7m
+
+# -----------------------------------------------------------------------------
+# Sanitizers (only for hosted profiles)
+# -----------------------------------------------------------------------------
+build:asan --config=sanitizer --copt=-fsanitize=address --linkopt=-fsanitize=address
+build:tsan --config=sanitizer --copt=-fsanitize=thread --linkopt=-fsanitize=thread
+build:ubsan --config=sanitizer --copt=-fsanitize=undefined --linkopt=-fsanitize=undefined
+
+# -----------------------------------------------------------------------------
+# Feature flags (refer to ADR-0008 message format feature flags)
+# -----------------------------------------------------------------------------
+build:with-protobuf     --define=TIANSHU_WITH_PROTOBUF=1
+build:no-protobuf       --define=TIANSHU_WITH_PROTOBUF=0
+build:with-flatbuffers  --define=TIANSHU_WITH_FLATBUFFERS=1
+build:no-flatbuffers    --define=TIANSHU_WITH_FLATBUFFERS=0
+build:with-zenoh        --define=TIANSHU_WITH_ZENOH=1
+build:no-zenoh          --define=TIANSHU_WITH_ZENOH=0
+build:with-toml         --define=TIANSHU_WITH_TOML=1
+build:no-toml           --define=TIANSHU_WITH_TOML=0
+build:with-yaml         --define=TIANSHU_WITH_YAML=1
+build:no-yaml           --define=TIANSHU_WITH_YAML=0
+build:with-json         --define=TIANSHU_WITH_JSON=1
+build:no-json           --define=TIANSHU_WITH_JSON=0
+
+# -----------------------------------------------------------------------------
+# Test configuration
+# -----------------------------------------------------------------------------
+test --test_output=errors
+test --test_verbose_timeout_warnings
+
+# -----------------------------------------------------------------------------
+# Try-import optional local overrides (user machine / CI injected)
+# Per ADR-0004, build.env loads via these files
+# -----------------------------------------------------------------------------
+try-import %workspace%/.bazelrc.local
+try-import %workspace%/.bazelrc.ci

@@ -1,0 +1,34 @@
+# =============================================================================
+# Bazel profile config_setting definitions (per ADR-0005)
+# =============================================================================
+#
+# These config_settings map --config=<profile> flags from .bazelrc to
+# build-time defines. Library targets can use select() to make
+# profile-aware decisions.
+
+package(default_visibility = ["//visibility:public"])
+
+config_setting(
+    name = "profile_desktop",
+    define_values = {"TIANSHU_PROFILE_DESKTOP": "1"},
+)
+
+config_setting(
+    name = "profile_server",
+    define_values = {"TIANSHU_PROFILE_SERVER": "1"},
+)
+
+config_setting(
+    name = "profile_vehicle",
+    define_values = {"TIANSHU_PROFILE_VEHICLE": "1"},
+)
+
+config_setting(
+    name = "profile_embedded",
+    define_values = {"TIANSHU_PROFILE_EMBEDDED": "1"},
+)
+
+config_setting(
+    name = "profile_mcu",
+    define_values = {"TIANSHU_PROFILE_MCU": "1"},
+)

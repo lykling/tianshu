@@ -181,7 +181,7 @@ session.trigger_replay("/perception/front", start_seq=1000, end_seq=2000)
 
 ## 工作量（46 点，全部 Phase 3）
 
-详见 [02-开发计划表 F-L4-CONSOLE](../02-开发计划表.md)。
+详见 [02-development-plan F-L4-CONSOLE](../02-development-plan.md)。
 
 ## 影响范围
 

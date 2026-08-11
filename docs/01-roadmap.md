@@ -3,7 +3,7 @@
 > **文档定位**：4 阶段实施路线图，从奠基到认证就绪。
 > **维护者**：Pride Leong
 > **状态**：v0.1（2026-08）
-> **关联**：[00-方案总览.md](./00-方案总览.md) · [adr/0001-dsl-form.md](./adr/0001-dsl-form.md) · [adr/0002-cyber-relation.md](./adr/0002-cyber-relation.md)
+> **关联**：[00-overview.md](./00-overview.md) · [adr/0001-dsl-form.md](./adr/0001-dsl-form.md) · [adr/0002-cyber-relation.md](./adr/0002-cyber-relation.md)
 
 ---
 

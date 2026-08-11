@@ -35,7 +35,7 @@ Cyber RT、ROS 2、DDS 这一档中间件的性能已经够用（协程调度、
 | `embedded` | ARM Cortex-A53/55/72 | Embedded Linux | < 10MB |
 | `mcu` | ARM Cortex-M7/M33、RISC-V | FreeRTOS / Zephyr / bare-metal | < 1MB |
 
-天枢坚持**轻架构 + 最小依赖**：每个第三方依赖必须经过 ADR 审批；5 个 profile 通过编译期裁剪覆盖（详见 [02-开发计划表 F-INFRA-DEPS](./02-开发计划表.md#f-infra-deps--依赖治理)）。
+天枢坚持**轻架构 + 最小依赖**：每个第三方依赖必须经过 ADR 审批；5 个 profile 通过编译期裁剪覆盖（详见 [02-development-plan F-INFRA-DEPS](./02-development-plan.md#f-infra-deps--依赖治理)）。
 
 ---
 
@@ -202,7 +202,7 @@ REGISTER_TRACEABLE_FLOW("perception_flow", perception_flow);
 
 ---
 
-## 7. 三个核心假设（PoC 必须验证，详见 [01-实施计划.md](./01-实施计划.md)）
+## 7. 三个核心假设（PoC 必须验证，详见 [01-roadmap.md](./01-roadmap.md)）
 
 | # | 假设 | 验证标准 | 失败兜底 |
 |---|---|---|---|

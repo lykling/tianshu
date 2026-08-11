@@ -1,0 +1,53 @@
+# =============================================================================
+# TIANSHU C++ Code Format
+# =============================================================================
+#
+# Based on Google C++ Style, with project-specific overrides.
+# Reference: https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+# Enforced by tools/format.sh (clang-format) and CI.
+#
+# Per ADR-0007 (naming) and ADR-0018 (style guide).
+
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++20
+
+# ---------------------------------------------------------------------------
+# Project-specific overrides (only what differs from Google defaults)
+# ---------------------------------------------------------------------------
+
+# Wider line (Google default is 80)
+ColumnLimit: 100
+
+# Force left pointer alignment (Google default derives from existing code)
+DerivePointerAlignment: false
+PointerAlignment: Left
+
+# Stricter short-statement rules
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: Inline
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Empty
+
+# Always break template declarations onto their own line
+AlwaysBreakTemplateDeclarations: Yes
+
+# Sort and group includes (TIANSHU headers get priority 4)
+IncludeBlocks: Regroup
+IncludeCategories:
+  - { Regex: '^<[^/]+\.h>$',          Priority: 1 }  # C system
+  - { Regex: '^<[^/\.]+>$',           Priority: 2 }  # C++ std
+  - { Regex: '^<.*\.h>$',             Priority: 3 }  # Other lib .h
+  - { Regex: '^"tianshu/.*"$',        Priority: 4 }  # TIANSHU public
+  - { Regex: '^"[^/]*"$',             Priority: 5 }  # Same-dir local
+  - { Regex: '^".*"$',                Priority: 6 }  # Other local
+
+# Treat TIANSHU macros as statement macros (don't indent their arguments)
+StatementMacros:
+  - TIANSHU_PARAM
+  - TIANSHU_REGISTER_MESSAGE
+  - TIANSHU_REGISTER_FLOW
+  - TIANSHU_TRAITS_FLATBUFFER
+  - TIANSHU_TRAITS_PROTOBUF
+  - TIANSHU_TRAITS_POD
+  - TIANSHU_MARK_CROSS_PROCESS_SAFE

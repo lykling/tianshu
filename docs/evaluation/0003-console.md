@@ -247,7 +247,7 @@ Console：从 SHM 旁路读消息，零拷贝预览
 
 | 影响项 | 变更 |
 |---|---|
-| 02-开发计划表 | 新增 L4-CONSOLE-1..10（46 点，全部 Phase 3） |
+| 02-development-plan | 新增 L4-CONSOLE-1..10（46 点，全部 Phase 3） |
 | ADR | 升级本文档为 ADR-0011 |
 | L4-TRANS | ConsoleService 复用 TransportBackend（详见 [adr/0010](../adr/0010-transport-shm-infra.md)） |
 | L2-LIN | LineageQuery API 新增（控制台查询用） |

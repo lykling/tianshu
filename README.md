@@ -9,7 +9,7 @@
 > 一种 SLA 约束的声明式实时数据流编译框架。
 > **MapReduce → Spark 的范式跃迁，迁移到自动驾驶车端 ECU。**
 
-[![status](https://img.shields.io/badge/status-Phase%200%20奠基期-yellow)](docs/01-实施计划.md)
+[![status](https://img.shields.io/badge/status-Phase%200%20奠基期-yellow)](docs/01-roadmap.md)
 [![language](https://img.shields.io/badge/language-C%2B%2B20-blue)]()
 [![build](https://img.shields.io/badge/build-CMake%20%2B%20Bazel-blue)](docs/adr/0003-build-system.md)
 [![profiles](https://img.shields.io/badge/profiles-5%20%28desktop%20%7C%20server%20%7C%20vehicle%20%7C%20embedded%20%7C%20mcu%29-green)](docs/adr/0005-lightweight-multiplatform.md)
@@ -72,7 +72,7 @@ mainboard 启动时 dry-run 一次 → trace 出全局数据流图 → 六阶段
 | **ROS 2** | 同域竞品，但 ROS 2 仍是命令式 |
 | **JAX / torch.compile** | trace + codegen 路线的灵感来源 |
 
-详见 [docs/00-方案总览.md §6](./docs/00-方案总览.md)。
+详见 [docs/00-overview.md §6](./docs/00-overview.md)。
 
 ## 项目状态
 
@@ -83,14 +83,14 @@ mainboard 启动时 dry-run 一次 → trace 出全局数据流图 → 六阶段
 | Phase 2：MVP（替换 Apollo perception mainboard） | ⏳ |
 | Phase 3：认证就绪（ISO 26262 ASIL-D） | ⏳ |
 
-详见 [docs/01-实施计划.md](./docs/01-实施计划.md)。
+详见 [docs/01-roadmap.md](./docs/01-roadmap.md)。
 
 ## 文档索引
 
 ### 入口
 
-- [docs/00-方案总览.md](./docs/00-方案总览.md) — 一句话说清楚 + 四层架构 + 三层确定性
-- [docs/01-实施计划.md](./docs/01-实施计划.md) — Phase 0/1/2/3 路线图 + 里程碑 + 风险登记
+- [docs/00-overview.md](./docs/00-overview.md) — 一句话说清楚 + 四层架构 + 三层确定性
+- [docs/01-roadmap.md](./docs/01-roadmap.md) — Phase 0/1/2/3 路线图 + 里程碑 + 风险登记
 
 ### 架构决策记录（ADR）
 
@@ -112,6 +112,7 @@ mainboard 启动时 dry-run 一次 → trace 出全局数据流图 → 六阶段
 - [docs/adr/0015-discovery-abstraction.md](./docs/adr/0015-discovery-abstraction.md) — 服务发现抽象（DiscoveryBackend 接口，可替换实现）
 - [docs/adr/0016-config-format.md](./docs/adr/0016-config-format.md) — 配置格式选型（TOML 主推 + YAML 兼容 + JSON 导入导出）
 - [docs/adr/0017-license.md](./docs/adr/0017-license.md) — 许可证 Apache-2.0
+- [docs/adr/0018-cpp-style-guide.md](./docs/adr/0018-cpp-style-guide.md) — C++ 风格指南（Google 基础 + clang-format/tidy 强制）
 - [docs/evaluation/0003-console.md](./docs/evaluation/0003-console.md) — 控制台方案评估（独立进程访问任意节点对象，**待用户拍板**，Phase 3）
 
 ## 命名与品牌

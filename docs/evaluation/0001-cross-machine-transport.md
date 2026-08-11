@@ -4,7 +4,7 @@
 > **决策状态**：⏳ 待用户拍板
 > **维护者**：Pride Leong
 > **日期**：2026-08-10
-> **关联**：[adr/0005](../adr/0005-lightweight-multiplatform.md) · [adr/0007](../adr/0007-api-spec-multi-language.md) · [adr/0008](../adr/0008-message-format-multi.md) · [L4-TRANS-6 跨机 transport](../02-开发计划表.md)
+> **关联**：[adr/0005](../adr/0005-lightweight-multiplatform.md) · [adr/0007](../adr/0007-api-spec-multi-language.md) · [adr/0008](../adr/0008-message-format-multi.md) · [L4-TRANS-6 跨机 transport](../02-development-plan.md)
 
 ---
 
@@ -333,9 +333,9 @@
 | 影响项 | 变更 |
 |---|---|
 | `ALLOWED_DEPS.txt` | 加入 `zenoh:Apache-2.0:1.x` |
-| 02-开发计划表 | L4-TRANS-6 估算从 6 点调整为 5.5 点（Zenoh 包装） |
-| 02-开发计划表 | 新增 L4-TRANS-13 Zenoh 集成子任务 |
-| 02-开发计划表 | 新增 INFRA-DEPS-7 Zenoh 依赖审计 |
+| 02-development-plan | L4-TRANS-6 估算从 6 点调整为 5.5 点（Zenoh 包装） |
+| 02-development-plan | 新增 L4-TRANS-13 Zenoh 集成子任务 |
+| 02-development-plan | 新增 INFRA-DEPS-7 Zenoh 依赖审计 |
 | ADR | 升级本文档为 ADR-0009-cross-machine-transport.md（状态：已接受） |
 | ADR-0005 | Zenoh 入白名单（体积在阈值内，符合轻架构原则） |
 
@@ -344,7 +344,7 @@
 请用户在以下选项中拍板，决策后我将：
 
 1. 升级本文档为 ADR-0009
-2. 同步更新 02-开发计划表（L4-TRANS-6 + 新增 L4-TRANS-13）
+2. 同步更新 02-development-plan（L4-TRANS-6 + 新增 L4-TRANS-13）
 3. 同步更新 ADR-0005 依赖白名单
 4. 同步更新 supermemory
 5. 同步更新 README（如需要）

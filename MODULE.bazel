@@ -1,0 +1,51 @@
+# =============================================================================
+# TIANSHU Bazel Module (Bzlmod)
+# =============================================================================
+#
+# Per ADR-0003, TIANSHU uses Bazel 7+ with Bzlmod for dependency management.
+# The legacy WORKSPACE file is kept empty for backward compatibility.
+#
+# Reference: https://bazel.build/external/migration
+
+module(
+    name = "tianshu",
+    version = "0.1.0",
+)
+
+# =============================================================================
+# Phase 0: rules_cc required by Bazel 9+ for cc_library / cc_binary rules.
+# =============================================================================
+bazel_dep(name = "rules_cc", version = "0.0.17")
+
+# =============================================================================
+# Phase 1+ dependencies (placeholder, will be added when needed):
+# =============================================================================
+# bazel_dep(name = "googletest", version = "1.15.2", repo_name = "com_google_googletest")
+# bazel_dep(name = "google-benchmark", version = "1.9.0", repo_name = "com_github_google_benchmark")
+# bazel_dep(name = "protobuf", version = "27.5", repo_name = "com_google_protobuf")
+# bazel_dep(name = "flatbuffers", version = "24.3.25", repo_name = "com_github_google_flatbuffers")
+# bazel_dep(name = "nlohmann_json", version = "3.11.3", repo_name = "nlohmann_json")
+# bazel_dep(name = "zenoh-c", version = "1.0.0", repo_name = "eclipse_zenoh")
+
+# =============================================================================
+# compile_commands.json generation (per ADR-0018 style guide)
+# =============================================================================
+# TIANSHU uses kiron1/bazel-compile-commands (Bazel official recommendation).
+# It's a standalone binary, NOT a Bazel dep, so users install it separately:
+#
+#   Install (one of):
+#     go install github.com/kiron1/bazel-compile-commands/cmd/bazel-compile-commands@latest
+#     # or download from https://github.com/kiron1/bazel-compile-commands/releases
+#     # or build from source: bazel build --config=gnu //bcc:bazel-compile-commands
+#
+#   Generate (run from repo root):
+#     bazel-compile-commands
+#
+# Why not hedron/helly25 fork:
+#   - hedron upstream inactive since 2024-06 (team joined Google DeepMind)
+#   - helly25 fork: "restricted maintenance" since 2026-05, uses Python
+#   - kiron1: C++ (no Python dep), Bazel 9 fully compatible, MIT, maintained
+#
+# Refs:
+#   - https://bazel.build/install/ide
+#   - https://github.com/kiron1/bazel-compile-commands

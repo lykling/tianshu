@@ -1,0 +1,44 @@
+# =============================================================================
+# TIANSHU Bazel local override example
+# =============================================================================
+#
+# Copy this file to `.bazelrc.local` (which is gitignored) and adjust
+# for your local environment.
+#
+# Per ADR-0004, machine-specific overrides go here, not in .bazelrc.
+
+# -----------------------------------------------------------------------------
+# Option A: Pass user shell PATH through to Bazel actions (simplest).
+#
+# Trade-off: breaks hermetic build reproducibility. Acceptable for development;
+# CI should pin a fixed PATH instead.
+# -----------------------------------------------------------------------------
+build --action_env=PATH
+build --host_action_env=PATH
+
+# -----------------------------------------------------------------------------
+# Option B: Hard-code PATH for hermetic builds (more reproducible).
+#
+# Suitable for CI or shared development environments.
+# -----------------------------------------------------------------------------
+# build --action_env=PATH=/usr/lib/llvm/21/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+# build --host_action_env=PATH=/usr/lib/llvm/21/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+
+# -----------------------------------------------------------------------------
+# Linker selection
+# -----------------------------------------------------------------------------
+# Most distros: leave default (GNU ld.bfd supports --start-lib).
+# Gentoo binutils: must force lld (binutils 2.46 does not support --start-lib).
+# -----------------------------------------------------------------------------
+# build --linkopt=-fuse-ld=lld   # Use lld
+# build --linkopt=-fuse-ld=bfd   # Use GNU ld.bfd
+
+# -----------------------------------------------------------------------------
+# Local disk cache location (override if needed)
+# -----------------------------------------------------------------------------
+# build --disk_cache=/path/to/local/cache
+
+# -----------------------------------------------------------------------------
+# Local remote cache (if you have a buildbuddy / buildbarn instance)
+# -----------------------------------------------------------------------------
+# build --remote_cache=grpcs://your-cache.example.com:9092

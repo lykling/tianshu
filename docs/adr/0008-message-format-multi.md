@@ -3,7 +3,7 @@
 - **状态**：已接受
 - **日期**：2026-08-10
 - **决策者**：Pride Leong
-- **关联**：[adr/0001](./0001-dsl-form.md) · [adr/0005](./0005-lightweight-multiplatform.md) · [adr/0007](./0007-api-spec-multi-language.md) · [02-开发计划表.md](../02-开发计划表.md)
+- **关联**：[adr/0001](./0001-dsl-form.md) · [adr/0005](./0005-lightweight-multiplatform.md) · [adr/0007](./0007-api-spec-multi-language.md) · [02-development-plan.md](../02-development-plan.md)
 
 ---
 

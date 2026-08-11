@@ -1,0 +1,33 @@
+# =============================================================================
+# TIANSHU library Bazel build
+# =============================================================================
+#
+# Phase 0: minimal library exposing only version info.
+# Phase 1+: add cc_library targets per submodule (core / dsl / trace / ...).
+
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "tianshu",
+    srcs = ["src/version.cc"],
+    hdrs = ["include/tianshu/version.h"],
+    # Public include path: <tianshu/*.h> maps to include/tianshu/*.h
+    strip_include_prefix = "include",
+    include_prefix = "",
+    copts = [
+        "-Wall",
+        "-Wextra",
+        "-Wpedantic",
+        "-Werror",
+    ],
+    defines = select({
+        "//bazel/tianshu:profile_desktop": ["TIANSHU_PROFILE_DESKTOP"],
+        "//bazel/tianshu:profile_server":   ["TIANSHU_PROFILE_SERVER"],
+        "//bazel/tianshu:profile_vehicle":  ["TIANSHU_PROFILE_VEHICLE"],
+        "//bazel/tianshu:profile_embedded": ["TIANSHU_PROFILE_EMBEDDED"],
+        "//bazel/tianshu:profile_mcu":      ["TIANSHU_PROFILE_MCU"],
+        "//conditions:default":             ["TIANSHU_PROFILE_DESKTOP"],
+    }),
+)

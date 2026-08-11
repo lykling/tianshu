@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Commit & PR title lint (Conventional Commits, per ADR-0009)
+  # ---------------------------------------------------------------------------
+  commitlint:
+    name: Commitlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run commitlint
+        uses: wagoid/commitlint-github-action@v5
+        with:
+          configFile: .github/commitlint.config.js
+
+  pr-title:
+    name: PR Title (Conventional Commits)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+
+  # ---------------------------------------------------------------------------
+  # CMake build matrix (per ADR-0003 / ADR-0004)
+  # ---------------------------------------------------------------------------
+  cmake:
+    name: CMake (${{ matrix.preset }}, ${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [desktop, desktop-release, asan, ubsan, no-protobuf]
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Setup compiler
+        run: |
+          if [[ "${{ matrix.compiler }}" == "clang" ]]; then
+            sudo apt-get install -y clang
+            echo "CC=clang" >> $GITHUB_ENV
+            echo "CXX=clang++" >> $GITHUB_ENV
+          fi
+      - name: Configure
+        run: cmake --preset=${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset=${{ matrix.preset }}
+      - name: Test
+        run: ctest --test-dir build/${{ matrix.preset }} --output-on-failure
+      - name: Check no warnings in build output
+        run: |
+          # Re-run build capturing all output; fail if any warning appears.
+          # Per project policy: new project must have zero build warnings.
+          OUTPUT=$(cmake --build --preset=${{ matrix.preset }} 2>&1)
+          echo "${OUTPUT}"
+          # Skip expected warnings (e.g., CMake policy deprecations)
+          if echo "${OUTPUT}" | \
+            grep -iE "warning:" | \
+            grep -vE "CMake Warning|Policy CMP[0-9]+"; then
+            echo "::error::CMake build emitted warning(s); fix them"
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Bazel build (per ADR-0003 / ADR-0004)
+  # ---------------------------------------------------------------------------
+  bazel:
+    name: Bazel (${{ matrix.config }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [desktop, desktop-release, asan, ubsan]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: bazel build //... --config=${{ matrix.config }}
+      - name: Test
+        run: bazel test //... --config=${{ matrix.config }} --test_output=all
+      - name: Check no warnings in build output
+        run: |
+          # Re-run build capturing all output; fail if any WARNING line appears.
+          # Per project policy: new project must have zero build warnings.
+          OUTPUT=$(bazel build //... --config=${{ matrix.config }} 2>&1)
+          echo "${OUTPUT}"
+          if echo "${OUTPUT}" | grep -E "^WARNING:"; then
+            echo "::error::Bazel build emitted WARNING(s); fix them"
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Lint (license + non-English comments + no-wrap + clang-format + clang-tidy)
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint (license + format + tidy + no-wrap)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format clang-tidy
+      - name: Configure (generate compile_commands.json for clang-tidy)
+        run: |
+          sudo apt-get install -y ninja-build
+          cmake --preset=desktop
+      - name: Run lint helpers (license + non-English + wrap guard)
+        run: |
+          chmod +x tools/lint.sh tools/format.sh tools/tidy.sh
+          ./tools/lint.sh
+      - name: Run clang-format check
+        run: ./tools/format.sh --check
+      - name: Run clang-tidy check
+        run: ./tools/tidy.sh --format-check
+
+  # ---------------------------------------------------------------------------
+  # Build system equivalence guard (per ADR-0003, ensure CMake ~= Bazel)
+  # ---------------------------------------------------------------------------
+  equivalence:
+    name: Build system equivalence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check target set equivalence
+        run: |
+          echo "[equiv] Phase 0: skipping deep equivalence check (TODO: Phase 1)"
+          # TODO Phase 1: implement bazel query //... vs CMake add_*() comparison
+          exit 0

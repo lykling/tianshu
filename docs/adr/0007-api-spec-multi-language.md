@@ -3,7 +3,7 @@
 - **状态**：设计已接受，**C++ + C ABI 是 P0，多语言 SDK 实现 Phase 2/3 按需**
 - **日期**：2026-08-10
 - **决策者**：Pride Leong
-- **关联**：[adr/0001](./0001-dsl-form.md) · [adr/0005](./0005-lightweight-multiplatform.md) · [adr/0006](./0006-gpu-acceleration.md) · [02-开发计划表.md](../02-开发计划表.md)
+- **关联**：[adr/0001](./0001-dsl-form.md) · [adr/0005](./0005-lightweight-multiplatform.md) · [adr/0006](./0006-gpu-acceleration.md) · [02-development-plan.md](../02-development-plan.md)
 
 ---
 
@@ -383,7 +383,7 @@ from tianshu.protos import CameraMsg  # 自动注册
 - Go SDK（cgo）
 - Node.js SDK（napi-rs）
 
-详见 [02-开发计划表 F-INFRA-API](../02-开发计划表.md#f-infra-api--api-规范与多语言绑定)。
+详见 [02-development-plan F-INFRA-API](../02-development-plan.md#f-infra-api--api-规范与多语言绑定)。
 
 ### 与其他 ADR 的协同
 

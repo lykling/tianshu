@@ -3,7 +3,7 @@
 - **状态**：已接受
 - **日期**：2026-08-10
 - **决策者**：Pride Leong
-- **关联**：[adr/0003](./0003-build-system.md) · [adr/0004](./0004-build-entry.md) · [adr/0007](./0007-api-spec-multi-language.md) · [02-开发计划表.md](../02-开发计划表.md)
+- **关联**：[adr/0003](./0003-build-system.md) · [adr/0004](./0004-build-entry.md) · [adr/0007](./0007-api-spec-multi-language.md) · [02-development-plan.md](../02-development-plan.md)
 
 ---
 
@@ -118,12 +118,12 @@
 | 文档 | 当前 | 处理 |
 |---|---|---|
 | `README.md` | 中文 | Phase 0 内翻译为 `README.en.md` |
-| `docs/00-方案总览.md` ~ `02-开发计划表.md` | 中文 | Phase 0 翻译为 `.zh.md` + `.en.md`，原文件移到 `docs/zh/` 和 `docs/en/` |
+| `docs/00-overview.md` ~ `02-development-plan.md` | 中文 | Phase 0 翻译为 `.zh.md` + `.en.md`，原文件移到 `docs/zh/` 和 `docs/en/` |
 | `docs/adr/0001-0008` | 中文 | Phase 0 翻译 |
 | `docs/evaluation/0001-跨机通信评估.md` | 中文 | Phase 0 翻译 |
 | 新增文档 | - | 必须双语 |
 
-存量翻译工作量估算：~15 点（30 理想人日），见 [02-开发计划表 INFRA-DOC-6](../02-开发计划表.md)。
+存量翻译工作量估算：~15 点（30 理想人日），见 [02-development-plan INFRA-DOC-6](../02-development-plan.md)。
 
 ## 代码注释规范
 

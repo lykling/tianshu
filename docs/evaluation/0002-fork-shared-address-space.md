@@ -4,7 +4,7 @@
 > **决策状态**：⏳ 待用户拍板
 > **维护者**：Pride Leong
 > **日期**：2026-08-10
-> **关联**：[adr/0005](../adr/0005-lightweight-multiplatform.md) · [adr/0007](../adr/0007-api-spec-multi-language.md) · [adr/0008](../adr/0008-message-format-multi.md) · [L4-TRANS](../02-开发计划表.md) · [evaluation/0001](./0001-cross-machine-transport.md)
+> **关联**：[adr/0005](../adr/0005-lightweight-multiplatform.md) · [adr/0007](../adr/0007-api-spec-multi-language.md) · [adr/0008](../adr/0008-message-format-multi.md) · [L4-TRANS](../02-development-plan.md) · [evaluation/0001](./0001-cross-machine-transport.md)
 
 ---
 
@@ -488,7 +488,7 @@ struct MessageTraits<T> {
 | embedded | ❌ 不推荐（ASLR 关闭风险） |
 | mcu | ❌ 不支持 |
 
-### 7.4 在 [02-开发计划表](../02-开发计划表.md) 中预留 L4-TRANS-13..19
+### 7.4 在 [02-development-plan](../02-development-plan.md) 中预留 L4-TRANS-13..19
 
 工作量为 28 点，全部 Phase 2-3，**优先级 P2**（不阻塞关键路径）。
 
@@ -520,7 +520,7 @@ struct MessageTraits<T> {
 | 影响项 | 变更 |
 |---|---|
 | `ALLOWED_DEPS.txt` | 加入 `boost:header-only:1.84+:offset_ptr-only`（[adr-0005 依赖治理](../adr/0005-lightweight-multiplatform.md) 禁 Boost 的例外） |
-| 02-开发计划表 | 新增 L4-TRANS-13 offset_ptr 实现（8 点，Phase 2） |
+| 02-development-plan | 新增 L4-TRANS-13 offset_ptr 实现（8 点，Phase 2） |
 | ADR-0008 | 新增第 4 种 MessageTraits：`OffsetPtrMessage<T>`（POD 子集 + offset_ptr） |
 | ADR-0005 | Boost 解禁：`boost/interprocess/offset_ptr.hpp` 单 header 允许 |
 
@@ -528,7 +528,7 @@ struct MessageTraits<T> {
 
 | 影响项 | 变更 |
 |---|---|
-| 02-开发计划表 | 新增 L4-TRANS-13..19（28 点，Phase 2-3） |
+| 02-development-plan | 新增 L4-TRANS-13..19（28 点，Phase 2-3） |
 | ADR-0010 | 新建：ForkSHM mode 设计 |
 | ADR-0005 | ASLR 关闭风险登记到风险表 |
 | ADR-0008 | 新增第 4 种 MessageTraits：`CrossProcessSafeMessage<T>` |

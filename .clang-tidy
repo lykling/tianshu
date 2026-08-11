@@ -1,0 +1,119 @@
+# =============================================================================
+# TIANSHU C++ Static Analysis (clang-tidy)
+# =============================================================================
+#
+# Per ADR-0018 (C++ style guide), all code must pass clang-tidy with no warnings.
+# Enforced by tools/lint.sh and CI.
+
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  cppcoreguidelines-pro-type-cstyle-cast,
+  cppcoreguidelines-pro-type-static-cast-downcast,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  google-*,
+  hicpps-exception-baseclass,
+  hicpps-explicit-conversions,
+  misc-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -cert-err58-cpp,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -google-readability-todo,
+  -google-runtime-references,
+  -hicpp-no-array-decay,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-function-cognitive-complexity,
+  -readability-else-after-return
+
+# Treat all check warnings as errors (CI fails on any warning).
+# Per ADR-0018 zero-warning policy.
+WarningsAsErrors: '*'
+
+# Only check TIANSHU's own headers; ignore third_party / build / cache.
+HeaderFilterRegex: '^(?!.*(third_party|build|bazel-out|\.cache|/usr/)).*$'
+
+CheckOptions:
+  # Identifier naming (per ADR-0007)
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumConstantPrefix
+    value: k
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterPackCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.ConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.StaticConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.ConstexprVariableCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.MemberCase
+    value: lower_case
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: _
+  - key: readability-identifier-naming.ProtectedMemberSuffix
+    value: _
+  - key: readability-identifier-naming.PublicMemberCase
+    value: lower_case
+  - key: readability-identifier-naming.MethodCase
+    value: lower_case
+  - key: readability-identifier-naming.VirtualMethodCase
+    value: lower_case
+  # macro naming
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+
+  # modernize-use-override: prefer override keyword
+  - key: modernize-use-override.IgnoreDestructors
+    value: 'true'
+
+  # modernize-use-default-member-init: prefer {} init
+  - key: modernize-use-default-member-init.UseAssignment
+    value: 'false'
+
+  # readability-function-size: reasonable thresholds
+  - key: readability-function-size.LineThreshold
+    value: '120'
+  - key: readability-function-size.StatementThreshold
+    value: '60'
+  - key: readability-function-size.BranchThreshold
+    value: '20'
+  - key: readability-function-size.ParameterThreshold
+    value: '8'
+
+  # readability-braces-around-statements: require braces
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: '0'
+
+  # readability-redundant-*: enable all
+  - key: readability-simplify-boolean-expr.ChainedConditionalReturn
+    value: 'false'
+  - key: readability-simplify-boolean-expr.ChainedConditionalAssignment
+    value: 'false'

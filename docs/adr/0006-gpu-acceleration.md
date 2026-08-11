@@ -3,7 +3,7 @@
 - **状态**：设计已接受，**实现非关键路径**
 - **日期**：2026-08-10
 - **决策者**：Pride Leong
-- **关联**：[adr/0005](./0005-lightweight-multiplatform.md) · [02-开发计划表.md](../02-开发计划表.md) · [00-方案总览.md](../00-方案总览.md)
+- **关联**：[adr/0005](./0005-lightweight-multiplatform.md) · [02-development-plan.md](../02-development-plan.md) · [00-overview.md](../00-overview.md)
 
 ## 实现策略（关键说明）
 

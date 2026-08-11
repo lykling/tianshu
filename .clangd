@@ -1,0 +1,52 @@
+# =============================================================================
+# TIANSHU clangd configuration
+# =============================================================================
+#
+# clangd reads this file to find:
+#   - compile_commands.json (compilation database)
+#   - compile flags overrides
+#   - inlay hints / diagnostics options
+
+# Search for compile_commands.json in build/ subdirectories (CMake + Bazel).
+CompileFlags:
+  CompilationDatabases:
+    - build/desktop
+    - build/vehicle
+    - build/server
+    - build
+  # Remove unwanted flags from the compilation database
+  Remove:
+    - -Werror  # clangd shouldn't fail on warnings during editing
+    - -Wall
+    - -Wextra
+    - -Wpedantic
+
+# Diagnostics
+Diagnostics:
+  ClangTidy:
+    FastCheckFilter: None
+    Checks: -*,bugprone-*,cert-*,google-*,misc-*,modernize-*,performance-*,readability-*
+  UnusedIncludes: Strict
+  MissingIncludes: Strict
+  Suppress: [plugin_check]
+
+# Inlay hints (visible in modern editors)
+InlayHints:
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes
+  Designators: Yes
+  BlockEnd: Yes
+
+# Hover / completion
+Hover:
+  ShowAKA: Yes
+
+# Indexing
+Index:
+  StandardLibrary: Yes
+  Background: Build
+
+# Completion
+Completion:
+  AllScopes: Yes

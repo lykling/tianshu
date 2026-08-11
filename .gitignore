@@ -1,7 +1,16 @@
-# C++ / CMake / IDE 通用忽略
+# Build outputs
 build/
 cmake-build-*/
 out/
+build-*/
+
+# CMake / Bazel artifacts
+.cache/
+.bazel/
+bazel-*
+compile_commands.json
+
+# Object / library / executable
 *.o
 *.obj
 *.so
@@ -11,6 +20,8 @@ out/
 *.exe
 *.a
 *.lib
+
+# Python
 *.pyc
 __pycache__/
 
@@ -22,12 +33,7 @@ __pycache__/
 *~
 .DS_Store
 
-# Bazel（即使主用 CMake 也兼容）
-bazel-*
-.cache/
-
 # 工具产物
-compile_commands.json
 *.pdb
 *.ilk
 coverage/
@@ -47,6 +53,11 @@ local_notes.md
 # Codegraph 索引
 .codegraph
 .codegraph -> *
+
+# 本地配置（per ADR-0004）
+.bazelrc.local
+CMakeUserPresets.json
+build.env
 
 # 不忽略
 !branding/assets/*.svg

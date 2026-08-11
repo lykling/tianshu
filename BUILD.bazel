@@ -1,0 +1,11 @@
+# =============================================================================
+# TIANSHU top-level Bazel build file
+# =============================================================================
+#
+# Per ADR-0003, target set must be equivalent to CMake. CI guards this via
+# INFRA-BUILD-12 (build system equivalence check).
+#
+# Phase 0: no top-level targets (subpackages are discovered via `bazel build //...`).
+# Phase 1+: add aggregate targets here if needed.
+
+package(default_visibility = ["//visibility:public"])

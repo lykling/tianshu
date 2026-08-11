@@ -1,0 +1,120 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {"major": 3, "minor": 25, "patch": 0},
+    "configurePresets": [
+        {
+            "name": "_base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
+        },
+        {
+            "name": "desktop",
+            "displayName": "Desktop (x86_64 debug, all features)",
+            "inherits": "_base",
+            "cacheVariables": {
+                "TIANSHU_PROFILE": "desktop",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "desktop-release",
+            "displayName": "Desktop (release)",
+            "inherits": "desktop",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "server",
+            "displayName": "Server (x86_64 release)",
+            "inherits": "_base",
+            "cacheVariables": {
+                "TIANSHU_PROFILE": "server",
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "vehicle",
+            "displayName": "Vehicle (ORIN / J5 / MDC)",
+            "inherits": "_base",
+            "cacheVariables": {
+                "TIANSHU_PROFILE": "vehicle",
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "embedded",
+            "displayName": "Embedded Linux (Cortex-A)",
+            "inherits": "_base",
+            "cacheVariables": {
+                "TIANSHU_PROFILE": "embedded",
+                "CMAKE_BUILD_TYPE": "MinSizeRel"
+            }
+        },
+        {
+            "name": "mcu",
+            "displayName": "MCU (Cortex-M / bare-metal)",
+            "inherits": "_base",
+            "cacheVariables": {
+                "TIANSHU_PROFILE": "mcu",
+                "CMAKE_BUILD_TYPE": "MinSizeRel"
+            }
+        },
+        {
+            "name": "asan",
+            "displayName": "ASan (desktop + ASan)",
+            "inherits": "desktop",
+            "cacheVariables": {
+                "TIANSHU_ENABLE_ASAN": "ON"
+            }
+        },
+        {
+            "name": "ubsan",
+            "displayName": "UBSan (desktop + UBSan)",
+            "inherits": "desktop",
+            "cacheVariables": {
+                "TIANSHU_ENABLE_UBSAN": "ON"
+            }
+        },
+        {
+            "name": "tsan",
+            "displayName": "TSan (desktop + TSan)",
+            "inherits": "desktop",
+            "cacheVariables": {
+                "TIANSHU_ENABLE_TSAN": "ON"
+            }
+        },
+        {
+            "name": "no-protobuf",
+            "displayName": "Desktop (Protobuf disabled, minimal)",
+            "inherits": "desktop",
+            "cacheVariables": {
+                "TIANSHU_WITH_PROTOBUF": "OFF"
+            }
+        }
+    ],
+    "buildPresets": [
+        {"name": "desktop",          "configurePreset": "desktop"},
+        {"name": "desktop-release",  "configurePreset": "desktop-release"},
+        {"name": "server",           "configurePreset": "server"},
+        {"name": "vehicle",          "configurePreset": "vehicle"},
+        {"name": "embedded",         "configurePreset": "embedded"},
+        {"name": "mcu",              "configurePreset": "mcu"},
+        {"name": "asan",             "configurePreset": "asan"},
+        {"name": "ubsan",            "configurePreset": "ubsan"},
+        {"name": "tsan",             "configurePreset": "tsan"},
+        {"name": "no-protobuf",      "configurePreset": "no-protobuf"}
+    ],
+    "testPresets": [
+        {
+            "name": "desktop",
+            "configurePreset": "desktop",
+            "output": {"outputOnFailure": true},
+            "execution": {"noTestsAction": "error", "stopOnFailure": false}
+        }
+    ]
+}

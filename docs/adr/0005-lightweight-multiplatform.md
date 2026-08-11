@@ -3,13 +3,13 @@
 - **状态**：已接受
 - **日期**：2026-08-10
 - **决策者**：Pride Leong
-- **关联**：[00-方案总览.md](../00-方案总览.md) · [adr/0001](./0001-dsl-form.md) · [adr/0002](./0002-cyber-relation.md) · [adr/0003](./0003-build-system.md) · [adr/0004](./0004-build-entry.md) · [02-开发计划表.md](../02-开发计划表.md)
+- **关联**：[00-overview.md](../00-overview.md) · [adr/0001](./0001-dsl-form.md) · [adr/0002](./0002-cyber-relation.md) · [adr/0003](./0003-build-system.md) · [adr/0004](./0004-build-entry.md) · [02-development-plan.md](../02-development-plan.md)
 
 ---
 
 ## 背景
 
-天枢的初始定位是"自动驾驶车端 ECU"（见 [00-方案总览.md](../00-方案总览.md)）。本决策把目标域**扩展**到：
+天枢的初始定位是"自动驾驶车端 ECU"（见 [00-overview.md](../00-overview.md)）。本决策把目标域**扩展**到：
 
 - 自动驾驶车端 ECU（ORIN / J5 / MDC / Intel ADL）
 - 机器人控制器（ROS 替代场景，但跨多核 ARM）
