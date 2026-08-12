@@ -274,4 +274,9 @@ TEST(IntraBackendTest, EmptyMessage) {
   EXPECT_EQ(received_size, 0U);
 }
 
+TEST(IntraBackendTest, IntraWriterChannelDirect) {
+  auto writer = std::make_shared<tianshu::transport::intra::IntraWriter>("/direct/channel");
+  EXPECT_EQ(writer->channel(), "/direct/channel");
+}
+
 }  // namespace
