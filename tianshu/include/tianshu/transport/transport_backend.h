@@ -64,7 +64,7 @@ using MessageCallback = std::function<void(const Message&)>;
 // Writer endpoint: sends messages to a channel.
 class WriterBase {
  public:
-  virtual ~WriterBase();
+  virtual ~WriterBase() = default;
   virtual void write(const void* data, std::size_t size) = 0;
   virtual std::string_view channel() const = 0;
 };
@@ -72,7 +72,7 @@ class WriterBase {
 // Reader endpoint: receives messages from a channel.
 class ReaderBase {
  public:
-  virtual ~ReaderBase();
+  virtual ~ReaderBase() = default;
   virtual void set_callback(MessageCallback cb) = 0;
   virtual std::string_view channel() const = 0;
 };
@@ -80,7 +80,7 @@ class ReaderBase {
 // Backend interface: creates writers and readers for channels.
 class TransportBackend {
  public:
-  virtual ~TransportBackend();
+  virtual ~TransportBackend() = default;
 
   virtual BackendType type() const = 0;
   virtual bool supports_zero_copy() const = 0;

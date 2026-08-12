@@ -78,21 +78,4 @@ TEST(TransportRegistryTest, RegisteredBackendCreatesReader) {
   EXPECT_EQ(reader->channel(), "/registry/reader");
 }
 
-TEST(TransportBackendTest, WriterBaseVirtualDestructorViaBasePointer) {
-  tianshu::transport::WriterBase* w = new tianshu::transport::intra::IntraWriter("/d0/writer");
-  delete w;
-}
-
-TEST(TransportBackendTest, ReaderBaseVirtualDestructorViaBasePointer) {
-  auto writer = std::make_shared<tianshu::transport::intra::IntraWriter>("/d0/reader");
-  tianshu::transport::ReaderBase* r =
-      new tianshu::transport::intra::IntraReader("/d0/reader", writer);
-  delete r;
-}
-
-TEST(TransportBackendTest, TransportBackendVirtualDestructorViaBasePointer) {
-  tianshu::transport::TransportBackend* b = new tianshu::transport::intra::IntraBackend();
-  delete b;
-}
-
 }  // namespace

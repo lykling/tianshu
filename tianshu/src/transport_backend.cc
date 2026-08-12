@@ -19,10 +19,6 @@
 
 namespace tianshu::transport {
 
-WriterBase::~WriterBase() = default;              // LCOV_EXCL_LINE
-ReaderBase::~ReaderBase() = default;              // LCOV_EXCL_LINE
-TransportBackend::~TransportBackend() = default;  // LCOV_EXCL_LINE
-
 TransportRegistry& TransportRegistry::instance() {
   static TransportRegistry registry;
   return registry;
