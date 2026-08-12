@@ -57,6 +57,8 @@ struct Message {
   std::size_t size{0};
   uint64_t seq{0};
   int64_t timestamp_ns{0};
+  uint32_t src_process_id{0};
+  const void* lineage_ptr{nullptr};
 };
 
 using MessageCallback = std::function<void(const Message&)>;
