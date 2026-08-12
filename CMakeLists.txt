@@ -77,8 +77,16 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # -----------------------------------------------------------------------------
 option(TIANSHU_ENABLE_COVERAGE "Enable code coverage instrumentation" OFF)
 if(TIANSHU_ENABLE_COVERAGE)
-    add_compile_options(--coverage -O0 -g)
-    add_link_options(--coverage)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR
+       CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        add_compile_options(-fprofile-instr-generate -fcoverage-mapping -O0 -g)
+        add_link_options(-fprofile-instr-generate)
+        message(STATUS "Coverage: Clang source-based (llvm-cov)")
+    else()
+        add_compile_options(--coverage -O0 -g)
+        add_link_options(--coverage)
+        message(STATUS "Coverage: GCC gcov-based")
+    endif()
 endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

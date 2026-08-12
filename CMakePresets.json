@@ -21,6 +21,15 @@
             }
         },
         {
+            "name": "desktop-clang",
+            "displayName": "Desktop (Clang debug, all features)",
+            "inherits": "desktop",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_C_COMPILER": "clang"
+            }
+        },
+        {
             "name": "desktop-release",
             "displayName": "Desktop (release)",
             "inherits": "desktop",
@@ -98,15 +107,26 @@
         },
         {
             "name": "coverage",
-            "displayName": "Desktop + code coverage (gcov)",
+            "displayName": "Desktop + code coverage (GCC gcov)",
             "inherits": "desktop",
             "cacheVariables": {
                 "TIANSHU_ENABLE_COVERAGE": "ON"
+            }
+        },
+        {
+            "name": "coverage-clang",
+            "displayName": "Desktop + code coverage (Clang source-based)",
+            "inherits": "desktop",
+            "cacheVariables": {
+                "TIANSHU_ENABLE_COVERAGE": "ON",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_C_COMPILER": "clang"
             }
         }
     ],
     "buildPresets": [
         {"name": "desktop",          "configurePreset": "desktop"},
+        {"name": "desktop-clang",    "configurePreset": "desktop-clang"},
         {"name": "desktop-release",  "configurePreset": "desktop-release"},
         {"name": "server",           "configurePreset": "server"},
         {"name": "vehicle",          "configurePreset": "vehicle"},
@@ -116,7 +136,8 @@
         {"name": "ubsan",            "configurePreset": "ubsan"},
         {"name": "tsan",             "configurePreset": "tsan"},
         {"name": "no-protobuf",      "configurePreset": "no-protobuf"},
-        {"name": "coverage",         "configurePreset": "coverage"}
+        {"name": "coverage",         "configurePreset": "coverage"},
+        {"name": "coverage-clang",   "configurePreset": "coverage-clang"}
     ],
     "testPresets": [
         {
@@ -130,6 +151,15 @@
             "configurePreset": "coverage",
             "output": {"outputOnFailure": true},
             "execution": {"noTestsAction": "error", "stopOnFailure": false}
+        },
+        {
+            "name": "coverage-clang",
+            "configurePreset": "coverage-clang",
+            "output": {"outputOnFailure": true},
+            "execution": {"noTestsAction": "error", "stopOnFailure": false},
+            "environment": {
+                "LLVM_PROFILE_FILE": "${sourceDir}/build/coverage-clang/%m.profraw"
+            }
         }
     ]
 }

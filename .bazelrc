@@ -53,10 +53,23 @@ build:lld --linkopt=-fuse-ld=lld
 build:bfd --linkopt=-fuse-ld=bfd
 
 # -----------------------------------------------------------------------------
+# Compiler selection
+# -----------------------------------------------------------------------------
+build:clang --action_env=CC=clang --action_env=CXX=clang++
+build:gcc
+
+# -----------------------------------------------------------------------------
 # Code coverage (per ADR-0018, user requirement: comprehensive unit tests)
 # -----------------------------------------------------------------------------
+# Bazel built-in coverage collection (bazel coverage //...)
 coverage --instrumentation_filter=//tianshu
 coverage --experimental_use_llvm_covmap
+
+# Compiler-specific coverage flags (for manual builds with --config=coverage-*)
+build:coverage-gcc   --copt=--coverage --linkopt=--coverage
+build:coverage-clang --config=clang \
+                    --copt=-fprofile-instr-generate --copt=-fcoverage-mapping \
+                    --linkopt=-fprofile-instr-generate
 
 # Action cache (persistent)
 build --disk_cache=%workspace%/.bazel/cache
