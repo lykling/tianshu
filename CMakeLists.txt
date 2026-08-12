@@ -73,8 +73,13 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # -----------------------------------------------------------------------------
-# Compile commands for clangd/IDE
+# Code coverage (per ADR-0018, user requirement: comprehensive unit tests)
 # -----------------------------------------------------------------------------
+option(TIANSHU_ENABLE_COVERAGE "Enable code coverage instrumentation" OFF)
+if(TIANSHU_ENABLE_COVERAGE)
+    add_compile_options(--coverage -O0 -g)
+    add_link_options(--coverage)
+endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Convenience symlink at repo root so clangd finds it without per-preset config.

@@ -1,0 +1,3 @@
+add_executable(transport_backend_test intra_backend_test.cc)
+target_link_libraries(transport_backend_test PRIVATE tianshu GTest::gtest_main)
+gtest_discover_tests(transport_backend_test)

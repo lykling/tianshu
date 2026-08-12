@@ -7,4 +7,6 @@ target_link_libraries(hello_test PRIVATE tianshu GTest::gtest_main)
 gtest_discover_tests(hello_test)
 
 add_subdirectory(base)
+add_subdirectory(core)
 add_subdirectory(sched)
+add_subdirectory(transport)

@@ -1,17 +1,15 @@
-# =============================================================================
-# TIANSHU library Bazel build
-# =============================================================================
-#
-# Phase 0: minimal library exposing only version info.
-# Phase 1+: add cc_library targets per submodule (core / dsl / trace / ...).
-
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "tianshu",
-    srcs = ["src/version.cc"],
+    srcs = [
+        "src/intra_backend.cc",
+        "src/node.cc",
+        "src/transport_backend.cc",
+        "src/version.cc",
+    ],
     hdrs = [
         "include/tianshu/base/atomic_hash_map.h",
         "include/tianshu/base/cache_buffer.h",
@@ -19,10 +17,13 @@ cc_library(
         "include/tianshu/base/rw_lock.h",
         "include/tianshu/base/spin_lock.h",
         "include/tianshu/base/sync.h",
+        "include/tianshu/core/node.h",
         "include/tianshu/sched/scheduler.h",
+        "include/tianshu/transport/hybrid_transport.h",
+        "include/tianshu/transport/intra_backend.h",
+        "include/tianshu/transport/transport_backend.h",
         "include/tianshu/version.h",
     ],
-    # Public include path: <tianshu/*.h> maps to include/tianshu/*.h
     strip_include_prefix = "include",
     include_prefix = "",
     copts = [

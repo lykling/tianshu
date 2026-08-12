@@ -8,6 +8,9 @@
 # Public headers
 add_library(tianshu SHARED
     src/version.cc
+    src/transport_backend.cc
+    src/intra_backend.cc
+    src/node.cc
 )
 
 target_include_directories(tianshu
