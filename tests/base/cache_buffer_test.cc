@@ -56,6 +56,28 @@ TEST(CacheBufferTest, ObserveDoesNotConsume) {
   EXPECT_EQ(buf.size(), 1U);
 }
 
+TEST(CacheBufferTest, ObserveEmptyReturnsNull) {
+  const tianshu::base::CacheBuffer<int32_t> buf(4);
+  EXPECT_EQ(buf.observe(), nullptr);
+}
+
+TEST(CacheBufferTest, NotFullAfterPartialFill) {
+  tianshu::base::CacheBuffer<int32_t> buf(4);
+  buf.fill(1);
+  buf.fill(2);
+  EXPECT_FALSE(buf.full());
+  EXPECT_EQ(buf.size(), 2U);
+}
+
+TEST(CacheBufferTest, FullAfterMaxFill) {
+  tianshu::base::CacheBuffer<int32_t> buf(3);
+  buf.fill(1);
+  buf.fill(2);
+  buf.fill(3);
+  EXPECT_TRUE(buf.full());
+  EXPECT_EQ(buf.size(), 3U);
+}
+
 TEST(CacheBufferTest, FifoOrder) {
   tianshu::base::CacheBuffer<int32_t> buf(4);
   for (int32_t i = 0; i < 3; ++i) {
@@ -74,7 +96,7 @@ TEST(CacheBufferTest, OverwriteOldestWhenFull) {
   buf.fill(10);
   buf.fill(20);
   EXPECT_TRUE(buf.full());
-  buf.fill(30);  // overwrites 10
+  buf.fill(30);
   EXPECT_EQ(buf.size(), 2U);
   auto* p1 = buf.try_fetch();
   ASSERT_NE(p1, nullptr);
@@ -82,6 +104,23 @@ TEST(CacheBufferTest, OverwriteOldestWhenFull) {
   auto* p2 = buf.try_fetch();
   ASSERT_NE(p2, nullptr);
   EXPECT_EQ(*p2, 30);
+  EXPECT_TRUE(buf.empty());
+}
+
+TEST(CacheBufferTest, OverwriteMultipleWhenFull) {
+  tianshu::base::CacheBuffer<int32_t> buf(2);
+  buf.fill(1);
+  buf.fill(2);
+  buf.fill(3);
+  buf.fill(4);
+  buf.fill(5);
+  EXPECT_EQ(buf.size(), 2U);
+  auto* p1 = buf.try_fetch();
+  ASSERT_NE(p1, nullptr);
+  EXPECT_EQ(*p1, 4);
+  auto* p2 = buf.try_fetch();
+  ASSERT_NE(p2, nullptr);
+  EXPECT_EQ(*p2, 5);
   EXPECT_TRUE(buf.empty());
 }
 
@@ -98,6 +137,41 @@ TEST(CacheBufferTest, WrapAroundMultipleCycles) {
     }
   }
   EXPECT_TRUE(buf.empty());
+}
+
+TEST(CacheBufferTest, FillAfterFetchRefills) {
+  tianshu::base::CacheBuffer<int32_t> buf(2);
+  buf.fill(1);
+  buf.fill(2);
+  buf.try_fetch();
+  buf.try_fetch();
+  EXPECT_TRUE(buf.empty());
+  buf.fill(3);
+  EXPECT_EQ(buf.size(), 1U);
+  auto* p = buf.try_fetch();
+  ASSERT_NE(p, nullptr);
+  EXPECT_EQ(*p, 3);
+}
+
+TEST(CacheBufferTest, SingleCapacityBuffer) {
+  tianshu::base::CacheBuffer<int32_t> buf(1);
+  buf.fill(100);
+  EXPECT_TRUE(buf.full());
+  EXPECT_EQ(buf.size(), 1U);
+  auto* p = buf.try_fetch();
+  ASSERT_NE(p, nullptr);
+  EXPECT_EQ(*p, 100);
+  EXPECT_TRUE(buf.empty());
+}
+
+TEST(CacheBufferTest, SingleCapacityOverwrite) {
+  tianshu::base::CacheBuffer<int32_t> buf(1);
+  buf.fill(1);
+  buf.fill(2);
+  EXPECT_EQ(buf.size(), 1U);
+  auto* p = buf.try_fetch();
+  ASSERT_NE(p, nullptr);
+  EXPECT_EQ(*p, 2);
 }
 
 TEST(CacheBufferTest, ConcurrentProducerConsumer) {
@@ -126,7 +200,6 @@ TEST(CacheBufferTest, ConcurrentProducerConsumer) {
   producer.join();
   consumer.join();
 
-  // With overwrite policy, consumed may be < kIterations.
   EXPECT_LE(consumed.load(), kIterations);
   EXPECT_GT(consumed.load(), 0);
   EXPECT_TRUE(buf.empty());

@@ -23,8 +23,26 @@
 
 namespace {
 
+// ---------------------------------------------------------------------------
+// BlockingCounter
+// ---------------------------------------------------------------------------
+
 TEST(BlockingCounterTest, InitiallyNotZero) {
   const tianshu::base::BlockingCounter counter(3);
+  EXPECT_EQ(counter.count(), 3);
+}
+
+TEST(BlockingCounterTest, Increment) {
+  tianshu::base::BlockingCounter counter(1);
+  counter.increment();
+  EXPECT_EQ(counter.count(), 2);
+}
+
+TEST(BlockingCounterTest, IncrementMultiple) {
+  tianshu::base::BlockingCounter counter(0);
+  counter.increment();
+  counter.increment();
+  counter.increment();
   EXPECT_EQ(counter.count(), 3);
 }
 
@@ -34,6 +52,12 @@ TEST(BlockingCounterTest, DecrementToZeroNotifies) {
   EXPECT_EQ(counter.count(), 1);
   counter.decrement();
   EXPECT_EQ(counter.count(), 0);
+}
+
+TEST(BlockingCounterTest, WaitReturnsImmediatelyWhenAlreadyZero) {
+  tianshu::base::BlockingCounter counter(0);
+  // Should return immediately, not block.
+  counter.wait();
 }
 
 TEST(BlockingCounterTest, WaitReturnsWhenZero) {
@@ -56,6 +80,42 @@ TEST(BlockingCounterTest, WaitReturnsWhenZero) {
   waiter.join();
   EXPECT_TRUE(done);
 }
+
+TEST(BlockingCounterTest, IncrementAfterZeroUnblocks) {
+  tianshu::base::BlockingCounter counter(1);
+
+  std::thread waiter([&]() { counter.wait(); });
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  counter.decrement();
+  waiter.join();
+
+  // After wait returns, increment and decrement again.
+  counter.increment();
+  EXPECT_EQ(counter.count(), 1);
+  counter.decrement();
+  EXPECT_EQ(counter.count(), 0);
+}
+
+TEST(BlockingCounterTest, ConcurrentDecrement) {
+  constexpr int kThreads = 4;
+  tianshu::base::BlockingCounter counter(kThreads);
+
+  std::thread threads[kThreads];
+  for (int i = 0; i < kThreads; ++i) {
+    threads[i] = std::thread([&]() { counter.decrement(); });
+  }
+
+  counter.wait();
+  for (auto& t : threads) {
+    t.join();
+  }
+  EXPECT_EQ(counter.count(), 0);
+}
+
+// ---------------------------------------------------------------------------
+// Notification
+// ---------------------------------------------------------------------------
 
 TEST(NotificationTest, InitiallyNotNotified) {
   const tianshu::base::Notification n;
@@ -96,6 +156,34 @@ TEST(NotificationTest, WaitReturnsImmediatelyIfAlreadyNotified) {
   tianshu::base::Notification n;
   n.notify();
   n.wait();
+}
+
+TEST(NotificationTest, MultipleWaitersAllNotified) {
+  tianshu::base::Notification n;
+  std::atomic<int> ready_count{0};
+
+  std::thread w1([&]() {
+    n.wait();
+    ready_count.fetch_add(1);
+  });
+  std::thread w2([&]() {
+    n.wait();
+    ready_count.fetch_add(1);
+  });
+  std::thread w3([&]() {
+    n.wait();
+    ready_count.fetch_add(1);
+  });
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  EXPECT_EQ(ready_count.load(), 0);
+
+  n.notify();
+  w1.join();
+  w2.join();
+  w3.join();
+
+  EXPECT_EQ(ready_count.load(), 3);
 }
 
 }  // namespace

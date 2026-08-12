@@ -116,4 +116,100 @@ TEST(SchedulerTest, TaskCount) {
   EXPECT_EQ(sched.task_count(), 3U);
 }
 
+TEST(SchedulerTest, DefaultConstructor) {
+  tianshu::sched::Scheduler sched;
+  EXPECT_EQ(sched.task_count(), 0U);
+  sched.start();
+  sched.shutdown();
+  SUCCEED();
+}
+
+TEST(SchedulerTest, ZeroThreadsDefaultsToOne) {
+  tianshu::sched::Scheduler sched(0);
+  std::atomic<int> counter{0};
+  sched.add_task("t", 1, [&]() { counter.fetch_add(1); });
+  sched.start();
+
+  while (counter.load() == 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  sched.shutdown();
+  EXPECT_GE(counter.load(), 1);
+}
+
+TEST(SchedulerTest, MarkWaitingNonExistentIsNoop) {
+  tianshu::sched::Scheduler sched(1);
+  sched.mark_waiting("nonexistent");
+  sched.start();
+  sched.shutdown();
+  SUCCEED();
+}
+
+TEST(SchedulerTest, MarkReadyNonExistentIsNoop) {
+  tianshu::sched::Scheduler sched(1);
+  sched.mark_ready("nonexistent");
+  sched.start();
+  sched.shutdown();
+  SUCCEED();
+}
+
+TEST(SchedulerTest, MarkReadyOnNonWaitingTaskIsNoop) {
+  tianshu::sched::Scheduler sched(1);
+  sched.add_task("ready_task", 1, []() {});
+  // Task is in kReady state, not kWaiting — mark_ready should be noop.
+  sched.mark_ready("ready_task");
+  EXPECT_EQ(sched.task_count(), 1U);
+}
+
+TEST(SchedulerTest, ShutdownWithoutStartIsSafe) {
+  tianshu::sched::Scheduler sched(2);
+  sched.add_task("t", 1, []() {});
+  sched.shutdown();
+  SUCCEED();
+}
+
+TEST(SchedulerTest, DestructorCallsShutdown) {
+  std::atomic<int> counter{0};
+  {
+    tianshu::sched::Scheduler sched(1);
+    sched.add_task("t", 1, [&]() {
+      counter.fetch_add(1);
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    });
+    sched.start();
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  // Destructor should have joined all threads.
+  EXPECT_GE(counter.load(), 1);
+}
+
+TEST(SchedulerTest, AddTaskOverwriteSameName) {
+  tianshu::sched::Scheduler sched(1);
+  std::atomic<int> v1{0}, v2{0};
+  sched.add_task("dup", 1, [&]() { v1.fetch_add(1); });
+  sched.add_task("dup", 1, [&]() { v2.fetch_add(1); });
+  EXPECT_EQ(sched.task_count(), 1U);
+
+  sched.start();
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  sched.shutdown();
+
+  EXPECT_EQ(v1.load(), 0);
+  EXPECT_GE(v2.load(), 1);
+}
+
+TEST(SchedulerTest, TaskRunsMultipleTimes) {
+  tianshu::sched::Scheduler sched(1);
+  std::atomic<int> counter{0};
+
+  sched.add_task("recurring", 5, [&]() { counter.fetch_add(1); });
+  sched.start();
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  sched.shutdown();
+
+  // Tasks are re-queued after running (state goes Running → Ready), so
+  // counter should be > 1.
+  EXPECT_GT(counter.load(), 1);
+}
+
 }  // namespace

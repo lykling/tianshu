@@ -38,6 +38,34 @@ TEST(NodeTest, CreateReaderAndWriter) {
   EXPECT_EQ(reader->channel(), "/node/test");
 }
 
+TEST(NodeTest, CreateWriterOnly) {
+  tianshu::core::Node node;
+  auto writer = node.create_writer("/node/wonly", "string");
+  ASSERT_NE(writer, nullptr);
+  EXPECT_EQ(writer->channel(), "/node/wonly");
+}
+
+TEST(NodeTest, CreateReaderOnly) {
+  tianshu::core::Node node;
+  auto reader = node.create_reader("/node/ronly", "string");
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->channel(), "/node/ronly");
+}
+
+TEST(NodeTest, CreateWriterWithoutMsgType) {
+  tianshu::core::Node node;
+  auto writer = node.create_writer("/node/no_type");
+  ASSERT_NE(writer, nullptr);
+  EXPECT_EQ(writer->channel(), "/node/no_type");
+}
+
+TEST(NodeTest, CreateReaderWithoutMsgType) {
+  tianshu::core::Node node;
+  auto reader = node.create_reader("/node/no_type");
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->channel(), "/node/no_type");
+}
+
 TEST(NodeTest, IntraCommunication) {
   tianshu::core::Node node;
   auto writer = node.create_writer("/node/intra", "string");
@@ -76,6 +104,34 @@ TEST(NodeTest, MultipleChannels) {
 
   EXPECT_EQ(c1.load(), 1);
   EXPECT_EQ(c2.load(), 1);
+}
+
+TEST(NodeTest, WriterThenReaderCommunicates) {
+  tianshu::core::Node node;
+  auto writer = node.create_writer("/node/wtr", "string");
+  auto reader = node.create_reader("/node/wtr", "string");
+
+  std::atomic<int> count{0};
+  reader->set_callback([&](const Message&) { count.fetch_add(1); });
+
+  writer->write("after", 6);
+  EXPECT_EQ(count.load(), 1);
+}
+
+TEST(NodeTest, MultipleNodesSameChannel) {
+  // Different Node instances in the same process should still communicate
+  // via the IntraChannelRegistry singleton.
+  tianshu::core::Node node1;
+  tianshu::core::Node node2;
+
+  auto writer = node1.create_writer("/shared/ch", "string");
+  auto reader = node2.create_reader("/shared/ch", "string");
+
+  std::atomic<int> count{0};
+  reader->set_callback([&](const Message&) { count.fetch_add(1); });
+
+  writer->write("cross_node", 10);
+  EXPECT_EQ(count.load(), 1);
 }
 
 }  // namespace

@@ -31,6 +31,14 @@ TEST(AtomicHashMapTest, EmptyOnCreate) {
   EXPECT_EQ(map.size(), 0U);
 }
 
+TEST(AtomicHashMapTest, ReserveConstructor) {
+  tianshu::base::AtomicHashMap<int32_t, std::string> map(64);
+  EXPECT_TRUE(map.empty());
+  EXPECT_EQ(map.size(), 0U);
+  map.insert(1, "a");
+  EXPECT_EQ(map.size(), 1U);
+}
+
 TEST(AtomicHashMapTest, InsertAndFind) {
   tianshu::base::AtomicHashMap<int32_t, std::string> map;
   map.insert(42, "hello");
@@ -62,6 +70,18 @@ TEST(AtomicHashMapTest, Erase) {
   EXPECT_FALSE(map.erase(1));
 }
 
+TEST(AtomicHashMapTest, EraseNonExistentReturnsFalse) {
+  tianshu::base::AtomicHashMap<int32_t, int32_t> map;
+  map.insert(1, 100);
+  EXPECT_FALSE(map.erase(999));
+  EXPECT_EQ(map.size(), 1U);
+}
+
+TEST(AtomicHashMapTest, EraseFromEmptyMap) {
+  tianshu::base::AtomicHashMap<int32_t, int32_t> map;
+  EXPECT_FALSE(map.erase(1));
+}
+
 TEST(AtomicHashMapTest, OverwriteExisting) {
   tianshu::base::AtomicHashMap<int32_t, std::string> map;
   map.insert(1, "old");
@@ -79,6 +99,13 @@ TEST(AtomicHashMapTest, Clear) {
   map.insert(2, 20);
   map.clear();
   EXPECT_TRUE(map.empty());
+  EXPECT_EQ(map.size(), 0U);
+}
+
+TEST(AtomicHashMapTest, ClearEmptyMap) {
+  tianshu::base::AtomicHashMap<int32_t, int32_t> map;
+  map.clear();
+  EXPECT_TRUE(map.empty());
 }
 
 TEST(AtomicHashMapTest, ForEach) {
@@ -89,6 +116,56 @@ TEST(AtomicHashMapTest, ForEach) {
   int32_t sum = 0;
   map.for_each([&]([[maybe_unused]] const int32_t& key, const int32_t& val) { sum += val; });
   EXPECT_EQ(sum, 100);
+}
+
+TEST(AtomicHashMapTest, ForEachEmptyMap) {
+  const tianshu::base::AtomicHashMap<int32_t, int32_t> map;
+  int32_t count = 0;
+  map.for_each(
+      [&]([[maybe_unused]] const int32_t& key, [[maybe_unused]] const int32_t& val) { ++count; });
+  EXPECT_EQ(count, 0);
+}
+
+TEST(AtomicHashMapTest, ForEachModifiesExternalState) {
+  tianshu::base::AtomicHashMap<std::string, int32_t> map;
+  map.insert("x", 10);
+  map.insert("y", 20);
+  map.insert("z", 30);
+
+  std::string concatenated;
+  int32_t total = 0;
+  map.for_each([&](const std::string& key, const int32_t& val) {
+    concatenated += key;
+    total += val;
+  });
+  EXPECT_EQ(total, 60);
+  EXPECT_EQ(concatenated.size(), 3U);
+}
+
+TEST(AtomicHashMapTest, InsertRValueKey) {
+  tianshu::base::AtomicHashMap<std::string, int32_t> map;
+  std::string key = "movable_key";
+  map.insert(std::move(key), 42);
+  EXPECT_EQ(map.size(), 1U);
+  EXPECT_TRUE(map.contains("movable_key"));
+}
+
+TEST(AtomicHashMapTest, SizeGrowsAndShrinks) {
+  tianshu::base::AtomicHashMap<int32_t, int32_t> map;
+  for (int32_t i = 0; i < 10; ++i) {
+    map.insert(i, i);
+  }
+  EXPECT_EQ(map.size(), 10U);
+  for (int32_t i = 0; i < 5; ++i) {
+    map.erase(i);
+  }
+  EXPECT_EQ(map.size(), 5U);
+  for (int32_t i = 0; i < 5; ++i) {
+    EXPECT_FALSE(map.contains(i));
+  }
+  for (int32_t i = 5; i < 10; ++i) {
+    EXPECT_TRUE(map.contains(i));
+  }
 }
 
 TEST(AtomicHashMapTest, ConcurrentInsertFind) {
@@ -132,6 +209,9 @@ TEST(AtomicHashMapTest, StringKeys) {
   ASSERT_TRUE(val.has_value());
   // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
   EXPECT_EQ(*val, 2);
+  EXPECT_TRUE(map.erase("beta"));
+  EXPECT_EQ(map.size(), 2U);
+  EXPECT_FALSE(map.contains("beta"));
 }
 
 }  // namespace

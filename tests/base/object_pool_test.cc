@@ -32,9 +32,22 @@ struct TestData {
   double extra{0.0};
 };
 
+struct Trackable {
+  static inline std::atomic<int> alive_count{0};
+  int32_t data{0};
+  Trackable() { alive_count.fetch_add(1); }
+  ~Trackable() { alive_count.fetch_sub(1); }
+};
+
 TEST(ObjectPoolTest, AcquireFromEmptyPoolReturnsNull) {
   tianshu::base::ObjectPool<TestData> pool(0);
   EXPECT_EQ(pool.acquire(), nullptr);
+  EXPECT_EQ(pool.available(), 0U);
+}
+
+TEST(ObjectPoolTest, EmptyPoolCapacity) {
+  const tianshu::base::ObjectPool<TestData> pool(0);
+  EXPECT_EQ(pool.capacity(), 0U);
 }
 
 TEST(ObjectPoolTest, AcquireReleaseBasic) {
@@ -56,6 +69,7 @@ TEST(ObjectPoolTest, ExhaustPoolReturnsNull) {
   ASSERT_NE(a, nullptr);
   ASSERT_NE(b, nullptr);
   EXPECT_EQ(pool.acquire(), nullptr);
+  EXPECT_EQ(pool.available(), 0U);
   pool.release(a);
   pool.release(b);
 }
@@ -63,16 +77,16 @@ TEST(ObjectPoolTest, ExhaustPoolReturnsNull) {
 TEST(ObjectPoolTest, ReleaseNullIsNoop) {
   tianshu::base::ObjectPool<TestData> pool(2);
   pool.release(nullptr);
-  EXPECT_EQ(pool.available(), 2);
+  EXPECT_EQ(pool.available(), 2U);
 }
 
 TEST(ObjectPoolTest, AvailableCount) {
   tianshu::base::ObjectPool<TestData> pool(4);
-  EXPECT_EQ(pool.available(), 4);
+  EXPECT_EQ(pool.available(), 4U);
   TestData* a = pool.acquire();
-  EXPECT_EQ(pool.available(), 3);
+  EXPECT_EQ(pool.available(), 3U);
   pool.release(a);
-  EXPECT_EQ(pool.available(), 4);
+  EXPECT_EQ(pool.available(), 4U);
 }
 
 TEST(ObjectPoolTest, Capacity) {
@@ -91,16 +105,53 @@ TEST(ObjectPoolTest, DataPersistsAcrossAcquire) {
   pool.release(b);
 }
 
+TEST(ObjectPoolTest, AcquireAllAndReleaseAll) {
+  tianshu::base::ObjectPool<TestData> pool(4);
+  std::vector<TestData*> ptrs;
+  for (std::size_t i = 0; i < 4; ++i) {
+    auto* p = pool.acquire();
+    ASSERT_NE(p, nullptr);
+    p->value = static_cast<int32_t>(i);
+    ptrs.push_back(p);
+  }
+  EXPECT_EQ(pool.available(), 0U);
+  for (auto* p : ptrs) {
+    pool.release(p);
+  }
+  EXPECT_EQ(pool.available(), 4U);
+}
+
+TEST(ObjectPoolTest, DestructorDestroysObjects) {
+  Trackable::alive_count = 0;
+  {
+    tianshu::base::ObjectPool<Trackable> pool(3);
+    EXPECT_EQ(Trackable::alive_count.load(), 3);
+    auto* p = pool.acquire();
+    EXPECT_EQ(Trackable::alive_count.load(), 3);
+    pool.release(p);
+  }
+  EXPECT_EQ(Trackable::alive_count.load(), 0);
+}
+
+TEST(ObjectPoolTest, EmptyPoolDestructor) {
+  Trackable::alive_count = 0;
+  {
+    tianshu::base::ObjectPool<Trackable> pool(0);
+    EXPECT_EQ(Trackable::alive_count.load(), 0);
+  }
+  EXPECT_EQ(Trackable::alive_count.load(), 0);
+}
+
 TEST(ObjectPoolTest, PooledPtrAutoRelease) {
   tianshu::base::ObjectPool<TestData> pool(2);
-  EXPECT_EQ(pool.available(), 2);
+  EXPECT_EQ(pool.available(), 2U);
   {
     auto ptr = tianshu::base::make_pooled(pool);
     ASSERT_TRUE(ptr);
     ptr->value = 77;
-    EXPECT_EQ(pool.available(), 1);
+    EXPECT_EQ(pool.available(), 1U);
   }
-  EXPECT_EQ(pool.available(), 2);
+  EXPECT_EQ(pool.available(), 2U);
 }
 
 TEST(ObjectPoolTest, PooledPtrMoveSemantics) {
@@ -112,8 +163,35 @@ TEST(ObjectPoolTest, PooledPtrMoveSemantics) {
   auto ptr2 = std::move(ptr1);
   ASSERT_TRUE(ptr2);
   EXPECT_EQ(ptr2->value, 55);
-  // Move transferred ownership; verify pool state unchanged.
-  EXPECT_EQ(pool.available(), 1);
+  EXPECT_EQ(pool.available(), 1U);
+}
+
+TEST(ObjectPoolTest, PooledPtrDefaultConstructor) {
+  tianshu::base::PooledPtr<TestData> ptr;
+  EXPECT_FALSE(ptr);
+  EXPECT_EQ(ptr.get(), nullptr);
+}
+
+TEST(ObjectPoolTest, PooledPtrMoveAssignment) {
+  tianshu::base::ObjectPool<TestData> pool(4);
+  auto ptr1 = tianshu::base::make_pooled(pool);
+  ptr1->value = 111;
+
+  auto ptr2 = tianshu::base::make_pooled(pool);
+  ptr2->value = 222;
+
+  ptr2 = std::move(ptr1);
+  ASSERT_TRUE(ptr2);
+  EXPECT_EQ(ptr2->value, 111);
+  EXPECT_EQ(pool.available(), 3U);
+}
+
+TEST(ObjectPoolTest, PooledPtrDereference) {
+  tianshu::base::ObjectPool<TestData> pool(2);
+  auto ptr = tianshu::base::make_pooled(pool);
+  ASSERT_TRUE(ptr);
+  ptr->value = 444;
+  EXPECT_EQ((*ptr).value, 444);
 }
 
 TEST(ObjectPoolTest, ConcurrentAcquireRelease) {

@@ -172,4 +172,106 @@ TEST(IntraBackendTest, ReaderBeforeWriter) {
   EXPECT_EQ(count.load(), 1);
 }
 
+TEST(IntraBackendTest, WriteBeforeCallbackSet) {
+  tianshu::transport::intra::IntraBackend backend;
+  ChannelConfig cfg;
+  cfg.channel_name = "/test/nocb";
+
+  auto writer = backend.create_writer(cfg);
+  auto reader = backend.create_reader(cfg);
+
+  // Write before set_callback — should not crash (callback_ is nullopt/functionally empty).
+  writer->write("before_cb", 10);
+
+  std::atomic<int> count{0};
+  reader->set_callback([&](const Message&) { count.fetch_add(1); });
+
+  writer->write("after_cb", 9);
+  EXPECT_EQ(count.load(), 1);
+}
+
+TEST(IntraBackendTest, MultipleWritersSameChannel) {
+  tianshu::transport::intra::IntraBackend backend;
+  ChannelConfig cfg;
+  cfg.channel_name = "/test/multi_writer";
+
+  auto writer1 = backend.create_writer(cfg);
+  auto writer2 = backend.create_writer(cfg);
+  auto reader = backend.create_reader(cfg);
+
+  std::atomic<int> count{0};
+  reader->set_callback([&](const Message&) { count.fetch_add(1); });
+
+  writer1->write("from_w1", 8);
+  writer2->write("from_w2", 8);
+
+  EXPECT_EQ(count.load(), 2);
+}
+
+TEST(IntraBackendTest, MultipleWritersSeqContinuous) {
+  tianshu::transport::intra::IntraBackend backend;
+  ChannelConfig cfg;
+  cfg.channel_name = "/test/multi_writer_seq";
+
+  auto writer1 = backend.create_writer(cfg);
+  auto writer2 = backend.create_writer(cfg);
+  auto reader = backend.create_reader(cfg);
+
+  std::vector<uint64_t> seqs;
+  reader->set_callback([&](const Message& msg) { seqs.push_back(msg.seq); });
+
+  writer1->write("a", 1);
+  writer2->write("b", 1);
+  writer1->write("c", 1);
+
+  ASSERT_EQ(seqs.size(), 3U);
+  // Both writer refs point to the same underlying IntraWriter via registry,
+  // so seq numbers should be continuous.
+  EXPECT_EQ(seqs[0], 0U);
+  EXPECT_EQ(seqs[1], 1U);
+  EXPECT_EQ(seqs[2], 2U);
+}
+
+TEST(IntraBackendTest, ThreeReadersFanout) {
+  tianshu::transport::intra::IntraBackend backend;
+  ChannelConfig cfg;
+  cfg.channel_name = "/test/three_readers";
+
+  auto writer = backend.create_writer(cfg);
+  auto r1 = backend.create_reader(cfg);
+  auto r2 = backend.create_reader(cfg);
+  auto r3 = backend.create_reader(cfg);
+
+  std::atomic<int> c1{0}, c2{0}, c3{0};
+  r1->set_callback([&](const Message&) { c1.fetch_add(1); });
+  r2->set_callback([&](const Message&) { c2.fetch_add(1); });
+  r3->set_callback([&](const Message&) { c3.fetch_add(1); });
+
+  writer->write("broadcast3", 11);
+
+  EXPECT_EQ(c1.load(), 1);
+  EXPECT_EQ(c2.load(), 1);
+  EXPECT_EQ(c3.load(), 1);
+}
+
+TEST(IntraBackendTest, EmptyMessage) {
+  tianshu::transport::intra::IntraBackend backend;
+  ChannelConfig cfg;
+  cfg.channel_name = "/test/empty";
+
+  auto writer = backend.create_writer(cfg);
+  auto reader = backend.create_reader(cfg);
+
+  std::atomic<int> count{0};
+  std::size_t received_size = 999;
+  reader->set_callback([&](const Message& msg) {
+    count.fetch_add(1);
+    received_size = msg.size;
+  });
+
+  writer->write(nullptr, 0);
+  EXPECT_EQ(count.load(), 1);
+  EXPECT_EQ(received_size, 0U);
+}
+
 }  // namespace
