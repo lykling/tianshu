@@ -1,6 +1,6 @@
 # Code Coverage Guide
 
-## Quick Start (lcov — recommended for GCC ≥ 14)
+## Quick Start
 
 ```bash
 # 1. Build with coverage instrumentation
@@ -10,30 +10,58 @@ cmake --build --preset=coverage
 # 2. Run tests (generates .gcda data files)
 ctest --test-dir build/coverage
 
-# 3. Capture and filter coverage data
+# 3. Capture, filter, and generate report
 lcov --capture --directory build/coverage \
   --output-file /tmp/tianshu.info \
   --rc geninfo_auto_base=1 \
-  --ignore-errors mismatch,inconsistent,negative
+  --ignore-errors mismatch,inconsistent,negative \
+  --filter function --demangle-cpp
 
 lcov --extract /tmp/tianshu.info \
   '*/tianshu/include/*' '*/tianshu/src/*' \
   --output-file /tmp/tianshu_filtered.info
 
-# 4. Generate HTML report
-genhtml /tmp/tianshu_filtered.info --output-directory /tmp/tianshu_coverage_html
+genhtml /tmp/tianshu_filtered.info \
+  --output-directory /tmp/tianshu_coverage_html \
+  --demangle-cpp
 
-# 5. Open report
+# 4. Open report
 xdg-open /tmp/tianshu_coverage_html/index.html
 ```
 
 ## Text Summary
 
 ```bash
-lcov --summary /tmp/tianshu_filtered.info
+lcov --list /tmp/tianshu_filtered.info
 ```
 
-## gcovr (alternative — has known issues with GCC 15 template coverage)
+## Why `--filter function --demangle-cpp`
+
+GCC generates 3 destructor variants per virtual destructor:
+- **D0** (deleting destructor): calls destructor body + `operator delete`
+- **D1** (complete object destructor): calls destructor body
+- **D2** (base object destructor): calls destructor body without virtual base handling
+
+For abstract base classes, D0/D1 are unreachable dead code — the class
+can't be instantiated, so `delete basePtr` dispatches to the derived
+class's D0 via vtable, never the base's. This is acknowledged by the
+[Itanium C++ ABI (issue #10)](https://github.com/itanium-cxx-abi/cxx-abi/issues/10)
+and [LLVM](https://github.com/llvm/llvm-project/commit/47cc9db).
+
+`--filter function --demangle-cpp` merges D0/D1/D2 at the same source
+line into a single coverage entry after demangling. If any variant is
+called (D2 always is), the destructor counts as covered. This is the
+[lcov maintainer's recommended approach](https://github.com/linux-test-project/lcov/issues/79).
+
+## Targets
+
+| Phase | Minimum Line Coverage | Minimum Function Coverage |
+|---|---|---|
+| Phase 1 (PoC) | >= 90% | >= 90% |
+| Phase 2 (MVP) | >= 90% | >= 90% |
+| Phase 3 (Cert) | >= 95% (line + branch) | >= 95% |
+
+## gcovr (alternative — known issues with GCC 15)
 
 ```bash
 find build/coverage -name '*.gcda' -delete
@@ -45,49 +73,5 @@ gcovr --root . --filter 'tianshu/' --gcov-ignore-errors all \
 ```
 
 > **Note:** gcovr 8.6 underreports template-heavy headers (e.g. `object_pool.h`)
-> when used with GCC 15. Use lcov for accurate results.
-
-## Targets
-
-| Phase | Minimum Line Coverage |
-|---|---|
-| Phase 1 (PoC) | ≥ 90% |
-| Phase 2 (MVP) | ≥ 90% |
-| Phase 3 (Cert) | ≥ 95% (line + branch) |
-
-## How It Works
-
-```
-cmake --preset=coverage
-  → adds --coverage flag (= -fprofile-arcs -ftest-coverage)
-  → compiler emits .gcno files (coverage metadata)
-
-ctest --test-dir build/coverage
-  → test binaries run and write .gcda files (coverage data)
-
-lcov --capture
-  → reads .gcno + .gcda pairs
-  → produces .info tracefile
-
-genhtml
-  → renders HTML from .info tracefile
-```
-
-## CI Integration (TODO)
-
-```yaml
-# .github/workflows/ci.yml (future)
-- name: Coverage
-  run: |
-    cmake --preset=coverage
-    cmake --build --preset=coverage
-    ctest --test-dir build/coverage
-    lcov --capture --directory build/coverage --output-file coverage.info \
-      --rc geninfo_auto_base=1 --ignore-errors mismatch,inconsistent,negative
-    lcov --extract coverage.info '*/tianshu/include/*' '*/tianshu/src/*' \
-      --output-file coverage_filtered.info
-- name: Upload to Codecov
-  uses: codecov/codecov-action@v4
-  with:
-    file: coverage_filtered.info
-```
+> and abstract class D0 destructors when used with GCC 15. Use lcov for
+> accurate results.
