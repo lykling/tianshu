@@ -1,6 +1,6 @@
 # SHM 跨进程传输 — 实现决策与陷阱记录
 
-> **文档定位**：ADR-0010 定义了 SHM 基础设施的**架构**（TransportBackend 抽象、ShmPool、offset_ptr）。本文记录 Phase 1 落地时 ADR 未覆盖的**实现级决策**与踩坑，供 Phase 2（ShmPool 通用分配器）和代码评审参考。
+> **文档定位**：ADR-0010 决策 5 锁定了 SHM channel 跨进程传输的**架构决策**（段模型 / 初始化协议 / 唤醒 / 背压 / 生命周期）。本文是其**实现细节与踩坑记录**（错误注入测试、fork 覆盖率、工具链漂移等工程问题），供 Phase 2（ShmPool 通用分配器）和代码评审参考。
 > **维护者**：Pride Leong
 > **状态**：v1.0（2026-08）· 对应 commit `5e652a5` / `db32d60`
 > **关联**：[adr/0010](../adr/0010-transport-shm-infra.md) · [adr/0013](../adr/0013-cross-machine-transport.md) · [evaluation/0002](../evaluation/0002-fork-shared-address-space.md)

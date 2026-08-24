@@ -3,7 +3,7 @@
 - **状态**：已接受
 - **日期**：2026-08-10
 - **决策者**：Pride Leong
-- **关联**：[adr/0005](./0005-lightweight-multiplatform.md) · [adr/0007](./0007-api-spec-multi-language.md) · [adr/0008](./0008-message-format-multi.md) · [evaluation/0002](../evaluation/0002-fork-shared-address-space.md)
+- **关联**：[adr/0005](./0005-lightweight-multiplatform.md) · [adr/0007](./0007-api-spec-multi-language.md) · [adr/0008](./0008-message-format-multi.md) · [evaluation/0002](../evaluation/0002-fork-shared-address-space.md) · [development/shm-transport-notes](../development/shm-transport-notes.md)（决策 5 的实现细节与踩坑）
 
 ---
 
@@ -220,6 +220,8 @@ using string = std::basic_string<char, std::char_traits<char>, Allocator<char>>;
 - **决策**：自研 `tianshu::shm::offset_ptr`（~100 行精简版），零第三方依赖
 - 工作量：3 点（参考 Boost 实现）
 
+**API 契约（Phase 1 实现时锁定）**：offset 是相对实例自身地址的自相对偏移，**copy/move 必须从目标指针重算，禁止直接复制 offset 字段**——偏移语义取决于实例位置，原样复制会指向错误地址。仅 offset==0（null）位置无关。该不变量已由单测锁定（`tests/shm/shm_primitives_test.cc`）。
+
 ### 决策 3：INTRA 模式（同进程内直接指针传递）
 
 完全对标 cyber 的 INTRA，是默认启用的高性能后端：
@@ -271,6 +273,51 @@ tianshu_status_t tianshu_transport_create_writer(
 ```
 
 多语言 SDK 通过 C ABI 调用，**自动获得 backend 切换能力**。
+
+### 决策 5：SHM Channel 跨进程传输落地（Phase 1 增补，2026-08-24）
+
+L4-TRANS-3/4 实现时确定的五项架构级决策。实现细节与踩坑记录见 [development/shm-transport-notes](../development/shm-transport-notes.md)，此处只锁定影响 API 语义与资源模型的部分。
+
+**5.1 段模型：每 channel 一个命名段 + slot-per-reader 固定布局**
+
+```
+[/dev/shm/tianshu_ch_<fnv1a(channel)>]
+[SegmentHeader]                    ← ShmSegment 私有（magic/refcount/size）
+[ChannelHeader]                    ← CAS 状态机 + slot 位图 + seq
+[slot 0..7]                        ← 每 reader 独占：[pshared mutex+cond][SPSC ring]
+```
+
+- 候选对比：**动态分配（ShmPool 挂钩）** 需要跨进程分配器，而分配器自身又要共享状态——递归依赖；**固定布局** 零分配、O(1) 寻址、崩溃后可复位
+- 代价：kMaxReaders=8、ring 256KB 硬编码（每 channel ~2MB）。车辆拓扑典型扇出够用；可配化列入 Phase 2
+- 与决策 2 的关系：ShmPool（L4-TRANS-22）仍按计划实现，服务于通用 SHM 分配（lineage / state checkpoint / 用户容器）；transport channel 走固定布局，**不用 ShmPool**
+
+**5.2 初始化协议：magic 字段 CAS 状态机**
+
+`0 ─CAS─► INITIALIZING ──初始化完──► READY`。共享 mutex 无法解决初始化互斥——初始化 pshared mutex 本身就需要同步（鸡生蛋）；裸内存 CAS 无引导问题。发布用 release/acquire 配对建立 happens-before。赢家中途崩溃的 stale 段回收列入 Phase 2。
+
+**5.3 唤醒：pshared condvar + CLOCK_MONOTONIC**
+
+- 淘汰 eventfd（跨进程 fd 传递走 SCM_RIGHTS，生命周期跨 exec 恶劣）与裸 futex（condvar 协议自实现陷阱多）；glibc pshared condvar 底层即共享页 futex
+- **强制 `condattr_setclock(CLOCK_MONOTONIC)`**：timedwait 默认 CLOCK_REALTIME，墙钟跳变（NTP step）会破坏超时——车载硬约束，与 ORIN phc2sys 事故同源
+- 100ms timed-wait 兜底仅服务故障路径（signal 丢失时保证析构可 join）
+
+**5.4 背压：环满丢新（drop-new）**
+
+| 方案 | 否决理由 |
+|---|---|
+| 阻塞 writer | 迟钝 reader 将无限延迟注入生产者管线；同步 write() API 下不可接受 |
+| 丢最旧（keep-latest） | 破坏 SPSC ring 消息边界，跨消息跳读复杂度陡增 |
+| **丢新（采纳）** | 已收消息完整性与顺序不动；seq 空洞 = reader 可观测丢包计数 |
+
+**演进**：L4-TRANS-8（QoS）落地后改为每 channel 可配（状态估计类话题宜丢旧保新鲜）。
+
+**5.5 生命周期：refcount + 最后离场者 unlink**
+
+- unlink 只删名字、不毁映射；规则为析构时 `fetch_sub`，最后一个解除映射者负责 `shm_unlink`
+- 进程内 registry 持 `weak_ptr`（非 strong），段存活期由实际打开的端点数决定
+- 崩溃残留 = tmpfs 内存泄漏，Phase 2 需 reaper
+
+**验收数据**（fork 双进程，64B 消息）：吞吐 4.17M msg/s（标准 ≥1M），RTT p50=58µs / p99=68µs（标准 <1ms）。
 
 ## 决策依据
 
