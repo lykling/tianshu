@@ -6,7 +6,61 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Phase 1 PoC — not yet started.
+Phase 1 PoC — in progress.
+
+### L4-PRIM — Data Structures (completed earlier in Phase 1)
+
+- L4-PRIM-1..6: ObjectPool / CacheBuffer / AtomicHashMap / RWLock /
+  SpinLock+TicketLock / BlockingCounter+Notification — all at 100% function
+  coverage
+
+### L4-SCHED — Scheduler
+
+- L4-SCHED-1..3: callback-based Scheduler (priority queue + N workers, no
+  coroutines per ADR-0019)
+
+### L4-CORE — Node / Typed Messaging
+
+- L4-TRANS-5: Message metadata (seq / timestamp / src_process_id / lineage_ptr)
+- L4-CORE-1: MessageTraits<T> + POD auto-specialization
+- L4-CORE-10: MessageConcept C++20 concept + TIANSHU_TRAITS_POD macro
+- L4-CORE-2/3: typed Writer<T> / Reader<T> over transport layer
+- L4-CORE-4: Node factory with typed create methods
+
+### L4-TRANS — SHM Cross-Process Transport
+
+- L4-TRANS-24: offset_ptr<T> — self-relative pointer, ASLR-safe (offset
+  recomputed on copy/move; copying the raw offset is a latent bug)
+- L4-TRANS-3: ShmSegment (shm_open/mmap RAII, payload-after-private-header,
+  refcount + last-out-unlink) + SpscRing (lock-free SPSC byte ring with
+  seq/timestamp metadata, wrap-marker, drop-on-full) + ShmChannel/ShmBackend
+  (named segment per channel, 8 per-reader slots, atomic init state machine)
+- L4-TRANS-4: wakeup via PTHREAD_PROCESS_SHARED condvar with
+  CLOCK_MONOTONIC timed wait (100 ms fallback; immune to wall-clock steps)
+- L4-TRANS-19: HybridTransport/Node TransportMode::kShm
+
+Acceptance (fork-based benchmark, 64B messages):
+- throughput 4.17M msg/s (bar: >= 1M) — 4x headroom
+- RTT latency p50=58us p99=68us (bar: < 1ms)
+
+Examples: shm_talker / shm_listener standalone cross-process demo binaries
+(verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
+
+### Build & Tooling
+
+- Dual GCC+Clang: compiler-conditional coverage flags, desktop-clang /
+  coverage-clang presets, bazel :clang / :coverage-* configs
+- Coverage pipeline: lcov --filter function --demangle-cpp (official fix
+  for abstract-class D0 dead code, Itanium ABI issue #10); Clang
+  source-based coverage as the accurate path (no D0 artifact, no template
+  overcounting)
+- rules_cc bumped 0.0.17 -> 0.2.17 to match the resolved bzlmod graph
+
+### Verification
+
+- 171/171 CMake tests (Clang + GCC), 15/15 Bazel tests
+- Line coverage 96.5%, function coverage 100% (lcov, filtered)
+- Zero-warning build on both compilers
 
 ---
 

@@ -35,6 +35,31 @@ TEST(HybridTransportTest, TypeIsIntra) {
   EXPECT_EQ(ht.type(), BackendType::kIntra);
 }
 
+TEST(HybridTransportTest, ShmModeRoutesToShmBackend) {
+  tianshu::transport::HybridTransport ht(tianshu::transport::TransportMode::kShm);
+  EXPECT_EQ(ht.type(), BackendType::kShm);
+  EXPECT_FALSE(ht.supports_zero_copy());
+
+  ChannelConfig cfg;
+  cfg.channel_name = "/hybrid/shm_mode";
+  auto writer = ht.create_writer(cfg);
+  ASSERT_NE(writer, nullptr);
+  EXPECT_EQ(writer->channel(), "/hybrid/shm_mode");
+}
+
+TEST(HybridTransportTest, AutoModeFallsBackToIntra) {
+  tianshu::transport::HybridTransport ht(tianshu::transport::TransportMode::kAuto);
+  EXPECT_EQ(ht.type(), BackendType::kIntra);
+  EXPECT_TRUE(ht.supports_zero_copy());
+
+  ChannelConfig cfg;
+  cfg.channel_name = "/hybrid/auto_mode";
+  auto writer = ht.create_writer(cfg);
+  auto reader = ht.create_reader(cfg);
+  ASSERT_NE(writer, nullptr);
+  ASSERT_NE(reader, nullptr);
+}
+
 TEST(HybridTransportTest, SupportsZeroCopy) {
   const tianshu::transport::HybridTransport ht;
   EXPECT_TRUE(ht.supports_zero_copy());

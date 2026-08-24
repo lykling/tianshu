@@ -39,17 +39,19 @@ using tianshu::transport::BackendType;
 using tianshu::transport::ChannelConfig;
 using tianshu::transport::Message;
 
-// Flush coverage data in forked children so their execution counts merge.
-extern "C" void __gcov_dump(void) __attribute__((weak));
-extern "C" void __llvm_profile_write_file(void) __attribute__((weak));
+#if defined(TIANSHU_HAVE_GCOV_DUMP)
+extern "C" void __gcov_dump(void);
+#elif defined(TIANSHU_HAVE_LLVM_PROFILE_WRITE)
+extern "C" void __llvm_profile_write_file(void);
+#endif
 
+// _exit() skips atexit handlers; forked children flush profiles by hand.
 void dump_child_coverage() {
-  if (__gcov_dump != nullptr) {
-    __gcov_dump();
-  }
-  if (__llvm_profile_write_file != nullptr) {
-    __llvm_profile_write_file();
-  }
+#if defined(TIANSHU_HAVE_GCOV_DUMP)
+  __gcov_dump();
+#elif defined(TIANSHU_HAVE_LLVM_PROFILE_WRITE)
+  __llvm_profile_write_file();
+#endif
 }
 
 struct TestPacket {
@@ -62,6 +64,55 @@ TEST(ShmBackendTest, TypeIsShm) {
   EXPECT_EQ(backend.type(), BackendType::kShm);
   EXPECT_FALSE(backend.supports_zero_copy());
   EXPECT_FALSE(backend.supports_remote());
+}
+
+TEST(ShmBackendTest, EndpointsReportChannel) {
+  tianshu::transport::shm::ShmBackend backend;
+
+  ChannelConfig cfg;
+  cfg.channel_name = "/shm/channel_names";
+
+  auto reader = backend.create_reader(cfg);
+  auto writer = backend.create_writer(cfg);
+  ASSERT_NE(reader, nullptr);
+  ASSERT_NE(writer, nullptr);
+  EXPECT_EQ(writer->channel(), "/shm/channel_names");
+  EXPECT_EQ(reader->channel(), "/shm/channel_names");
+}
+
+TEST(ShmBackendTest, SlotExhaustionBeyondMaxReaders) {
+  tianshu::transport::shm::ShmBackend backend;
+
+  ChannelConfig cfg;
+  cfg.channel_name = "/shm/slot_exhaustion";
+
+  std::vector<std::unique_ptr<tianshu::transport::ReaderBase>> readers;
+  for (std::uint32_t i = 0; i < tianshu::transport::shm::kMaxReaders; ++i) {
+    auto reader = backend.create_reader(cfg);
+    ASSERT_NE(reader, nullptr) << "reader " << i;
+    readers.push_back(std::move(reader));
+  }
+  EXPECT_EQ(backend.create_reader(cfg), nullptr);
+
+  readers.clear();
+  auto revived = backend.create_reader(cfg);
+  ASSERT_NE(revived, nullptr);
+}
+
+TEST(ShmBackendTest, RegistryExpiredEntryReopened) {
+  tianshu::transport::shm::ShmBackend backend;
+
+  ChannelConfig cfg;
+  cfg.channel_name = "/shm/registry_reopen";
+  {
+    auto writer = backend.create_writer(cfg);
+    auto reader = backend.create_reader(cfg);
+    ASSERT_NE(writer, nullptr);
+    ASSERT_NE(reader, nullptr);
+  }
+
+  auto reader2 = backend.create_reader(cfg);
+  ASSERT_NE(reader2, nullptr);
 }
 
 TEST(ShmBackendTest, SameProcessWriterReader) {

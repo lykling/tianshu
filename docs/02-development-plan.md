@@ -2,7 +2,7 @@
 
 > **文档定位**：按"架构层 → 框架 → 功能点"三级拆解到 issue 粒度，每个功能点可直接入 GitHub Issue。
 > **维护者**：Pride Leong
-> **状态**：v0.1（2026-08） · Phase 0 **完成** · Phase 1 **待启动**
+> **状态**：v0.2（2026-08） · Phase 0 **完成** · Phase 1 **进行中**
 > **关联**：[00-overview.md](./00-overview.md) · [01-roadmap.md](./01-roadmap.md) · [adr/0001](./adr/0001-dsl-form.md) · [adr/0002](./adr/0002-cyber-relation.md)
 
 ---
@@ -50,16 +50,26 @@
 
 ## 当前进度
 
-> 更新时间：2026-08-11 · 详见 [CHANGELOG.md](../CHANGELOG.md)
+> 更新时间：2026-08-24 · 详见 [CHANGELOG.md](../CHANGELOG.md)
 
 ### Phase 完成度
 
 | Phase | 状态 | 完成功能点 | 工作量（点） | 备注 |
 |---|---|---|---|---|
 | **Phase 0** | ✅ **完成** | 见下方清单 | ~30/30 | 双构建系统 + 测试 + CI + 风格规范 |
-| Phase 1 | ⏳ 待启动 | 0/~155 | 0/~155 | L4-PRIM 起点 |
+| Phase 1 | 🔨 **进行中** | 12/~155 | ~19/155 | L4-PRIM 全部 + Scheduler + 类型化消息 + SHM 跨进程 |
 | Phase 2 | ❌ 未开始 | 0/~210 | 0/~210 | - |
 | Phase 3 | ❌ 未开始 | 0/~290 | 0/~290 | - |
+
+### Phase 1 已完成功能点（2026-08）
+
+| 架构层 | 已完成 ID | 数量 | 验收 |
+|---|---|---|---|
+| **L4-PRIM** | 1, 2, 3, 4, 5, 6 | 6 | 单测 + 并发测试全过，100% 函数覆盖 |
+| **L4-SCHED** | 1, 2, 3 | 3 | 优先级 + 多 worker 单测通过（回调式，ADR-0019） |
+| **L4-TRANS** | 3, 4, 5, 18, 19, 20, 24 | 7 | **跨进程吞吐 4.17M msg/s（验收 ≥1M）、RTT p50=58µs（验收 <1ms）**，fork 集成测试 + talker/listener demo，见 [shm-transport-notes](./development/shm-transport-notes.md) |
+| **L4-CORE** | 1, 2, 3, 4, 10 | 5 | MessageConcept + 类型化 Writer/Reader，POD 消息端到端单测 |
+| 合计 | | **21 项**（含 L4-TRANS-19 部分完成：SHM 手动模式，kAuto 自动选路待 L4-TRANS-21） |
 
 ### Phase 0 已完成功能点
 

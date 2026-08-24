@@ -24,9 +24,9 @@ TransportBackend* HybridTransport::active_backend(const ChannelConfig& cfg) {
       return shm_.get();
     case TransportMode::kIntra:
     case TransportMode::kAuto:
+    default:
       return intra_.get();
   }
-  return intra_.get();
 }
 
 }  // namespace tianshu::transport

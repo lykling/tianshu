@@ -81,10 +81,17 @@ if(TIANSHU_ENABLE_COVERAGE)
        CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
         add_compile_options(-fprofile-instr-generate -fcoverage-mapping -O0 -g)
         add_link_options(-fprofile-instr-generate)
+        # Forked test children flush profiles before _exit(); weak refs never
+        # pull the profile runtime's archive member.
+        add_compile_definitions(TIANSHU_HAVE_LLVM_PROFILE_WRITE)
         message(STATUS "Coverage: Clang source-based (llvm-cov)")
     else()
         add_compile_options(--coverage -O0 -g)
         add_link_options(--coverage)
+        # Forked test children dump gcov manually: __gcov_dump must be a
+        # strong reference or the linker skips the libgcov member (weak
+        # undefined symbols never pull archive members).
+        add_compile_definitions(TIANSHU_HAVE_GCOV_DUMP)
         message(STATUS "Coverage: GCC gcov-based")
     endif()
 endif()
@@ -231,9 +238,11 @@ if(TIANSHU_BUILD_BENCHMARKS)
 endif()
 
 # Third-party libraries should not be held to our -Werror standard.
-foreach(_target benchmark gtest gtest_main gmock gmock_main)
+# Clang >= 22 flags __COUNTER__ as a C2y extension; GoogleBenchmark's own
+# -pedantic-errors turns that into an error before -Wno-error applies.
+foreach(_target benchmark benchmark_main gtest gtest_main gmock gmock_main)
     if(TARGET ${_target})
-        target_compile_options(${_target} PRIVATE -Wno-error)
+        target_compile_options(${_target} PRIVATE -Wno-error -Wno-c2y-extensions)
     endif()
 endforeach()
 

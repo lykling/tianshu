@@ -14,13 +14,20 @@
 
 // Unit tests for shm primitives: offset_ptr, ShmSegment, SpscRing (L4-TRANS-24, L4-TRANS-3).
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <atomic>
+#include <csignal>
 #include <cstring>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <sys/mman.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
 
 #include "tianshu/shm/offset_ptr.h"
 #include "tianshu/shm/shm_ring.h"
@@ -121,6 +128,84 @@ TEST(ShmSegmentTest, ConcurrentOpenBothSucceed) {
 
 TEST(ShmSegmentTest, InvalidNameRejected) {
   EXPECT_EQ(tianshu::shm::ShmSegment::open_or_create("", 4096), nullptr);
+}
+
+// ENOENT: the name implies a missing directory under /dev/shm.
+TEST(ShmSegmentTest, CreateFailsOnMissingDirectory) {
+  EXPECT_EQ(tianshu::shm::ShmSegment::open_or_create("/tianshu_missing_dir/seg", 4096), nullptr);
+}
+
+// Bare segment (no published magic): attachers poll until timeout.
+TEST(ShmSegmentTest, AttachTimesOutOnUnpublishedSegment) {
+  const char* name = "/tianshu_test_bare";
+  const int fd = shm_open(name, O_CREAT | O_EXCL | O_RDWR, 0600);
+  ASSERT_GE(fd, 0);
+  ASSERT_EQ(ftruncate(fd, 8192), 0);
+  close(fd);
+
+  EXPECT_EQ(tianshu::shm::ShmSegment::open_or_create(name, 4096), nullptr);
+  shm_unlink(name);
+}
+
+// Forged header with absurd size: the full mmap must fail.
+TEST(ShmSegmentTest, AttachFailsOnOversizedPublishedSize) {
+  const char* name = "/tianshu_test_huge";
+  const std::size_t total = sizeof(tianshu::shm::SegmentHeader) + 8192;
+  const int fd = shm_open(name, O_CREAT | O_EXCL | O_RDWR, 0600);
+  ASSERT_GE(fd, 0);
+  ASSERT_EQ(ftruncate(fd, static_cast<off_t>(total)), 0);
+
+  void* mem = mmap(nullptr, total, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  close(fd);
+  ASSERT_NE(mem, MAP_FAILED);
+
+  auto* hdr = static_cast<tianshu::shm::SegmentHeader*>(mem);
+  hdr->size = 1ULL << 48;
+  hdr->refcount.store(1, std::memory_order_relaxed);
+  hdr->magic.store(tianshu::shm::ShmSegment::kMagic, std::memory_order_release);
+  munmap(mem, total);
+
+  EXPECT_EQ(tianshu::shm::ShmSegment::open_or_create(name, 4096), nullptr);
+  shm_unlink(name);
+}
+
+#ifdef TIANSHU_HAVE_GCOV_DUMP
+// Strong reference: a weak one stays unresolved because the linker never
+// pulls archive members for weak undefined symbols.
+extern "C" void __gcov_dump(void);
+// Forked children must dump before _exit(); the rlimit this test sets would
+// otherwise make the gcda write itself fail with EFBIG.
+void dump_child_gcov() {
+  rlimit lim{};
+  lim.rlim_cur = RLIM_INFINITY;
+  lim.rlim_max = RLIM_INFINITY;
+  setrlimit(RLIMIT_FSIZE, &lim);
+  __gcov_dump();
+}
+#else
+void dump_child_gcov() {}
+#endif
+
+// ftruncate beyond RLIMIT_FSIZE; forked so the rlimit stays child-local.
+TEST(ShmSegmentTest, CreateFailsUnderFsizeLimit) {
+  const pid_t pid = fork();
+  ASSERT_GE(pid, 0);
+  if (pid == 0) {
+    std::signal(SIGXFSZ, SIG_IGN);
+    rlimit lim{};
+    getrlimit(RLIMIT_FSIZE, &lim);
+    lim.rlim_cur = 4096;
+    setrlimit(RLIMIT_FSIZE, &lim);
+    const bool ok =
+        tianshu::shm::ShmSegment::open_or_create("/tianshu_test_fsize", 1 << 20) != nullptr;
+    shm_unlink("/tianshu_test_fsize");
+    dump_child_gcov();
+    _exit(ok ? 1 : 0);
+  }
+  int status = 0;
+  ASSERT_EQ(waitpid(pid, &status, 0), pid);
+  EXPECT_TRUE(WIFEXITED(status));
+  EXPECT_EQ(WEXITSTATUS(status), 0);
 }
 
 constexpr std::size_t kRingCap = 4096;
