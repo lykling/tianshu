@@ -131,7 +131,7 @@ SHM 错误注入测试需要 fork + `_exit()`，期间发现子进程覆盖率�
 2. **RLIMIT_FSIZE 自噬**：为注入 ftruncate 失败把软限设为 4096，而 gcda 文件 >4KB——子进程 dump 自己就会 EFBIG 失败。dump 前必须把 rlimit 复位为 RLIM_INFINITY。
 3. **`_exit()` 跳过 atexit**：子进程必须手动 dump；同二进制写同一路径 gcda 时 libgcov 按 checksum 合并计数，父子数据自动求并集，无需 GCOV_PREFIX 分流。
 
-Clang 构建同理：`__llvm_profile_write_file` 弱引用同样拉不进 profiling runtime（`TIANSHU_HAVE_LLVM_PROFILE_WRITE` 门控）。
+Clang 构建同理：`__llvm_profile_write_file` 弱引用同样拉不进 profiling runtime（`TIANSHU_HAVE_LLVM_PROFILE_WRITE` 门控）。后续又发现三层 Clang 特有问题：(a) `LLVM_PROFILE_FILE` 的 `%p` 在 **fork 前已被 runtime 解析并缓存**，子进程 `__llvm_profile_write_file` 会写进父进程未来的文件、随后被覆盖——须先 `__llvm_profile_set_filename` 指向 pid 独立路径；(b) 无 `%m` 的固定文件名只落盘主可执行模块，DSO 计数不写；(c) 即便都做对，fork 子进程 dump 仍只含主模块——runtime 对多模块 dump 的限制，未解。因此 fsize 注入测试改为**进程内**完成（soft limit 降后升在硬限内合法），跨进程测试的子进程独占分支接受为 Clang 管线缺口，GCC 管线为权威数字来源。
 
 ## Phase 2 待办（本文档暴露的缺口）
 

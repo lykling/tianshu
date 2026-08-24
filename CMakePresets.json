@@ -158,7 +158,7 @@
             "output": {"outputOnFailure": true},
             "execution": {"noTestsAction": "error", "stopOnFailure": false},
             "environment": {
-                "LLVM_PROFILE_FILE": "${sourceDir}/build/coverage-clang/%m.profraw"
+                "LLVM_PROFILE_FILE": "${sourceDir}/build/coverage-clang/%m.%p.profraw"
             }
         }
     ]

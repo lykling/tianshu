@@ -22,6 +22,8 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <thread>
@@ -43,13 +45,26 @@ using tianshu::transport::Message;
 extern "C" void __gcov_dump(void);
 #elif defined(TIANSHU_HAVE_LLVM_PROFILE_WRITE)
 extern "C" void __llvm_profile_write_file(void);
+extern "C" void __llvm_profile_set_filename(const char*);
 #endif
 
 // _exit() skips atexit handlers; forked children flush profiles by hand.
+// Under LLVM the runtime resolved LLVM_PROFILE_FILE (%p) before fork, so
+// the child must re-point at its own file first or the parent's exit dump
+// overwrites it.
 void dump_child_coverage() {
 #if defined(TIANSHU_HAVE_GCOV_DUMP)
   __gcov_dump();
 #elif defined(TIANSHU_HAVE_LLVM_PROFILE_WRITE)
+  if (const char* env = getenv("LLVM_PROFILE_FILE")) {
+    std::string dir(env);
+    const auto slash = dir.rfind('/');
+    dir = slash == std::string::npos ? "." : dir.substr(0, slash);
+    char path[256];
+    std::snprintf(path, sizeof(path), "%s/child_%%m_%d.profraw", dir.c_str(),
+                  static_cast<int>(getpid()));
+    __llvm_profile_set_filename(path);
+  }
   __llvm_profile_write_file();
 #endif
 }

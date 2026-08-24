@@ -19,6 +19,8 @@
 
 #include <atomic>
 #include <csignal>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <thread>
@@ -169,43 +171,25 @@ TEST(ShmSegmentTest, AttachFailsOnOversizedPublishedSize) {
   shm_unlink(name);
 }
 
-#ifdef TIANSHU_HAVE_GCOV_DUMP
-// Strong reference: a weak one stays unresolved because the linker never
-// pulls archive members for weak undefined symbols.
-extern "C" void __gcov_dump(void);
-// Forked children must dump before _exit(); the rlimit this test sets would
-// otherwise make the gcda write itself fail with EFBIG.
-void dump_child_gcov() {
-  rlimit lim{};
-  lim.rlim_cur = RLIM_INFINITY;
-  lim.rlim_max = RLIM_INFINITY;
-  setrlimit(RLIMIT_FSIZE, &lim);
-  __gcov_dump();
-}
-#else
-void dump_child_gcov() {}
-#endif
-
-// ftruncate beyond RLIMIT_FSIZE; forked so the rlimit stays child-local.
+// ftruncate beyond RLIMIT_FSIZE, in-process: the soft limit is lowered then
+// restored (legal under the hard limit), so the failure path's coverage
+// lands in the parent profile under every toolchain.
 TEST(ShmSegmentTest, CreateFailsUnderFsizeLimit) {
-  const pid_t pid = fork();
-  ASSERT_GE(pid, 0);
-  if (pid == 0) {
-    std::signal(SIGXFSZ, SIG_IGN);
-    rlimit lim{};
-    getrlimit(RLIMIT_FSIZE, &lim);
-    lim.rlim_cur = 4096;
-    setrlimit(RLIMIT_FSIZE, &lim);
-    const bool ok =
-        tianshu::shm::ShmSegment::open_or_create("/tianshu_test_fsize", 1 << 20) != nullptr;
-    shm_unlink("/tianshu_test_fsize");
-    dump_child_gcov();
-    _exit(ok ? 1 : 0);
-  }
-  int status = 0;
-  ASSERT_EQ(waitpid(pid, &status, 0), pid);
-  EXPECT_TRUE(WIFEXITED(status));
-  EXPECT_EQ(WEXITSTATUS(status), 0);
+  rlimit saved{};
+  ASSERT_EQ(getrlimit(RLIMIT_FSIZE, &saved), 0);
+
+  rlimit low{};
+  low.rlim_cur = 4096;
+  low.rlim_max = saved.rlim_max;
+  ASSERT_EQ(setrlimit(RLIMIT_FSIZE, &low), 0);
+  std::signal(SIGXFSZ, SIG_IGN);
+
+  const auto seg = tianshu::shm::ShmSegment::open_or_create("/tianshu_test_fsize", 1 << 20);
+  EXPECT_EQ(seg, nullptr);
+  shm_unlink("/tianshu_test_fsize");
+
+  std::signal(SIGXFSZ, SIG_DFL);
+  ASSERT_EQ(setrlimit(RLIMIT_FSIZE, &saved), 0);
 }
 
 constexpr std::size_t kRingCap = 4096;

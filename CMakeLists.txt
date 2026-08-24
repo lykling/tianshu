@@ -242,7 +242,8 @@ endif()
 # -pedantic-errors turns that into an error before -Wno-error applies.
 foreach(_target benchmark benchmark_main gtest gtest_main gmock gmock_main)
     if(TARGET ${_target})
-        target_compile_options(${_target} PRIVATE -Wno-error -Wno-c2y-extensions)
+        target_compile_options(${_target} PRIVATE -Wno-error -Wno-c2y-extensions
+            $<$<CXX_COMPILER_ID:Clang>:-Wno-character-conversion>)
     endif()
 endforeach()
 
