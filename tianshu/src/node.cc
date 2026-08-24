@@ -23,7 +23,8 @@
 
 namespace tianshu::core {
 
-Node::Node() : transport_(std::make_unique<transport::HybridTransport>()) {}
+Node::Node(transport::TransportMode mode)
+    : transport_(std::make_unique<transport::HybridTransport>(mode)) {}
 
 std::unique_ptr<transport::ReaderBase> Node::create_reader(std::string_view channel,
                                                            std::string_view msg_type) {

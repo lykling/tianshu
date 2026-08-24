@@ -11,3 +11,34 @@ cc_test(
     ],
     size = "small",
 )
+
+cc_test(
+    name = "transport_registry_test",
+    srcs = ["transport_backend_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)
+
+cc_test(
+    name = "hybrid_transport_test",
+    srcs = ["hybrid_transport_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)
+
+# Cross-process test: exercises shm_open/mmap and fork(2).
+cc_test(
+    name = "shm_backend_test",
+    srcs = ["shm_backend_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)

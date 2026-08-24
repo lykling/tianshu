@@ -11,3 +11,13 @@ cc_test(
     ],
     size = "small",
 )
+
+cc_test(
+    name = "typed_message_test",
+    srcs = ["typed_message_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)

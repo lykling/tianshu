@@ -44,6 +44,12 @@ enum class MessageFormat : uint8_t {
   kProtobuf,
 };
 
+enum class TransportMode : uint8_t {
+  kIntra,
+  kShm,
+  kAuto,
+};
+
 struct ChannelConfig {
   std::string channel_name;
   std::string msg_type_name;

@@ -10,6 +10,9 @@ add_library(tianshu SHARED
     src/version.cc
     src/transport_backend.cc
     src/intra_backend.cc
+    src/shm_segment.cc
+    src/shm_backend.cc
+    src/hybrid_transport.cc
     src/node.cc
 )
 

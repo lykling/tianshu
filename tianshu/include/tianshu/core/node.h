@@ -17,9 +17,8 @@
 //
 // Design (per L4-CORE-4, ADR-0008, ADR-0010):
 //   - Node owns a HybridTransport instance
-//   - create_reader/create_writer delegate to transport
+//   - TransportMode selects INTRA (same process) or SHM (cross process)
 //   - Typed create_typed_reader<T>/create_typed_writer<T> wrap with serialization
-//   - Future: will integrate with Scheduler, DataVisitor, etc.
 
 #pragma once
 
@@ -34,13 +33,13 @@
 
 namespace tianshu::transport {
 class HybridTransport;
-}
+}  // namespace tianshu::transport
 
 namespace tianshu::core {
 
 class Node {
  public:
-  Node();
+  explicit Node(transport::TransportMode mode = transport::TransportMode::kIntra);
 
   std::unique_ptr<transport::ReaderBase> create_reader(std::string_view channel,
                                                        std::string_view msg_type = "");

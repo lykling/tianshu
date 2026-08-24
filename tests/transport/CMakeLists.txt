@@ -9,3 +9,7 @@ gtest_discover_tests(transport_registry_test)
 add_executable(hybrid_transport_test hybrid_transport_test.cc)
 target_link_libraries(hybrid_transport_test PRIVATE tianshu GTest::gtest_main)
 gtest_discover_tests(hybrid_transport_test)
+
+add_executable(shm_backend_test shm_backend_test.cc)
+target_link_libraries(shm_backend_test PRIVATE tianshu GTest::gtest_main)
+gtest_discover_tests(shm_backend_test)

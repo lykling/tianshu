@@ -1,0 +1,3 @@
+add_executable(shm_primitives_test shm_primitives_test.cc)
+target_link_libraries(shm_primitives_test PRIVATE tianshu GTest::gtest_main)
+gtest_discover_tests(shm_primitives_test)

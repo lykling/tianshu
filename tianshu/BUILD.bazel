@@ -1,3 +1,7 @@
+# =============================================================================
+# TIANSHU library Bazel build
+# =============================================================================
+
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -5,8 +9,11 @@ package(default_visibility = ["//visibility:public"])
 cc_library(
     name = "tianshu",
     srcs = [
+        "src/hybrid_transport.cc",
         "src/intra_backend.cc",
         "src/node.cc",
+        "src/shm_backend.cc",
+        "src/shm_segment.cc",
         "src/transport_backend.cc",
         "src/version.cc",
     ],
@@ -17,10 +24,18 @@ cc_library(
         "include/tianshu/base/rw_lock.h",
         "include/tianshu/base/spin_lock.h",
         "include/tianshu/base/sync.h",
+        "include/tianshu/core/message_concept.h",
+        "include/tianshu/core/message_traits.h",
         "include/tianshu/core/node.h",
+        "include/tianshu/core/typed_reader.h",
+        "include/tianshu/core/typed_writer.h",
         "include/tianshu/sched/scheduler.h",
+        "include/tianshu/shm/offset_ptr.h",
+        "include/tianshu/shm/shm_ring.h",
+        "include/tianshu/shm/shm_segment.h",
         "include/tianshu/transport/hybrid_transport.h",
         "include/tianshu/transport/intra_backend.h",
+        "include/tianshu/transport/shm_backend.h",
         "include/tianshu/transport/transport_backend.h",
         "include/tianshu/version.h",
     ],
@@ -32,6 +47,7 @@ cc_library(
         "-Wpedantic",
         "-Werror",
     ],
+    linkopts = ["-pthread"],
     defines = select({
         "//bazel/tianshu:profile_desktop": ["TIANSHU_PROFILE_DESKTOP"],
         "//bazel/tianshu:profile_server":   ["TIANSHU_PROFILE_SERVER"],
