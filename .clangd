@@ -6,31 +6,32 @@
 #   - compile_commands.json (compilation database)
 #   - compile flags overrides
 #   - inlay hints / diagnostics options
+#
+# Keys verified against clangd 22 (--check reports no unknown keys).
 
-# Search for compile_commands.json in build/ subdirectories (CMake + Bazel).
 CompileFlags:
-  CompilationDatabases:
-    - build/desktop
-    - build/vehicle
-    - build/server
-    - build
-  # Remove unwanted flags from the compilation database
+  # Root compile_commands.json is a symlink CMake refreshes per preset
+  # (CMakeLists.txt); a hardcoded per-build path would go stale on preset
+  # switches like the llvm/21 -> llvm/22 toolchain drift.
+  CompilationDatabase: .
+
+  # Editing must not fail on warnings; CI enforces them instead.
   Remove:
-    - -Werror  # clangd shouldn't fail on warnings during editing
+    - -Werror
     - -Wall
     - -Wextra
     - -Wpedantic
 
-# Diagnostics
 Diagnostics:
   ClangTidy:
     FastCheckFilter: None
-    Checks: -*,bugprone-*,cert-*,google-*,misc-*,modernize-*,performance-*,readability-*
+    # Mirror .clang-tidy: same families enabled, same documented exceptions.
+    # clangd applies these on top of any Checks read from .clang-tidy.
+    Remove: bugprone-easily-swappable-parameters,bugprone-narrowing-conversions
   UnusedIncludes: Strict
   MissingIncludes: Strict
   Suppress: [plugin_check]
 
-# Inlay hints (visible in modern editors)
 InlayHints:
   Enabled: Yes
   ParameterNames: Yes
@@ -38,15 +39,12 @@ InlayHints:
   Designators: Yes
   BlockEnd: Yes
 
-# Hover / completion
 Hover:
   ShowAKA: Yes
 
-# Indexing
 Index:
   StandardLibrary: Yes
   Background: Build
 
-# Completion
 Completion:
   AllScopes: Yes

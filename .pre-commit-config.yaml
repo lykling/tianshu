@@ -55,11 +55,12 @@ repos:
         files: \.(cc|cpp|h|hpp)$
         pass_filenames: false
 
-      # clang-tidy on staged C++ files (per ADR-0018)
+      # clang-tidy on staged C++ files (per ADR-0018; benchmarks/ excluded —
+      # GoogleBenchmark macros emit their own diagnostics)
       - id: clang-tidy
         name: clang-tidy (staged files)
         entry: bash -c 'files=$(git diff --cached --name-only --diff-filter=ACMR |
-          grep -E "\.(cc|cpp|h|hpp)$" || true);
+          grep -E "^(tianshu|tests|examples)/.*\.(cc|cpp|h|hpp)$" || true);
           [ -z "$files" ] && exit 0;
           clang-tidy -p compile_commands.json --quiet --warnings-as-errors=* $files'
         language: system
