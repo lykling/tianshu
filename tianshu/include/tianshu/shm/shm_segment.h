@@ -62,6 +62,8 @@ class ShmSegment {
  private:
   ShmSegment() = default;
   bool init(std::string_view name, std::size_t size);
+  bool create_new(std::size_t total);
+  bool attach_existing();
   bool map_full(const char* n, std::size_t payload_size);
   SegmentHeader* header() { return static_cast<SegmentHeader*>(base_); }
 

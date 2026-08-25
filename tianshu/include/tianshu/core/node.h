@@ -27,6 +27,7 @@
 #include <string_view>
 
 #include "tianshu/core/message_concept.h"
+#include "tianshu/core/message_traits.h"
 #include "tianshu/core/typed_reader.h"
 #include "tianshu/core/typed_writer.h"
 #include "tianshu/transport/transport_backend.h"

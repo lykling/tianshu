@@ -185,7 +185,8 @@ TEST(SchedulerTest, DestructorCallsShutdown) {
 
 TEST(SchedulerTest, AddTaskOverwriteSameName) {
   tianshu::sched::Scheduler sched(1);
-  std::atomic<int> v1{0}, v2{0};
+  std::atomic<int> v1{0};
+  std::atomic<int> v2{0};
   sched.add_task("dup", 1, [&]() { v1.fetch_add(1); });
   sched.add_task("dup", 1, [&]() { v2.fetch_add(1); });
   EXPECT_EQ(sched.task_count(), 1U);

@@ -24,18 +24,16 @@
 
 #pragma once
 
-#include <pthread.h>
+#include <pthread.h>  // NOLINT(misc-include-cleaner)  // glibc: bits/pthreadtypes
 
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <string_view>
 #include <thread>
-#include <unordered_map>
-#include <vector>
+#include <utility>
 
 #include "tianshu/shm/shm_ring.h"
 #include "tianshu/shm/shm_segment.h"
@@ -58,8 +56,8 @@ struct ChannelHeader {
 };
 
 struct SlotHeader {
-  pthread_mutex_t mutex;
-  pthread_cond_t cond;
+  pthread_mutex_t mutex;  // NOLINT(misc-include-cleaner)  // glibc: bits/pthreadtypes
+  pthread_cond_t cond;    // NOLINT(misc-include-cleaner)  // glibc: bits/pthreadtypes
 };
 
 class ShmChannel {

@@ -14,11 +14,13 @@
 
 #include "tianshu/transport/hybrid_transport.h"
 
+#include "tianshu/transport/transport_backend.h"
+
 namespace tianshu::transport {
 
 // Phase 1: kAuto falls back to INTRA. L4-TRANS-21 (service discovery based
 // process detection) will replace this.
-TransportBackend* HybridTransport::active_backend(const ChannelConfig& cfg) {
+TransportBackend* HybridTransport::active_backend([[maybe_unused]] const ChannelConfig& cfg) {
   switch (mode_) {
     case TransportMode::kShm:
       return shm_.get();

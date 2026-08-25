@@ -22,11 +22,11 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -41,11 +41,13 @@ using tianshu::transport::BackendType;
 using tianshu::transport::ChannelConfig;
 using tianshu::transport::Message;
 
-#if defined(TIANSHU_HAVE_GCOV_DUMP)
+#ifdef TIANSHU_HAVE_GCOV_DUMP
 extern "C" void __gcov_dump(void);
-#elif defined(TIANSHU_HAVE_LLVM_PROFILE_WRITE)
+#else
+#ifdef TIANSHU_HAVE_LLVM_PROFILE_WRITE
 extern "C" void __llvm_profile_write_file(void);
 extern "C" void __llvm_profile_set_filename(const char*);
+#endif
 #endif
 
 // _exit() skips atexit handlers; forked children flush profiles by hand.
@@ -53,9 +55,10 @@ extern "C" void __llvm_profile_set_filename(const char*);
 // the child must re-point at its own file first or the parent's exit dump
 // overwrites it.
 void dump_child_coverage() {
-#if defined(TIANSHU_HAVE_GCOV_DUMP)
+#ifdef TIANSHU_HAVE_GCOV_DUMP
   __gcov_dump();
-#elif defined(TIANSHU_HAVE_LLVM_PROFILE_WRITE)
+#else
+#ifdef TIANSHU_HAVE_LLVM_PROFILE_WRITE
   if (const char* env = getenv("LLVM_PROFILE_FILE")) {
     std::string dir(env);
     const auto slash = dir.rfind('/');
@@ -66,6 +69,7 @@ void dump_child_coverage() {
     __llvm_profile_set_filename(path);
   }
   __llvm_profile_write_file();
+#endif
 #endif
 }
 
@@ -154,7 +158,7 @@ TEST(ShmBackendTest, SameProcessWriterReader) {
   });
 
   for (int i = 0; i < 50; ++i) {
-    const TestPacket pkt{static_cast<std::uint64_t>(i), i * 0.5};
+    const TestPacket pkt{.seq = static_cast<std::uint64_t>(i), .value = i * 0.5};
     writer->write(&pkt, sizeof(pkt));
   }
 
@@ -184,7 +188,7 @@ TEST(ShmBackendTest, MultipleReadersFanout) {
   reader1->set_callback([&](const Message&) { count1.fetch_add(1); });
   reader2->set_callback([&](const Message&) { count2.fetch_add(1); });
 
-  const TestPacket pkt{1, 1.0};
+  const TestPacket pkt{.seq = 1, .value = 1.0};
   writer->write(&pkt, sizeof(pkt));
 
   for (int spin = 0; spin < 2000 && (count1.load() < 1 || count2.load() < 1); ++spin) {
@@ -209,7 +213,7 @@ TEST(ShmBackendTest, NodeShmModeEndToEnd) {
     count.fetch_add(1);
   });
 
-  const TestPacket pkt{77, 3.25};
+  const TestPacket pkt{.seq = 77, .value = 3.25};
   writer->write(&pkt, sizeof(pkt));
 
   for (int spin = 0; spin < 2000 && count.load() < 1; ++spin) {
@@ -228,7 +232,7 @@ TEST(ShmBackendTest, CrossProcessEndToEnd) {
   int handshake_pipe[2];
   ASSERT_EQ(pipe(handshake_pipe), 0);
 
-  const pid_t pid = fork();
+  const pid_t pid = fork();  // NOLINT(misc-include-cleaner)  // glibc: bits/types + sys/types
   ASSERT_GE(pid, 0);
 
   if (pid == 0) {
@@ -247,7 +251,7 @@ TEST(ShmBackendTest, CrossProcessEndToEnd) {
         _exit(10);
       }
 
-      std::atomic<int> received{0};
+      std::atomic<std::uint64_t> received{0};
 
       reader->set_callback([&](const Message& msg) {
         TestPacket pkt{};
@@ -290,14 +294,14 @@ TEST(ShmBackendTest, CrossProcessEndToEnd) {
   ASSERT_NE(writer, nullptr);
 
   for (int i = 0; i < kMessages; ++i) {
-    const TestPacket pkt{static_cast<std::uint64_t>(i), i * 1.5};
+    const TestPacket pkt{.seq = static_cast<std::uint64_t>(i), .value = i * 1.5};
     writer->write(&pkt, sizeof(pkt));
   }
 
   int status = 0;
   ASSERT_EQ(waitpid(pid, &status, 0), pid);
-  EXPECT_TRUE(WIFEXITED(status));
-  EXPECT_EQ(WEXITSTATUS(status), 0);
+  EXPECT_TRUE(WIFEXITED(status));     // NOLINT(misc-include-cleaner)  // glibc: bits/waitflags
+  EXPECT_EQ(WEXITSTATUS(status), 0);  // NOLINT(misc-include-cleaner)  // glibc: bits/waitflags
 }
 
 }  // namespace

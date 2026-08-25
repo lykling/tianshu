@@ -20,13 +20,13 @@
 
 #include <unistd.h>
 
-#include <chrono>
 #include <csignal>
+#include <cstdint>
 #include <cstdio>
-#include <string>
 
 #include "tianshu/core/message_traits.h"
 #include "tianshu/core/node.h"
+#include "tianshu/transport/transport_backend.h"
 
 namespace {
 
@@ -49,13 +49,13 @@ struct ImuData {
 TIANSHU_TRAITS_POD(ImuData, "tianshu.example.ImuData");
 
 int main() {
-  std::signal(SIGINT, handle_signal);
-  std::signal(SIGTERM, handle_signal);
+  static_cast<void>(std::signal(SIGINT, handle_signal));
+  static_cast<void>(std::signal(SIGTERM, handle_signal));
 
   tianshu::core::Node node(tianshu::transport::TransportMode::kShm);
   auto reader = node.create_typed_reader<ImuData>("/sensing/imu");
   if (reader == nullptr) {
-    std::fprintf(stderr, "shm_listener: failed to create reader\n");
+    static_cast<void>(std::fprintf(stderr, "shm_listener: failed to create reader\n"));
     return 1;
   }
 

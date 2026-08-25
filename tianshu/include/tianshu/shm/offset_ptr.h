@@ -29,6 +29,7 @@
 namespace tianshu::shm {
 
 template <typename T>
+// NOLINTNEXTLINE(readability-identifier-naming)  // STL-mirror type, per ADR-0010
 class offset_ptr {
  public:
   offset_ptr() = default;

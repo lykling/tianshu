@@ -22,14 +22,15 @@
 
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "tianshu/core/message_concept.h"
+#include "tianshu/core/message_traits.h"
 #include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::core {
@@ -41,8 +42,10 @@ class Reader {
       : base_(std::move(base)), channel_(std::move(channel)) {
     base_->set_callback([this](const transport::Message& msg) {
       if (msg.data != nullptr && msg.size > 0) {
+        // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         buffer_.assign(static_cast<const std::uint8_t*>(msg.data),
                        static_cast<const std::uint8_t*>(msg.data) + msg.size);
+        // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         last_seq_ = msg.seq;
         last_timestamp_ = msg.timestamp_ns;
         has_data_ = true;

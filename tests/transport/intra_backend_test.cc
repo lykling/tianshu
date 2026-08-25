@@ -19,6 +19,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -242,7 +243,9 @@ TEST(IntraBackendTest, ThreeReadersFanout) {
   auto r2 = backend.create_reader(cfg);
   auto r3 = backend.create_reader(cfg);
 
-  std::atomic<int> c1{0}, c2{0}, c3{0};
+  std::atomic<int> c1{0};
+  std::atomic<int> c2{0};
+  std::atomic<int> c3{0};
   r1->set_callback([&](const Message&) { c1.fetch_add(1); });
   r2->set_callback([&](const Message&) { c2.fetch_add(1); });
   r3->set_callback([&](const Message&) { c3.fetch_add(1); });

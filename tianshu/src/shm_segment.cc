@@ -17,13 +17,16 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cerrno>
 #include <chrono>
+#include <cstdint>
 #include <cstring>
+#include <memory>
+#include <string_view>
 #include <thread>
 
 #include <sys/mman.h>
-#include <sys/stat.h>
 
 namespace tianshu::shm {
 
@@ -63,47 +66,49 @@ bool ShmSegment::init(std::string_view name, std::size_t size) {
   }
   std::memcpy(name_, name.data(), name.size());
 
-  const std::size_t total = size + sizeof(SegmentHeader);
-
-  const int fd = shm_open(name_, kOpenFlagsCreate, 0600);
-  if (fd >= 0) {
-    if (ftruncate(fd, static_cast<off_t>(total)) != 0) {
-      close(fd);
-      shm_unlink(name_);
-      return false;
-    }
-    if (!map_full(name_, total)) {
-      close(fd);
-      shm_unlink(name_);
-      return false;
-    }
-    close(fd);
-
-    auto* hdr = header();
-    hdr->size = total;
-    hdr->refcount.store(1, std::memory_order_relaxed);
-    hdr->magic.store(kMagic, std::memory_order_release);
+  if (create_new(size + sizeof(SegmentHeader))) {
     return true;
   }
-
   if (errno != EEXIST) {
     return false;
   }
+  return attach_existing();
+}
 
-  const int fd2 = shm_open(name_, kOpenFlagsExisting, 0600);
-  if (fd2 < 0) {
+bool ShmSegment::create_new(std::size_t total) {
+  const int fd = shm_open(name_, kOpenFlagsCreate, 0600);
+  if (fd < 0) {
+    return false;
+  }
+  if (ftruncate(fd, static_cast<off_t>(total)) != 0 || !map_full(name_, total)) {
+    close(fd);
+    shm_unlink(name_);
+    return false;
+  }
+  close(fd);
+
+  auto* hdr = header();
+  hdr->size = total;
+  hdr->refcount.store(1, std::memory_order_relaxed);
+  hdr->magic.store(kMagic, std::memory_order_release);
+  return true;
+}
+
+bool ShmSegment::attach_existing() {
+  const int fd = shm_open(name_, kOpenFlagsExisting, 0600);
+  if (fd < 0) {
     return false;
   }
 
-  void* probe = mmap(nullptr, page_size(), PROT_READ | PROT_WRITE, MAP_SHARED, fd2, 0);
+  void* probe = mmap(nullptr, page_size(), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (probe == MAP_FAILED) {
-    close(fd2);
+    close(fd);
     return false;
   }
 
-  auto* probe_hdr = reinterpret_cast<SegmentHeader*>(probe);
-  bool published = false;
   std::uint64_t total_size = 0;
+  bool published = false;
+  auto* probe_hdr = reinterpret_cast<SegmentHeader*>(probe);
   for (int i = 0; i < 1000; ++i) {
     if (probe_hdr->magic.load(std::memory_order_acquire) == kMagic) {
       published = true;
@@ -115,15 +120,15 @@ bool ShmSegment::init(std::string_view name, std::size_t size) {
   munmap(probe, page_size());
 
   if (!published || total_size < page_size()) {
-    close(fd2);
+    close(fd);
     return false;
   }
 
   if (!map_full(name_, total_size)) {
-    close(fd2);
+    close(fd);
     return false;
   }
-  close(fd2);
+  close(fd);
 
   header()->refcount.fetch_add(1, std::memory_order_acq_rel);
   return true;

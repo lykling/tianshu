@@ -19,17 +19,18 @@
 
 #include <atomic>
 #include <csignal>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
-#include <sys/wait.h>
 
 #include "tianshu/shm/offset_ptr.h"
 #include "tianshu/shm/shm_ring.h"
@@ -50,7 +51,7 @@ TEST(OffsetPtrTest, DefaultIsNull) {
 
 TEST(OffsetPtrTest, RoundTripSameAddress) {
   int value = 42;
-  tianshu::shm::offset_ptr<int> p(&value);
+  const tianshu::shm::offset_ptr<int> p(&value);
   ASSERT_TRUE(p);
   EXPECT_EQ(p.get(), &value);
   EXPECT_EQ(*p, 42);
@@ -82,7 +83,7 @@ TEST(OffsetPtrTest, MoveTransfersOwnership) {
   int value = 9;
   tianshu::shm::offset_ptr<int> p1(&value);
   auto p2 = std::move(p1);
-  EXPECT_FALSE(p1);
+  EXPECT_FALSE(p1);  // NOLINT(bugprone-use-after-move)  // moved-from check
   ASSERT_TRUE(p2);
   EXPECT_EQ(*p2, 9);
 }
@@ -100,20 +101,26 @@ TEST(ShmSegmentTest, CreateWriteReadDestroy) {
   EXPECT_EQ(segment->size(), 4096U);
 
   auto* raw = static_cast<std::uint64_t*>(segment->data());
+  // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   raw[100] = 0xDEADBEEFCAFEBABEULL;
   EXPECT_EQ(raw[100], 0xDEADBEEFCAFEBABEULL);
+  // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 }
 
 TEST(ShmSegmentTest, AttachSeesData) {
   auto segment = tianshu::shm::ShmSegment::open_or_create("/tianshu_test_seg_b", 4096);
   ASSERT_NE(segment, nullptr);
   auto* raw = static_cast<std::uint64_t*>(segment->data());
+  // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   raw[200] = 123456789;
+  // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 
   auto segment2 = tianshu::shm::ShmSegment::open_or_create("/tianshu_test_seg_b", 4096);
   ASSERT_NE(segment2, nullptr);
   auto* raw2 = static_cast<std::uint64_t*>(segment2->data());
+  // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   EXPECT_EQ(raw2[200], 123456789U);
+  // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 }
 
 TEST(ShmSegmentTest, ConcurrentOpenBothSucceed) {
@@ -124,8 +131,10 @@ TEST(ShmSegmentTest, ConcurrentOpenBothSucceed) {
 
   auto* raw1 = static_cast<std::uint64_t*>(s1->data());
   auto* raw2 = static_cast<std::uint64_t*>(s2->data());
+  // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   raw1[300] = 777;
   EXPECT_EQ(raw2[300], 777U);
+  // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 }
 
 TEST(ShmSegmentTest, InvalidNameRejected) {
@@ -182,13 +191,13 @@ TEST(ShmSegmentTest, CreateFailsUnderFsizeLimit) {
   low.rlim_cur = 4096;
   low.rlim_max = saved.rlim_max;
   ASSERT_EQ(setrlimit(RLIMIT_FSIZE, &low), 0);
-  std::signal(SIGXFSZ, SIG_IGN);
+  static_cast<void>(std::signal(SIGXFSZ, SIG_IGN));  // NOLINT(misc-include-cleaner)
 
   const auto seg = tianshu::shm::ShmSegment::open_or_create("/tianshu_test_fsize", 1 << 20);
   EXPECT_EQ(seg, nullptr);
   shm_unlink("/tianshu_test_fsize");
 
-  std::signal(SIGXFSZ, SIG_DFL);
+  static_cast<void>(std::signal(SIGXFSZ, SIG_DFL));
   ASSERT_EQ(setrlimit(RLIMIT_FSIZE, &saved), 0);
 }
 
@@ -199,7 +208,7 @@ TEST(SpscRingTest, PushPopRoundTrip) {
   auto ring = tianshu::shm::SpscRing::create(mem.data(), kRingCap);
 
   const std::string payload = "hello_shm";
-  tianshu::shm::SpscRing::Metadata meta{42, 123456789};
+  const tianshu::shm::SpscRing::Metadata meta{.seq = 42, .timestamp_ns = 123456789};
   ASSERT_TRUE(ring.push(payload.data(), payload.size(), meta));
 
   std::vector<std::uint8_t> out;
@@ -226,8 +235,10 @@ TEST(SpscRingTest, FifoOrder) {
   auto ring = tianshu::shm::SpscRing::create(mem.data(), kRingCap);
 
   for (int i = 0; i < 10; ++i) {
-    const std::uint32_t v = static_cast<std::uint32_t>(i);
-    ASSERT_TRUE(ring.push(&v, sizeof(v), {static_cast<std::uint64_t>(i), 0}));
+    const auto v = static_cast<std::uint32_t>(i);
+    const auto meta =
+        tianshu::shm::SpscRing::Metadata{.seq = static_cast<std::uint64_t>(i), .timestamp_ns = 0};
+    ASSERT_TRUE(ring.push(&v, sizeof(v), meta));
   }
 
   std::vector<std::uint8_t> out;
@@ -287,8 +298,10 @@ TEST(SpscRingTest, ConcurrentProducerConsumer) {
 
   std::thread producer([&]() {
     for (int i = 0; i < kMessages; ++i) {
-      const std::uint32_t v = static_cast<std::uint32_t>(i);
-      while (!ring.push(&v, sizeof(v), {static_cast<std::uint64_t>(i), 0})) {
+      const auto v = static_cast<std::uint32_t>(i);
+      const auto meta =
+          tianshu::shm::SpscRing::Metadata{.seq = static_cast<std::uint64_t>(i), .timestamp_ns = 0};
+      while (!ring.push(&v, sizeof(v), meta)) {
         std::this_thread::yield();
       }
     }

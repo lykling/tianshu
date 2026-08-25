@@ -27,9 +27,11 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "tianshu/core/message_concept.h"
+#include "tianshu/core/message_traits.h"
 #include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::core {

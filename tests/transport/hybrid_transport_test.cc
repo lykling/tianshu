@@ -17,6 +17,7 @@
 #include "tianshu/transport/hybrid_transport.h"
 
 #include <atomic>
+#include <memory>
 #include <string>
 
 #include <gtest/gtest.h>

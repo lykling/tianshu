@@ -37,7 +37,7 @@ struct MessageTraits;
 template <typename T>
   requires std::is_trivially_copyable_v<T> && std::is_default_constructible_v<T>
 struct MessageTraits<T> {
-  static constexpr bool is_zero_copy = true;
+  static constexpr bool kIsZeroCopy = true;
 
   static constexpr std::string_view name() { return "pod"; }
 
@@ -65,7 +65,7 @@ struct MessageTraits<T> {
   namespace tianshu::core {                                                                      \
   template <>                                                                                    \
   struct MessageTraits<TypeName> {                                                               \
-    static constexpr bool is_zero_copy = true;                                                   \
+    static constexpr bool kIsZeroCopy = true;                                                    \
     static constexpr std::string_view name() { return TypeNameStr; }                             \
     static constexpr std::size_t max_serialized_size() { return sizeof(TypeName); }              \
     static std::size_t serialize(const TypeName& msg, std::uint8_t* buf, std::size_t buf_size) { \

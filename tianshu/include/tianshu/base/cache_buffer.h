@@ -35,10 +35,22 @@
 
 namespace tianshu::base {
 
+// Type-erased base so DataDispatcher can fill buffers without knowing T
+// (per L4-CORE-6). Byte-oriented fill requires trivially copyable T.
+class CacheBufferBase {
+ public:
+  virtual ~CacheBufferBase() = default;
+  virtual void fill_bytes(const void* data, std::size_t size) = 0;
+};
+
 template <typename T>
-class CacheBuffer {
+class CacheBuffer : public CacheBufferBase {
  public:
   explicit CacheBuffer(std::size_t capacity) : capacity_(capacity), buffer_(capacity) {}
+
+  void fill_bytes(const void* data, std::size_t /*size*/) override {
+    fill(*static_cast<const T*>(data));
+  }
 
   // Thread-safe. Overwrites oldest if full.
   void fill(T value) {

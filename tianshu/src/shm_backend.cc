@@ -14,13 +14,26 @@
 
 #include "tianshu/transport/shm_backend.h"
 
+#include <pthread.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <unordered_map>
 #include <utility>
+#include <vector>
+
+#include "tianshu/shm/shm_ring.h"
+#include "tianshu/shm/shm_segment.h"
+#include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::transport::shm {
 
@@ -34,13 +47,14 @@ std::int64_t now_ns() {
 
 std::string segment_name_for(std::string_view channel) {
   std::uint64_t hash = 14695981039346656037ULL;
-  for (char c : channel) {
+  for (const char c : channel) {
     hash ^= static_cast<std::uint8_t>(c);
     hash *= 1099511628211ULL;
   }
   char buf[48];
-  std::snprintf(buf, sizeof(buf), "/tianshu_ch_%016llx", static_cast<unsigned long long>(hash));
-  return std::string(buf);
+  static_cast<void>(std::snprintf(buf, sizeof(buf), "/tianshu_ch_%016llx",
+                                  static_cast<unsigned long long>(hash)));
+  return {buf};
 }
 
 std::size_t slot_stride_bytes(std::uint32_t ring_capacity) {
@@ -48,7 +62,7 @@ std::size_t slot_stride_bytes(std::uint32_t ring_capacity) {
 }
 
 std::size_t segment_total_size(std::uint32_t ring_capacity) {
-  return sizeof(ChannelHeader) + kMaxReaders * slot_stride_bytes(ring_capacity);
+  return sizeof(ChannelHeader) + (kMaxReaders * slot_stride_bytes(ring_capacity));
 }
 
 bool wait_channel_ready(ChannelHeader* header) {
@@ -56,8 +70,10 @@ bool wait_channel_ready(ChannelHeader* header) {
     if (header->magic.load(std::memory_order_acquire) == kChannelMagic) {
       return true;
     }
-    timespec ts{0, 500 * 1000};
-    nanosleep(&ts, nullptr);
+    const timespec ts{
+        .tv_sec = 0,
+        .tv_nsec = 500 * 1000L};  // NOLINT(misc-include-cleaner)  // NOLINT(misc-include-cleaner)
+    nanosleep(&ts, nullptr);      // NOLINT(misc-include-cleaner)
   }
   return header->magic.load(std::memory_order_acquire) == kChannelMagic;
 }
@@ -69,19 +85,20 @@ constexpr std::uint64_t kChannelInitializing = 0x494e4954'4348534dULL;
 void init_slot(void* slot_mem, std::uint32_t ring_capacity) {
   auto* slot = static_cast<SlotHeader*>(slot_mem);
 
-  pthread_mutexattr_t mattr;
+  pthread_mutexattr_t mattr;  // NOLINT(misc-include-cleaner)  // glibc: bits/pthreadtypes
   pthread_mutexattr_init(&mattr);
   pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);
   pthread_mutex_init(&slot->mutex, &mattr);
   pthread_mutexattr_destroy(&mattr);
 
-  pthread_condattr_t cattr;
+  pthread_condattr_t cattr;  // NOLINT(misc-include-cleaner)  // glibc: bits/pthreadtypes
   pthread_condattr_init(&cattr);
   pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED);
-  pthread_condattr_setclock(&cattr, CLOCK_MONOTONIC);
+  pthread_condattr_setclock(&cattr, CLOCK_MONOTONIC);  // NOLINT(misc-include-cleaner)
   pthread_cond_init(&slot->cond, &cattr);
   pthread_condattr_destroy(&cattr);
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   ::tianshu::shm::SpscRing::create(static_cast<char*>(slot_mem) + sizeof(SlotHeader),
                                    ring_capacity);
 }
@@ -121,6 +138,7 @@ bool ShmChannel::init(std::string_view channel_name) {
     header_->max_readers = kMaxReaders;
     header_->ring_capacity = kRingCapacity;
     for (std::uint32_t i = 0; i < kMaxReaders; ++i) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic,readability-math-missing-parentheses)
       init_slot(raw + sizeof(ChannelHeader) + i * slot_stride_bytes(kRingCapacity), kRingCapacity);
     }
     header_->slot_stride = static_cast<std::uint32_t>(slot_stride_bytes(kRingCapacity));
@@ -135,7 +153,7 @@ bool ShmChannel::init(std::string_view channel_name) {
 
 std::int32_t ShmChannel::acquire_slot() {
   for (std::uint32_t i = 0; i < header_->max_readers; ++i) {
-    const std::uint32_t mask = 1U << i;
+    const std::uint32_t mask = 1U << i;  // NOLINT(misc-const-correctness)
     const std::uint32_t old = header_->live_slots.fetch_or(mask, std::memory_order_acq_rel);
     if ((old & mask) == 0) {
       return static_cast<std::int32_t>(i);
@@ -145,24 +163,27 @@ std::int32_t ShmChannel::acquire_slot() {
 }
 
 void ShmChannel::release_slot(std::int32_t slot) {
-  if (slot < 0 || slot >= static_cast<std::int32_t>(header_->max_readers)) {
+  if (slot < 0 || std::cmp_greater_equal(slot, header_->max_readers)) {
     return;
   }
-  header_->live_slots.fetch_and(~(1U << slot), std::memory_order_acq_rel);
+  header_->live_slots.fetch_and(~(1U << static_cast<std::uint32_t>(slot)),
+                                std::memory_order_acq_rel);
 }
 
 void ShmChannel::reset_slot(std::int32_t slot) {
   ::tianshu::shm::SpscRing::create(slot_ring_mem(slot), header_->ring_capacity);
 }
 
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic,readability-math-missing-parentheses)
 SlotHeader* ShmChannel::slot_header(std::int32_t slot) {
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   auto* base = reinterpret_cast<char*>(header_) + sizeof(ChannelHeader);
   return reinterpret_cast<SlotHeader*>(base +
-                                       static_cast<std::size_t>(slot) * header_->slot_stride);
+                                       (static_cast<std::size_t>(slot) * header_->slot_stride));
 }
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic,readability-math-missing-parentheses)
 
 void* ShmChannel::slot_ring_mem(std::int32_t slot) {
+  // NOLINTNEXTLINE(bugprone-casting-through-void,cppcoreguidelines-pro-bounds-pointer-arithmetic)
   return static_cast<char*>(static_cast<void*>(slot_header(slot))) + sizeof(SlotHeader);
 }
 
@@ -179,7 +200,7 @@ void ShmChannel::signal_slot(std::int32_t slot) {
 
 std::uint32_t ShmChannel::broadcast(const void* data, std::size_t size) {
   const ::tianshu::shm::SpscRing::Metadata meta{
-      header_->seq.fetch_add(1, std::memory_order_relaxed), now_ns()};
+      .seq = header_->seq.fetch_add(1, std::memory_order_relaxed), .timestamp_ns = now_ns()};
 
   const std::uint32_t live = header_->live_slots.load(std::memory_order_acquire);
   std::uint32_t served = 0;
@@ -229,11 +250,11 @@ void ShmReader::reader_loop() {
     pthread_mutex_lock(&slot_hdr->mutex);
     if (!stop_.load(std::memory_order_acquire) && ring.empty()) {
       timespec ts{};
-      clock_gettime(CLOCK_MONOTONIC, &ts);
-      ts.tv_nsec += 100 * 1000 * 1000;
-      if (ts.tv_nsec >= 1000 * 1000 * 1000) {
+      clock_gettime(CLOCK_MONOTONIC, &ts);  // NOLINT(misc-include-cleaner)
+      ts.tv_nsec += 100L * 1000L * 1000L;
+      if (ts.tv_nsec >= 1000L * 1000L * 1000L) {
         ts.tv_sec += 1;
-        ts.tv_nsec -= 1000 * 1000 * 1000;
+        ts.tv_nsec -= 1000L * 1000L * 1000L;
       }
       pthread_cond_timedwait(&slot_hdr->cond, &slot_hdr->mutex, &ts);
     }
@@ -263,7 +284,7 @@ class ShmChannelRegistry {
   }
 
   std::shared_ptr<ShmChannel> get_or_open(std::string_view channel_name) {
-    const std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock lock(mutex_);
     const std::string key(channel_name);
     auto it = channels_.find(key);
     if (it != channels_.end()) {

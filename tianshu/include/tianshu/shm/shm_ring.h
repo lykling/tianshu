@@ -89,6 +89,7 @@ class SpscRing {
 
     store_prefix(pos, size, meta.seq, static_cast<std::uint64_t>(meta.timestamp_ns));
     if (data != nullptr && size > 0) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
       std::memcpy(bytes() + pos + kPrefixSize, data, size);
     }
     hdr_->write_pos.store(w + needed, std::memory_order_release);
@@ -117,6 +118,7 @@ class SpscRing {
 
       out->resize(static_cast<std::size_t>(size));
       if (size > 0) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         std::memcpy(out->data(), bytes() + pos + kPrefixSize, static_cast<std::size_t>(size));
       }
       meta->seq = seq;
@@ -148,6 +150,7 @@ class SpscRing {
   // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
   // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 
+  // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   void store_prefix(std::uint64_t pos, std::uint64_t size, std::uint64_t seq, std::uint64_t ts) {
     std::uint8_t* p = bytes() + pos;
     std::memcpy(p, &size, 8);
@@ -163,6 +166,7 @@ class SpscRing {
     std::memcpy(seq, p + 8, 8);
     std::memcpy(ts, p + 16, 8);
   }
+  // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 
   Header* hdr_;
 };

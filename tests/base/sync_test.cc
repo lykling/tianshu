@@ -16,6 +16,7 @@
 
 #include "tianshu/base/sync.h"
 
+#include <atomic>
 #include <chrono>
 #include <thread>
 
@@ -102,8 +103,8 @@ TEST(BlockingCounterTest, ConcurrentDecrement) {
   tianshu::base::BlockingCounter counter(kThreads);
 
   std::thread threads[kThreads];
-  for (int i = 0; i < kThreads; ++i) {
-    threads[i] = std::thread([&]() { counter.decrement(); });
+  for (auto& i : threads) {
+    i = std::thread([&]() { counter.decrement(); });
   }
 
   counter.wait();

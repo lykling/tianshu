@@ -136,7 +136,7 @@ TEST(ObjectPoolTest, DestructorDestroysObjects) {
 TEST(ObjectPoolTest, EmptyPoolDestructor) {
   Trackable::alive_count = 0;
   {
-    tianshu::base::ObjectPool<Trackable> pool(0);
+    tianshu::base::ObjectPool<Trackable> const pool(0);
     EXPECT_EQ(Trackable::alive_count.load(), 0);
   }
   EXPECT_EQ(Trackable::alive_count.load(), 0);
@@ -167,7 +167,7 @@ TEST(ObjectPoolTest, PooledPtrMoveSemantics) {
 }
 
 TEST(ObjectPoolTest, PooledPtrDefaultConstructor) {
-  tianshu::base::PooledPtr<TestData> ptr;
+  tianshu::base::PooledPtr<TestData> const ptr;
   EXPECT_FALSE(ptr);
   EXPECT_EQ(ptr.get(), nullptr);
 }

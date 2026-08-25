@@ -55,6 +55,17 @@ repos:
         files: \.(cc|cpp|h|hpp)$
         pass_filenames: false
 
+      # clang-tidy on staged C++ files (per ADR-0018)
+      - id: clang-tidy
+        name: clang-tidy (staged files)
+        entry: bash -c 'files=$(git diff --cached --name-only --diff-filter=ACMR |
+          grep -E "\.(cc|cpp|h|hpp)$" || true);
+          [ -z "$files" ] && exit 0;
+          clang-tidy -p compile_commands.json --quiet --warnings-as-errors=* $files'
+        language: system
+        files: \.(cc|cpp|h|hpp)$
+        pass_filenames: false
+
       # License + no-wrap + no-chinese-comments (per ADR-0004/0009/0017)
       - id: tianshu-lint
         name: tianshu lint (license + wrap-guard + language)

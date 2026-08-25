@@ -20,13 +20,13 @@
 
 #include <unistd.h>
 
-#include <chrono>
 #include <csignal>
+#include <cstdint>
 #include <cstdio>
-#include <string>
 
 #include "tianshu/core/message_traits.h"
 #include "tianshu/core/node.h"
+#include "tianshu/transport/transport_backend.h"
 
 namespace {
 
@@ -49,13 +49,13 @@ struct ImuData {
 TIANSHU_TRAITS_POD(ImuData, "tianshu.example.ImuData");
 
 int main() {
-  std::signal(SIGINT, handle_signal);
-  std::signal(SIGTERM, handle_signal);
+  static_cast<void>(std::signal(SIGINT, handle_signal));
+  static_cast<void>(std::signal(SIGTERM, handle_signal));
 
   tianshu::core::Node node(tianshu::transport::TransportMode::kShm);
   auto writer = node.create_typed_writer<ImuData>("/sensing/imu");
   if (writer == nullptr) {
-    std::fprintf(stderr, "shm_talker: failed to create writer\n");
+    static_cast<void>(std::fprintf(stderr, "shm_talker: failed to create writer\n"));
     return 1;
   }
 
@@ -64,13 +64,13 @@ int main() {
   std::uint64_t seq = 0;
   while (g_stop == 0) {
     const ImuData imu{
-        /*timestamp=*/static_cast<double>(seq) * 0.1,
-        /*ax=*/0.01,
-        /*ay=*/-0.02,
-        /*az=*/9.81,
-        /*gx=*/0.001,
-        /*gy=*/0.002,
-        /*gz=*/0.003,
+        .timestamp = static_cast<double>(seq) * 0.1,
+        .ax = 0.01,
+        .ay = -0.02,
+        .az = 9.81,
+        .gx = 0.001,
+        .gy = 0.002,
+        .gz = 0.003,
     };
     writer->write(imu);
     if (seq % 10 == 0) {
