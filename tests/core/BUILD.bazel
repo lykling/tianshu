@@ -31,3 +31,13 @@ cc_test(
     ],
     size = "small",
 )
+
+cc_test(
+    name = "component_test",
+    srcs = ["component_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)

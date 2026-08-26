@@ -14,6 +14,7 @@ add_library(tianshu SHARED
     src/shm_backend.cc
     src/data_dispatcher.cc
     src/data_notifier.cc
+    src/component.cc
     src/hybrid_transport.cc
     src/node.cc
 )
