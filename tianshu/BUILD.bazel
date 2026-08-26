@@ -9,6 +9,8 @@ package(default_visibility = ["//visibility:public"])
 cc_library(
     name = "tianshu",
     srcs = [
+        "src/data_dispatcher.cc",
+        "src/data_notifier.cc",
         "src/hybrid_transport.cc",
         "src/intra_backend.cc",
         "src/node.cc",
@@ -24,6 +26,9 @@ cc_library(
         "include/tianshu/base/rw_lock.h",
         "include/tianshu/base/spin_lock.h",
         "include/tianshu/base/sync.h",
+        "include/tianshu/core/data_dispatcher.h",
+        "include/tianshu/core/data_notifier.h",
+        "include/tianshu/core/data_visitor.h",
         "include/tianshu/core/message_concept.h",
         "include/tianshu/core/message_traits.h",
         "include/tianshu/core/node.h",
