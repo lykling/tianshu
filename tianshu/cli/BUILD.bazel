@@ -13,3 +13,9 @@ cc_binary(
     srcs = ["ti_launch_main.cc"],
     deps = ["//tianshu:tianshu"],
 )
+
+cc_binary(
+    name = "ti-monitor",
+    srcs = ["ti_monitor_main.cc"],
+    deps = ["//tianshu:tianshu"],
+)

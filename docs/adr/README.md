@@ -1,0 +1,43 @@
+# ADR 索引
+
+> **编号规则**：ADR 编号是纯时间序流水号（Nygard 格式），动笔时分配，不预占位、不按域分段。
+> 分类检索用本索引的域标签；ADR 正文互链靠编号稳定。
+> 模板与流程见各 ADR 头部；新增 ADR 后必须更新本表。
+
+## 状态图例
+
+✅ 已接受 · 🔁 已被修订/部分取代（见备注） · ⏸ 已搁置
+
+## 索引
+
+| ADR | 标题 | 域 | 状态 | 一句话摘要 |
+|---|---|---|---|---|
+| [0001](./0001-dsl-form.md) | DSL 形式：fluent builder + 自动 trace | dsl | ✅ | 上层范式 JAX/torch.compile 风格，C++ 内嵌 DSL |
+| [0002](./0002-cyber-relation.md) | 与 Cyber RT 的关系：独立重实现、API 兼容 | infra | ✅ | 零许可风险重写；L4 API 等价；含术语边界（Component/Operator、ti CLI 家族） |
+| [0003](./0003-build-system.md) | 双构建系统 CMake + Bazel | build | ✅ | CMake 主、Bazel 验证，条目对齐 |
+| [0004](./0004-build-entry.md) | 构建入口标准化：禁包装脚本 | build | ✅ | 原生 cmake/bazel 命令为唯一入口 |
+| [0005](./0005-lightweight-multiplatform.md) | 轻量多平台：5 profile + 依赖治理 + OSAL/HAL | infra | ✅ | desktop→mcu 五档位，横切硬约束 |
+| [0006](./0006-gpu-acceleration.md) | GPU 加速：设计就绪、实现 Phase 2/3 | gpu | ✅ | P0 降级，纯 CPU 链先验证 H1-H3 |
+| [0007](./0007-api-spec-multi-language.md) | 多语言 SDK：C ABI + Python/Rust/Go/Node | infra | ✅ | 稳定 C ABI 为唯一契约面 |
+| [0008](./0008-message-format-multi.md) | 消息格式多支持：FlatBuffers/Protobuf/POD | runtime | ✅ | MessageConcept 统一抽象，三格式自由混用 |
+| [0009](./0009-doc-code-language.md) | 双语文档 + 英文注释/提交 | infra | ✅ | docs 双语、代码注释与提交英文 |
+| [0010](./0010-transport-shm-infra.md) | Transport 抽象 + 通用 SHM Allocator + INTRA | runtime | ✅ | TransportBackend 统一接口；决策 5 增补 SHM channel 落地架构 |
+| [0011](./0011-logging.md) | 结构化异步日志 | infra | ✅ | 无锁 MPSC <200ns 热路径，八级别多 sink |
+| [0012](./0012-parameters.md) | 统一参数系统 | infra | ✅ | 四源优先级 + 热重载 + tianshu-ctl |
+| [0013](./0013-cross-machine-transport.md) | 跨机传输：自研 SHM + Zenoh | runtime | ✅ | RTPS 出局；MCU 走 zenoh-pico |
+| [0014](./0014-console.md) | Console 统一面板 | tooling | ✅ | TUI(ftxui)+Web(React)；实现 Phase 3；解析依赖 ADR-0020 |
+| [0015](./0015-discovery-abstraction.md) | 服务发现抽象：DiscoveryBackend 插件化 | runtime | ✅ | Zenoh/Static/Multicast/Central 多后端 |
+| [0016](./0016-config-format.md) | 配置格式：TOML 主 + YAML 兼容 + JSON 导出 | infra | ✅ | 三解析器独立 feature flag |
+| [0017](./0017-license.md) | 许可证：Apache-2.0 | infra | ✅ | 专利授权 + 依赖兼容矩阵 + CI 检查 |
+| [0018](./0018-cpp-style-guide.md) | C++ 风格指南 | build | ✅ | Google base + 100 列 + C++20，CI 零警告 |
+| [0019](./0019-coroutine-strategy.md) | 协程策略：Phase 1 回调 / Phase 2 C++20 无栈 | runtime | ✅ | Phase 1 无协程（SLA 由线程调度保） |
+| [0020](./0020-message-reflection-monitor.md) | 消息运行期反射与 Monitor 解析 | tooling | ✅ | schema 随通道分发 + DecoderRegistry + POD 字段表宏 |
+
+## 域视图
+
+- **build**：0003 · 0004 · 0018
+- **infra**：0002 · 0005 · 0007 · 0009 · 0011 · 0012 · 0016 · 0017
+- **runtime**（transport/message/sched）：0008 · 0010 · 0013 · 0015 · 0019
+- **dsl/compiler**：0001（L1 层后续 ADR 见开发计划队列）
+- **gpu**：0006
+- **tooling**（ti 家族/console/monitor）：0014 · 0020

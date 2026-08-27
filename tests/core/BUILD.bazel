@@ -51,3 +51,13 @@ cc_test(
     ],
     size = "small",
 )
+
+cc_test(
+    name = "monitor_test",
+    srcs = ["monitor_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)

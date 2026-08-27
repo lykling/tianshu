@@ -845,15 +845,18 @@ INFRA-BUILD-* → L4-PRIM → L4-TRANS → L4-CORE → L1-DSL → L1-TRACE → L
 
 ---
 
-## 后续 ADR 待写清单
+## 后续 ADR 待写队列
 
-| ADR | 主题 | 触发时机 |
-|---|---|---|
-| 0018 | 协程实现选型（ucontext vs 汇编 vs boost.context vs setjmp） | L4-CORO-1 启动前 |
-| 0019 | 序列化工具（消息多格式已锁定，本 ADR 处理 schema 生成与 .proto/.fbs 工具链） | L4-CORE-10 启动前 |
-| 0020 | codegen 输出形式（字符串拼接 vs jinja2 模板 vs LLVM IR） | L1-CG-1 启动前 |
-| 0021 | 状态 checkpoint 格式（自定义 vs FlatBuffers vs SQLite） | L1-DSL-9 启动前 |
-| 0022 | 推理引擎 adapter（TensorRT vs ONNX Runtime vs Triton） | L4-GPU-1 启动前 |
-| 0023 | 国产 NPU adapter（华为昇腾 vs 地平线 BPU vs 寒武纪） | INFRA-HAL-7 启动前（按需） |
-| 0024 | 多语言 SDK 绑定技术 v1（pybind11 / cxx / cgo / napi-rs 具体方案） | INFRA-API-8 启动前 |
-| 0025 | 第三方依赖白名单 v1（首批 10-20 条具体库：Zenoh / Protobuf / FlatBuffers / nlohmann/json / yaml-cpp / toml++ 等） | Phase 0 内定 |
+> 编号规则（2026-08-27 定）：ADR 编号是**纯时间序流水号**，动笔那一刻才分配，不预占位。
+> 主题检索由 [adr/README.md](./adr/README.md) 索引承担（域标签），编号不携带类别语义。
+> 历史预占位 0020-0025 已废除；0020 已分配给「消息运行期反射与 Monitor 解析」（2026-08-27）。
+
+| 主题 | 触发时机 |
+|---|---|
+| codegen 输出形式（字符串拼接 vs jinja2 模板 vs LLVM IR） | L1-CG-1 启动前 |
+| 状态 checkpoint 格式（自定义 vs FlatBuffers vs SQLite） | L1-DSL-9 启动前 |
+| 推理引擎 adapter（TensorRT vs ONNX Runtime vs Triton） | L4-GPU-1 启动前 |
+| 国产 NPU adapter（华为昇腾 vs 地平线 BPU vs 寒武纪） | INFRA-HAL-7 启动前（按需） |
+| 多语言 SDK 绑定技术 v1（pybind11 / cxx / cgo / napi-rs 具体方案） | INFRA-API-8 启动前 |
+| DSL v0 执行语义（声明记录 vs 惰性图 vs 即时解释，及 lineage 集成） | L1-DSL-1 实现前 |
+| 第三方依赖白名单 v1（首批 10-20 条具体库：Zenoh / Protobuf / FlatBuffers / nlohmann/json / yaml-cpp / toml++ 等） | Phase 0 内定 |

@@ -16,6 +16,7 @@ add_library(tianshu SHARED
     src/data_notifier.cc
     src/component.cc
     src/launcher.cc
+    src/monitor.cc
     src/hybrid_transport.cc
     src/node.cc
 )
