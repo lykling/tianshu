@@ -17,6 +17,8 @@ add_library(tianshu SHARED
     src/component.cc
     src/launcher.cc
     src/monitor.cc
+    src/lineage.cc
+    src/dsl_runtime.cc
     src/hybrid_transport.cc
     src/node.cc
 )

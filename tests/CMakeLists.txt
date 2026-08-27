@@ -8,6 +8,7 @@ gtest_discover_tests(hello_test)
 
 add_subdirectory(base)
 add_subdirectory(core)
+add_subdirectory(dsl)
 add_subdirectory(sched)
 add_subdirectory(shm)
 add_subdirectory(transport)

@@ -50,6 +50,23 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### L1-DSL / L2-LIN — Declarative flow + automatic lineage (ADR-0021/0022)
+
+- DSL v0: FlowBuilder chained API (source/map/sink + with_sla slot),
+  strongly-typed Stream<T> edges (wiring mistakes are compile errors),
+  Flow declaration graph (the L1 compiler's IR input subset);
+  FlowRuntime interpreter drives the L4 DataDispatcher directly
+  (synchronous cascade per ADR-0021 amendment), absolute-deadline
+  source pacing, lambda wiring deferred via detail::make_* (two-phase
+  lookup: FlowRuntime is incomplete in flow.h)
+- Lineage v0: root hop + cascade hops per message; DSL maps append
+  hops automatically (zero user code); side-FIFO keyed by channel
+  (single-writer/single-consumer v0 constraint); describe() renders
+  "ch#seq -> ch#seq -> ..." chains
+- demos: dsl_demo (20 Hz source -> double -> scale -> sink with
+  lineage printing); 5 test cases (graph shape, cascade values,
+  lineage chain exactness, SLA no-op)
+
 ### L4-COMP / L4-MAIN — Component framework + DAG launcher
 
 - L4-COMP-1/2/3/10: ComponentBase lifecycle; Component<M, Out> and
@@ -77,7 +94,7 @@ Examples: shm_talker / shm_listener standalone cross-process demo binaries
 
 ### Verification
 
-- 200/200 CMake tests (Clang + GCC), 18/18 Bazel tests
+- 214/214 CMake tests (Clang + GCC), 20/20 Bazel tests
 - Line coverage 96.5%, function coverage 100% (lcov, filtered)
 - Zero-warning build on both compilers
 

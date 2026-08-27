@@ -57,7 +57,7 @@
 | Phase | 状态 | 完成功能点 | 工作量（点） | 备注 |
 |---|---|---|---|---|
 | **Phase 0** | ✅ **完成** | 见下方清单 | ~30/30 | 双构建系统 + 测试 + CI + 风格规范 |
-| Phase 1 | 🔨 **进行中** | 30/~155 | ~26/155 | PRIM/SCHED/CORE/COMP/MAIN 主链路贯通，hello DAG 可跑 |
+| Phase 1 | 🔨 **进行中** | 33/~155 | ~29/155 | PRIM/SCHED/CORE/COMP/MAIN/DSL/LINEAGE/MONITOR 主链路贯通 |
 | Phase 2 | ❌ 未开始 | 0/~210 | 0/~210 | - |
 | Phase 3 | ❌ 未开始 | 0/~290 | 0/~290 | - |
 
@@ -71,7 +71,10 @@
 | **L4-CORE** | 1, 2, 3, 4, 5, 6, 7, 10 | 8 | MessageConcept + 类型化 Writer/Reader + DataVisitor/Dispatcher/Notifier（AllLatest 融合） |
 | **L4-COMP** | 1, 2, 3, 10 | 4 | Component/TwoInput/Timer/TimerSource + 工厂注册宏 |
 | **L4-MAIN** | 1 | 1 | **ti + ti-launch DAG 启动器，hello DAG 端到端 15/15**（命名决策见 [adr/0002 术语边界](./adr/0002-cyber-relation.md)） |
-| 合计 | | **30 项**（L4-COMP-6 AllLatest 已随 DataVisitor 落地；kAuto 自动选路待 L4-TRANS-21） |
+| **ti-monitor** | — | 1 | TUI 通道监视：vi 键位 / 暂停锁缓冲 / 帧导航 / fork E2E（[adr/0020](./adr/0020-message-reflection-monitor.md) 解析方案已定） |
+| **L1-DSL v0** | — | 1 | 声明式 flow + 解释器（[adr/0021](./adr/0021-dsl-v0.md)）；L1-DSL-1..3 的 v0 子集 |
+| **L2-LIN v0** | — | 1 | 消息级血缘自动级联（[adr/0022](./adr/0022-lineage-v0.md)）；L2-LIN-1..2 的 v0 子集 |
+| 合计 | | **33 项**（L4-COMP-6 AllLatest 已随 DataVisitor 落地；kAuto 自动选路待 L4-TRANS-21） |
 
 ### Phase 0 已完成功能点
 
@@ -849,7 +852,7 @@ INFRA-BUILD-* → L4-PRIM → L4-TRANS → L4-CORE → L1-DSL → L1-TRACE → L
 
 > 编号规则（2026-08-27 定）：ADR 编号是**纯时间序流水号**，动笔那一刻才分配，不预占位。
 > 主题检索由 [adr/README.md](./adr/README.md) 索引承担（域标签），编号不携带类别语义。
-> 历史预占位 0020-0025 已废除；0020 已分配给「消息运行期反射与 Monitor 解析」（2026-08-27）。
+> 历史预占位 0020-0025 已废除；0020-0022 已分配（monitor 反射 / DSL v0 / lineage v0，2026-08-27）。
 
 | 主题 | 触发时机 |
 |---|---|
@@ -858,5 +861,4 @@ INFRA-BUILD-* → L4-PRIM → L4-TRANS → L4-CORE → L1-DSL → L1-TRACE → L
 | 推理引擎 adapter（TensorRT vs ONNX Runtime vs Triton） | L4-GPU-1 启动前 |
 | 国产 NPU adapter（华为昇腾 vs 地平线 BPU vs 寒武纪） | INFRA-HAL-7 启动前（按需） |
 | 多语言 SDK 绑定技术 v1（pybind11 / cxx / cgo / napi-rs 具体方案） | INFRA-API-8 启动前 |
-| DSL v0 执行语义（声明记录 vs 惰性图 vs 即时解释，及 lineage 集成） | L1-DSL-1 实现前 |
 | 第三方依赖白名单 v1（首批 10-20 条具体库：Zenoh / Protobuf / FlatBuffers / nlohmann/json / yaml-cpp / toml++ 等） | Phase 0 内定 |

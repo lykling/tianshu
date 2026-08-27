@@ -32,12 +32,14 @@
 | [0018](./0018-cpp-style-guide.md) | C++ 风格指南 | build | ✅ | Google base + 100 列 + C++20，CI 零警告 |
 | [0019](./0019-coroutine-strategy.md) | 协程策略：Phase 1 回调 / Phase 2 C++20 无栈 | runtime | ✅ | Phase 1 无协程（SLA 由线程调度保） |
 | [0020](./0020-message-reflection-monitor.md) | 消息运行期反射与 Monitor 解析 | tooling | ✅ | schema 随通道分发 + DecoderRegistry + POD 字段表宏 |
+| [0021](./0021-dsl-v0.md) | DSL v0：声明式图 API 与执行语义 | dsl | ✅ | fluent builder 记图 + 解释器同步级联；IR 字段即 FlowDecl |
+| [0022](./0022-lineage-v0.md) | Lineage v0：数据血缘级联模型 | runtime | ✅ | root+hops 值对象；DSL map 自动追加 hop；旁路 FIFO v0 |
 
 ## 域视图
 
 - **build**：0003 · 0004 · 0018
 - **infra**：0002 · 0005 · 0007 · 0009 · 0011 · 0012 · 0016 · 0017
-- **runtime**（transport/message/sched）：0008 · 0010 · 0013 · 0015 · 0019
-- **dsl/compiler**：0001（L1 层后续 ADR 见开发计划队列）
+- **runtime**（transport/message/sched/lineage）：0008 · 0010 · 0013 · 0015 · 0019 · 0022
+- **dsl/compiler**：0001 · 0021
 - **gpu**：0006
 - **tooling**（ti 家族/console/monitor）：0014 · 0020
