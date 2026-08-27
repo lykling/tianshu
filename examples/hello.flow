@@ -1,0 +1,8 @@
+# Hello DAG: source -> doubler, 10 Hz.
+[component source]
+type = hello_source
+interval_ms = 100
+
+[component doubler]
+type = hello_doubler
+inputs = /demo/count

@@ -148,6 +148,29 @@ tianshu/
 - Phase 2 MVP 多 4-6 周（完善 transport + 跨机）
 - 总工期 +2-3 个月，但换来零许可证风险 + 零上游成本 + 性能可控
 
+## 术语边界与工具命名（2026-08-26 增补）
+
+L4 落地期间确定的两个命名决策，避免与 L1 编译层及工具生态混淆：
+
+**Component 保留（L4 用户编写单元）**。cyber API 兼容是本 ADR 的核心承诺，
+Component 正是 cyber 用户 API 的全部表面；C++ 语境下替代词均有硬伤
+（`operator` 是关键字、`Kernel` 留给 GPU、`Process` 与跨进程 SHM 语境冲突、
+`Node` 已被工厂占用）。分层术语明确为：
+
+| 层 | 术语 | 含义 |
+|---|---|---|
+| 用户编写 | flow function（DSL）/ Component（C++） | 算子的两种编写模式 |
+| L1 编译期 | Operator（IR 图节点） | 编译器词汇表，与 L4 无关 |
+| L4 运行期 | Component 实例 | Launcher 从 DAG 配置实例化的产物 |
+
+**CLI 家族：`ti` + `ti-*`（统一入口 + 独立工具，kubectl/docker 插件模式）**。
+`ti` 是 ~40 行 dispatcher，按 PATH 查找并 exec `ti-<verb>`；工具全部是可独立
+调用的 `ti-*` 二进制，新工具零成本进入统一入口。命名否决记录：`mainboard`
+（cyber 历史包袱、硬件隐喻错位）、`ts`（与 moreutils 时间戳工具冲突，且实时
+系统语境 ts 首先读作 timestamp）、`tsctl`/`tictl`（`ctl` 后缀与子命令动词
+结构冲突）。Phase 1 落地 `ti` + `ti-launch`；`ti-ctl`（ADR-0012）、
+`ti-console`（ADR-0014）按各自计划归队。
+
 ## 后续可能演进
 
 - 如果 transport 自研在 Phase 2 严重滞后 → 临时引入 zenoh 或 Fast-DDS 作为过渡后端（保持 API 不变；但需通过 [adr/0005 依赖治理流程](./0005-lightweight-multiplatform.md) 审批）

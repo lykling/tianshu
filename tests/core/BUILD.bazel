@@ -41,3 +41,13 @@ cc_test(
     ],
     size = "small",
 )
+
+cc_test(
+    name = "launcher_test",
+    srcs = ["launcher_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)

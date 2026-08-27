@@ -37,9 +37,11 @@
 #include <utility>
 #include <vector>
 
+#include "tianshu/core/data_dispatcher.h"
 #include "tianshu/core/data_visitor.h"
 #include "tianshu/core/node.h"
 #include "tianshu/core/typed_writer.h"
+#include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::core {
 
@@ -53,6 +55,12 @@ class ComponentBase {
 
   virtual bool init() { return true; }
   virtual void shutdown() {}
+
+  // Generic entry used by the launcher: wires inputs/output channels and
+  // periodicity from a DagConfig entry. Implemented by the templates below,
+  // not by user classes.
+  virtual bool launch(Node& node, const std::vector<std::string>& input_channels,
+                      std::chrono::milliseconds interval) = 0;
 
   [[nodiscard]] const std::string& name() const { return name_; }
 
@@ -74,9 +82,20 @@ class Component : public ComponentBase {
 
   bool start(Node* node, std::string_view ch0) {
     node_ = node;
-    writer_ = node_->create_typed_writer<TOut>(out_channel());
+    if (!out_channel().empty()) {
+      writer_ = node_->create_typed_writer<TOut>(out_channel());
+    }
+    bridge_input(ch0);
     visitor_ = std::make_unique<DataVisitor<M0>>(ch0, queue_depth(), [this] { run_proc(); });
     return true;
+  }
+
+  bool launch(Node& node, const std::vector<std::string>& input_channels,
+              std::chrono::milliseconds /*interval*/) override {
+    if (input_channels.empty()) {
+      return false;
+    }
+    return start(&node, input_channels[0]);
   }
 
  protected:
@@ -94,9 +113,21 @@ class Component : public ComponentBase {
     }
   }
 
+  // Transport reader forwarding into the DataDispatcher so typed writers on
+  // the same channel reach this component's visitor.
+  void bridge_input(std::string_view channel) {
+    const ChannelId id = channel_id_for(channel);
+    auto reader = node_->create_reader(channel);
+    reader->set_callback([id](const transport::Message& msg) {
+      DataDispatcher::instance().dispatch(id, msg.data, msg.size);
+    });
+    input_readers_.push_back(std::move(reader));
+  }
+
   Node* node_{nullptr};
   std::unique_ptr<Writer<TOut>> writer_;
   std::unique_ptr<DataVisitor<M0>> visitor_;
+  std::vector<std::unique_ptr<transport::ReaderBase>> input_readers_;
 };
 
 template <typename M0, typename M1, typename TOut = M0>
@@ -106,10 +137,22 @@ class TwoInputComponent : public ComponentBase {
 
   bool start(Node* node, std::string_view ch0, std::string_view ch1) {
     node_ = node;
-    writer_ = node_->create_typed_writer<TOut>(out_channel());
+    if (!out_channel().empty()) {
+      writer_ = node_->create_typed_writer<TOut>(out_channel());
+    }
+    bridge_input(ch0);
+    bridge_input(ch1);
     visitor_ =
         std::make_unique<DataVisitor<M0, M1>>(ch0, ch1, queue_depth(), [this] { run_proc(); });
     return true;
+  }
+
+  bool launch(Node& node, const std::vector<std::string>& input_channels,
+              std::chrono::milliseconds /*interval*/) override {
+    if (input_channels.size() < 2) {
+      return false;
+    }
+    return start(&node, input_channels[0], input_channels[1]);
   }
 
  protected:
@@ -130,9 +173,19 @@ class TwoInputComponent : public ComponentBase {
     }
   }
 
+  void bridge_input(std::string_view channel) {
+    const ChannelId id = channel_id_for(channel);
+    auto reader = node_->create_reader(channel);
+    reader->set_callback([id](const transport::Message& msg) {
+      DataDispatcher::instance().dispatch(id, msg.data, msg.size);
+    });
+    input_readers_.push_back(std::move(reader));
+  }
+
   Node* node_{nullptr};
   std::unique_ptr<Writer<TOut>> writer_;
   std::unique_ptr<DataVisitor<M0, M1>> visitor_;
+  std::vector<std::unique_ptr<transport::ReaderBase>> input_readers_;
 };
 
 // ---------------------------------------------------------------------------
@@ -146,6 +199,11 @@ class TimerComponent : public ComponentBase {
 
   TimerComponent(const TimerComponent&) = delete;
   TimerComponent& operator=(const TimerComponent&) = delete;
+
+  bool launch(Node& /*node*/, const std::vector<std::string>& /*input_channels*/,
+              std::chrono::milliseconds interval) override {
+    return start(interval);
+  }
 
   bool start(std::chrono::milliseconds interval) {
     if (interval.count() <= 0) {
@@ -179,6 +237,35 @@ class TimerComponent : public ComponentBase {
  private:
   std::atomic<bool> stop_{false};
   std::thread thread_;
+};
+
+// TimerSourceComponent: periodic publisher (sensor-driver pattern), the
+// typical DAG entry node.
+template <typename TOut>
+class TimerSourceComponent : public TimerComponent {
+ public:
+  explicit TimerSourceComponent(std::string name) : TimerComponent(std::move(name)) {}
+
+  bool launch(Node& node, const std::vector<std::string>& /*input_channels*/,
+              std::chrono::milliseconds interval) override {
+    node_ = &node;
+    if (!out_channel().empty()) {
+      writer_ = node_->create_typed_writer<TOut>(out_channel());
+    }
+    return TimerComponent::start(interval);
+  }
+
+ protected:
+  void publish(const TOut& msg) {
+    if (writer_) {
+      writer_->write(msg);
+    }
+  }
+
+  [[nodiscard]] virtual std::string_view out_channel() const = 0;
+
+  Node* node_{nullptr};
+  std::unique_ptr<Writer<TOut>> writer_;
 };
 
 // ---------------------------------------------------------------------------

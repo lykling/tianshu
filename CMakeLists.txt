@@ -251,6 +251,7 @@ endforeach()
 # Subdirectories
 # -----------------------------------------------------------------------------
 add_subdirectory(tianshu)
+add_subdirectory(tianshu/cli)
 add_subdirectory(examples)
 add_subdirectory(tests)
 if(TIANSHU_BUILD_BENCHMARKS)

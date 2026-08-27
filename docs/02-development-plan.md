@@ -406,7 +406,7 @@
 
 | ID | 描述 | 依赖 | 优先级 | 估算 | Phase | 验收 |
 |---|---|---|---|---|---|---|
-| L4-MAIN-1 | `mainboard` CLI（`-d xxx.dag -s xxx.conf`） | L4-COMP-* | P0 | 1.5 | 1 | 启动 hello component |
+| L4-MAIN-1 | `ti-launch` CLI（`ti launch xxx.flow`，统一入口 `ti` 按 PATH 分发 `ti-*`，见 [adr/0002 术语边界](./adr/0002-cyber-relation.md)） | L4-COMP-* | P0 | 1.5 | 1 | 启动 hello component DAG |
 | L4-MAIN-2 | `ModuleController`（动态加载 .so + 生命周期管理） | 1 | P0 | 3 | 1 | 多 component DAG 可加载 |
 | L4-MAIN-3 | `tianshu::Init(argc, argv)`（全局初始化） | - | P0 | 1 | 1 | 与 cyber 等价 |
 | L4-MAIN-4 | 信号处理 + 优雅退出 | 2 | P0 | 1 | 1 | SIGINT 后所有 component Shutdown |

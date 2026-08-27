@@ -10,6 +10,7 @@ cc_library(
     name = "tianshu",
     srcs = [
         "src/component.cc",
+        "src/launcher.cc",
         "src/data_dispatcher.cc",
         "src/data_notifier.cc",
         "src/hybrid_transport.cc",
@@ -28,6 +29,7 @@ cc_library(
         "include/tianshu/base/spin_lock.h",
         "include/tianshu/base/sync.h",
         "include/tianshu/core/component.h",
+        "include/tianshu/core/launcher.h",
         "include/tianshu/core/data_dispatcher.h",
         "include/tianshu/core/data_notifier.h",
         "include/tianshu/core/data_visitor.h",

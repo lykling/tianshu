@@ -1,0 +1,15 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_binary(
+    name = "ti",
+    srcs = ["ti_main.cc"],
+    deps = ["//tianshu:tianshu"],
+)
+
+cc_binary(
+    name = "ti-launch",
+    srcs = ["ti_launch_main.cc"],
+    deps = ["//tianshu:tianshu"],
+)

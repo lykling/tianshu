@@ -9,3 +9,6 @@ target_link_libraries(shm_talker PRIVATE tianshu)
 
 add_executable(shm_listener shm_listener.cc)
 target_link_libraries(shm_listener PRIVATE tianshu)
+
+add_executable(hello_dag hello_dag.cc)
+target_link_libraries(hello_dag PRIVATE tianshu)

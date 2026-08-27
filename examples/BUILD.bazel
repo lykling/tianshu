@@ -26,3 +26,10 @@ cc_binary(
     srcs = ["shm_listener.cc"],
     deps = ["//tianshu:tianshu"],
 )
+
+cc_binary(
+    name = "hello_dag",
+    srcs = ["hello_dag.cc"],
+    data = ["hello.flow"],
+    deps = ["//tianshu:tianshu"],
+)
