@@ -19,7 +19,11 @@ Phase 1 PoC — in progress.
 - L4-SCHED-1..3: callback-based Scheduler (priority queue + N workers, no
   coroutines per ADR-0019)
 
-### L4-CORE — Node / Typed Messaging
+### L4-CORE — Node / Typed Messaging / DataFlow
+
+- L4-CORE-5/6/7: DataVisitor (AllLatest fusion, 1-4 inputs) +
+  DataDispatcher (channel_id -> buffer sinks, notify outside the lock) +
+  DataNotifier; CacheBuffer gains type-erased CacheBufferBase::fill_bytes
 
 - L4-TRANS-5: Message metadata (seq / timestamp / src_process_id / lineage_ptr)
 - L4-CORE-1: MessageTraits<T> + POD auto-specialization
@@ -46,6 +50,21 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### L4-COMP / L4-MAIN — Component framework + DAG launcher
+
+- L4-COMP-1/2/3/10: ComponentBase lifecycle; Component<M, Out> and
+  TwoInputComponent<M0, M1, Out> with AllLatest fusion via DataVisitor;
+  TimerComponent (absolute-deadline scheduling, no cumulative drift);
+  TimerSourceComponent (sensor-driver DAG entry); ComponentFactory +
+  TIANSHU_REGISTER_COMPONENT
+- L4-MAIN-1: ti + ti-launch (unified CLI per ADR-0002 terminology
+  amendment; mainboard/ts/tsctl/tictl rejected with rationale);
+  DagConfig INI-subset parser (TOML-shaped for ADR-0025); Launcher with
+  reverse-order shutdown and signal handling
+- Hello DAG milestone: source (10 Hz) -> doubler chain verified 15/15
+  end to end through the full stack — the TIANSHU equivalent of cyber's
+  first component DAG
+
 ### Build & Tooling
 
 - Dual GCC+Clang: compiler-conditional coverage flags, desktop-clang /
@@ -58,7 +77,7 @@ Examples: shm_talker / shm_listener standalone cross-process demo binaries
 
 ### Verification
 
-- 171/171 CMake tests (Clang + GCC), 15/15 Bazel tests
+- 200/200 CMake tests (Clang + GCC), 18/18 Bazel tests
 - Line coverage 96.5%, function coverage 100% (lcov, filtered)
 - Zero-warning build on both compilers
 

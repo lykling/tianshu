@@ -57,7 +57,7 @@
 | Phase | 状态 | 完成功能点 | 工作量（点） | 备注 |
 |---|---|---|---|---|
 | **Phase 0** | ✅ **完成** | 见下方清单 | ~30/30 | 双构建系统 + 测试 + CI + 风格规范 |
-| Phase 1 | 🔨 **进行中** | 12/~155 | ~19/155 | L4-PRIM 全部 + Scheduler + 类型化消息 + SHM 跨进程 |
+| Phase 1 | 🔨 **进行中** | 30/~155 | ~26/155 | PRIM/SCHED/CORE/COMP/MAIN 主链路贯通，hello DAG 可跑 |
 | Phase 2 | ❌ 未开始 | 0/~210 | 0/~210 | - |
 | Phase 3 | ❌ 未开始 | 0/~290 | 0/~290 | - |
 
@@ -68,8 +68,10 @@
 | **L4-PRIM** | 1, 2, 3, 4, 5, 6 | 6 | 单测 + 并发测试全过，100% 函数覆盖 |
 | **L4-SCHED** | 1, 2, 3 | 3 | 优先级 + 多 worker 单测通过（回调式，ADR-0019） |
 | **L4-TRANS** | 3, 4, 5, 18, 19, 20, 24 | 7 | **跨进程吞吐 4.17M msg/s（验收 ≥1M）、RTT p50=58µs（验收 <1ms）**，fork 集成测试 + talker/listener demo，见 [shm-transport-notes](./development/shm-transport-notes.md) |
-| **L4-CORE** | 1, 2, 3, 4, 10 | 5 | MessageConcept + 类型化 Writer/Reader，POD 消息端到端单测 |
-| 合计 | | **21 项**（含 L4-TRANS-19 部分完成：SHM 手动模式，kAuto 自动选路待 L4-TRANS-21） |
+| **L4-CORE** | 1, 2, 3, 4, 5, 6, 7, 10 | 8 | MessageConcept + 类型化 Writer/Reader + DataVisitor/Dispatcher/Notifier（AllLatest 融合） |
+| **L4-COMP** | 1, 2, 3, 10 | 4 | Component/TwoInput/Timer/TimerSource + 工厂注册宏 |
+| **L4-MAIN** | 1 | 1 | **ti + ti-launch DAG 启动器，hello DAG 端到端 15/15**（命名决策见 [adr/0002 术语边界](./adr/0002-cyber-relation.md)） |
+| 合计 | | **30 项**（L4-COMP-6 AllLatest 已随 DataVisitor 落地；kAuto 自动选路待 L4-TRANS-21） |
 
 ### Phase 0 已完成功能点
 
