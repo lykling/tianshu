@@ -19,6 +19,8 @@
 #include <cstdio>
 #include <cstring>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace tianshu::core {
 namespace {
@@ -151,6 +153,112 @@ FieldTreeView decode_pod(std::string_view type_name, const FieldDesc* fields,
   return view;
 }
 
+// --- schema blob codec -----------------------------------------------------
+
+namespace {
+
+void append_bytes(std::vector<std::uint8_t>* out, const void* src, std::size_t n) {
+  const auto* b = static_cast<const std::uint8_t*>(src);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  out->insert(out->end(), b, b + n);
+}
+
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+bool read_bytes(const std::uint8_t* blob, std::size_t size, std::size_t* pos, void* dst,
+                std::size_t n) {
+  if (n > size - *pos) {
+    return false;
+  }
+  std::memcpy(dst, blob + *pos, n);
+  *pos += n;
+  return true;
+}
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+
+constexpr std::uint32_t kMaxSchemaFields = 4096;
+
+}  // namespace
+
+std::vector<std::uint8_t> encode_pod_schema(std::string_view type_name, const FieldDesc* fields,
+                                            std::size_t field_count) {
+  std::vector<std::uint8_t> blob;
+  blob.reserve(14U + type_name.size() + (field_count * 32U));
+  append_bytes(&blob, &kPodSchemaMagic, sizeof(kPodSchemaMagic));
+  const auto tn_len = static_cast<std::uint16_t>(type_name.size());
+  append_bytes(&blob, &tn_len, sizeof(tn_len));
+  blob.insert(blob.end(), type_name.begin(), type_name.end());
+  const auto fc = static_cast<std::uint32_t>(field_count);
+  append_bytes(&blob, &fc, sizeof(fc));
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  for (std::size_t i = 0; i < field_count; ++i) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    const FieldDesc& f = fields[i];
+    const auto name_len = static_cast<std::uint16_t>(std::strlen(f.name));
+    append_bytes(&blob, &name_len, sizeof(name_len));
+    append_bytes(&blob, f.name, name_len);
+    const std::uint64_t offset = f.offset;
+    append_bytes(&blob, &offset, sizeof(offset));
+    const auto tag = static_cast<std::uint8_t>(f.type);
+    append_bytes(&blob, &tag, sizeof(tag));
+    const std::uint64_t count = f.count;
+    append_bytes(&blob, &count, sizeof(count));
+  }
+  return blob;
+}
+
+bool decode_pod_schema(const std::uint8_t* blob, std::size_t size, OwnedSchemaTable* out) {
+  if (size < sizeof(kPodSchemaMagic) + sizeof(std::uint16_t) + sizeof(std::uint32_t)) {
+    return false;
+  }
+  std::size_t pos = 0;
+  std::uint64_t magic = 0;
+  if (!read_bytes(blob, size, &pos, &magic, sizeof(magic)) || magic != kPodSchemaMagic) {
+    return false;
+  }
+  std::uint16_t tn_len = 0;
+  if (!read_bytes(blob, size, &pos, &tn_len, sizeof(tn_len)) || tn_len == 0) {
+    return false;
+  }
+  OwnedSchemaTable table;
+  table.type_name.resize(tn_len);
+  if (!read_bytes(blob, size, &pos, table.type_name.data(), tn_len)) {
+    return false;
+  }
+  std::uint32_t fc = 0;
+  if (!read_bytes(blob, size, &pos, &fc, sizeof(fc)) || fc > kMaxSchemaFields) {
+    return false;
+  }
+  table.fields.reserve(fc);
+  for (std::uint32_t i = 0; i < fc; ++i) {
+    std::uint16_t name_len = 0;
+    if (!read_bytes(blob, size, &pos, &name_len, sizeof(name_len)) || name_len == 0) {
+      return false;
+    }
+    std::string name(name_len, '\0');
+    if (!read_bytes(blob, size, &pos, name.data(), name_len)) {
+      return false;
+    }
+    std::uint64_t offset = 0;
+    std::uint8_t tag = 0;
+    std::uint64_t count = 0;
+    if (!read_bytes(blob, size, &pos, &offset, sizeof(offset)) ||
+        !read_bytes(blob, size, &pos, &tag, sizeof(tag)) ||
+        tag > static_cast<std::uint8_t>(FieldType::kBool) ||
+        !read_bytes(blob, size, &pos, &count, sizeof(count))) {
+      return false;
+    }
+    // deque keeps element addresses stable; the FieldDesc::name pointer
+    // into names.back() survives later growth and container moves.
+    table.names.emplace_back(std::move(name));
+    table.fields.push_back({.name = table.names.back().c_str(),
+                            .offset = offset,
+                            .type = static_cast<FieldType>(tag),
+                            .count = count});
+  }
+  *out = std::move(table);
+  return true;
+}
+
 DecoderRegistry& DecoderRegistry::instance() noexcept {
   static DecoderRegistry reg;
   return reg;
@@ -168,7 +276,27 @@ void DecoderRegistry::register_fields(std::string_view type_name, const FieldDes
         return;
       }
     }
-    entries_.push_back({.type_name = std::string(type_name), .fields = fields, .count = count});
+    entries_.push_back(
+        {.type_name = std::string(type_name), .fields = fields, .count = count, .owned = {}});
+  } catch (...) {  // NOLINT(bugprone-empty-catch): registration is best-effort;
+                   // decode() falls back to hex dump
+  }
+}
+
+void DecoderRegistry::register_schema(OwnedSchemaTable&& table) noexcept {
+  try {
+    for (Entry& e : entries_) {
+      if (e.type_name == table.type_name) {
+        e.fields = nullptr;
+        e.count = 0;
+        e.owned = std::move(table);
+        return;
+      }
+    }
+    Entry entry{};
+    entry.type_name = table.type_name;
+    entry.owned = std::move(table);
+    entries_.push_back(std::move(entry));
   } catch (...) {  // NOLINT(bugprone-empty-catch): registration is best-effort;
                    // decode() falls back to hex dump
   }
@@ -181,7 +309,9 @@ bool DecoderRegistry::decode(std::string_view type_name, const std::uint8_t* pay
   if (it == entries_.end()) {
     return false;
   }
-  *out = decode_pod(type_name, it->fields, it->count, payload, payload_size);
+  const bool owned = !it->owned.fields.empty();
+  *out = decode_pod(type_name, owned ? it->owned.fields.data() : it->fields,
+                    owned ? it->owned.fields.size() : it->count, payload, payload_size);
   return true;
 }
 

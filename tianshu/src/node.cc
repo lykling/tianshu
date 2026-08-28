@@ -14,9 +14,11 @@
 
 #include "tianshu/core/node.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "tianshu/transport/hybrid_transport.h"
 #include "tianshu/transport/transport_backend.h"
@@ -34,11 +36,13 @@ std::unique_ptr<transport::ReaderBase> Node::create_reader(std::string_view chan
   return transport_->create_reader(cfg);
 }
 
-std::unique_ptr<transport::WriterBase> Node::create_writer(std::string_view channel,
-                                                           std::string_view msg_type) {
+std::unique_ptr<transport::WriterBase> Node::create_writer(
+    std::string_view channel, std::string_view msg_type,
+    const std::vector<std::uint8_t>& schema_blob) {
   transport::ChannelConfig cfg;
   cfg.channel_name = std::string(channel);
   cfg.msg_type_name = std::string(msg_type);
+  cfg.schema_blob = schema_blob;
   return transport_->create_writer(cfg);
 }
 

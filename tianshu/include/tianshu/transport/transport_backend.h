@@ -28,6 +28,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 namespace tianshu::transport {
 
@@ -55,6 +56,9 @@ struct ChannelConfig {
   std::string msg_type_name;
   std::size_t queue_size{16};
   MessageFormat format{MessageFormat::kPod};
+  // Optional schema blob (ADR-0020): published beside the channel by
+  // backends that support it (SHM sidecar); empty = no schema.
+  std::vector<std::uint8_t> schema_blob;
 };
 
 // Opaque message payload (raw bytes or struct pointer, backend-dependent).

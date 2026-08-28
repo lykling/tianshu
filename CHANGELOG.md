@@ -50,6 +50,26 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### Cross-process schema sidecar (ADR-0020 Phase 2)
+
+- Schema blob codec: encode_pod_schema / decode_pod_schema serialize the
+  POD field table (magic + type name + per-field descriptors,
+  little-endian); defensive parse rejects truncated or corrupted blobs
+- DecoderRegistry::register_schema: runtime-owned tables (deque-backed
+  name storage keeps FieldDesc::name pointers stable across moves);
+  replaces prior entries for the same type name
+- SHM sidecar segment /tianshu_schema_<fnv1a> beside the ring buffer
+  (ADR option b: zero changes to existing segment layout, one page per
+  schema'd channel, release/acquire publication, idempotent first-writer
+  semantics, lifetime tied to the writer process)
+- Node::create_typed_writer<T> auto-encodes the table when T has
+  TIANSHU_TRAITS_POD_FIELDS; ShmBackend::create_writer publishes it
+- MonitorApp::add_channel auto-loads the sidecar at attach and exposes
+  ChannelView.schema_type_name; ti-monitor renders decoded fields with
+  NO --decode flag (the flag still overrides)
+- Verified live: shm_talker (typed writer) + ti-monitor --once in two
+  separate processes auto-decode ImuData fields cross-process
+
 ### ti-monitor field decoding (ADR-0020 Phase 1)
 
 - Field table: FieldDesc (name/offset/type/count) + FieldType scalars
@@ -111,7 +131,7 @@ Examples: shm_talker / shm_listener standalone cross-process demo binaries
 
 ### Verification
 
-- 222/222 CMake tests (Clang + GCC), 21/21 Bazel tests
+- 229/229 CMake tests (Clang + GCC), 21/21 Bazel tests
 - Line coverage 96.5%, function coverage 100% (lcov, filtered)
 - Zero-warning build on both compilers
 

@@ -22,10 +22,13 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
+#include "tianshu/core/field_table.h"
 #include "tianshu/core/message_concept.h"
 #include "tianshu/core/message_traits.h"
 #include "tianshu/core/typed_reader.h"
@@ -45,8 +48,9 @@ class Node {
   std::unique_ptr<transport::ReaderBase> create_reader(std::string_view channel,
                                                        std::string_view msg_type = "");
 
-  std::unique_ptr<transport::WriterBase> create_writer(std::string_view channel,
-                                                       std::string_view msg_type = "");
+  std::unique_ptr<transport::WriterBase> create_writer(
+      std::string_view channel, std::string_view msg_type = "",
+      const std::vector<std::uint8_t>& schema_blob = {});
 
   template <MessageConcept T>
   std::unique_ptr<Reader<T>> create_typed_reader(std::string_view channel) {
@@ -56,7 +60,12 @@ class Node {
 
   template <MessageConcept T>
   std::unique_ptr<Writer<T>> create_typed_writer(std::string_view channel) {
-    return std::make_unique<Writer<T>>(create_writer(channel, MessageTraits<T>::name()),
+    std::vector<std::uint8_t> schema;
+    if constexpr (HasPodFieldTable<T>::value) {
+      schema = encode_pod_schema(PodFieldTable<T>::kTypeName, PodFieldTable<T>::kFields,
+                                 PodFieldTable<T>::kCount);
+    }
+    return std::make_unique<Writer<T>>(create_writer(channel, MessageTraits<T>::name(), schema),
                                        std::string(channel));
   }
 

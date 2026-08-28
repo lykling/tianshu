@@ -124,8 +124,8 @@ void draw_channel_list(std::string& out, const tianshu::core::MonitorUiSnapshot&
 }
 
 // Frame header + decoded fields (or hex dump) of the current view frame.
-// With --decode: registry lookup by type name (ADR-0020 Phase 1); falls
-// back to hex dump when the type has no field table.
+// Type name: --decode flag, else the channel's schema sidecar (ADR-0020
+// Phase 2); falls back to hex dump when no field table is available.
 void draw_detail(std::string& out, const tianshu::core::MonitorUiSnapshot& snap, std::size_t rows,
                  const std::string& decode_type) {
   if (snap.channels.empty()) {
@@ -142,9 +142,10 @@ void draw_detail(std::string& out, const tianshu::core::MonitorUiSnapshot& snap,
   out += head;
   out += "\x1b[K\r\n";
 
+  const std::string effective_type = !decode_type.empty() ? decode_type : ch.schema_type_name;
   tianshu::core::FieldTreeView view;
-  if (!decode_type.empty()) {
-    if (tianshu::core::DecoderRegistry::instance().decode(decode_type, snap.frame.payload.data(),
+  if (!effective_type.empty()) {
+    if (tianshu::core::DecoderRegistry::instance().decode(effective_type, snap.frame.payload.data(),
                                                           snap.frame.payload.size(), &view)) {
       for (std::size_t row = 0; row + 3 < rows && row < view.fields.size(); ++row) {
         const auto& f = view.fields[row];
@@ -160,7 +161,7 @@ void draw_detail(std::string& out, const tianshu::core::MonitorUiSnapshot& snap,
       return;
     }
     out += " (no field table registered for ";
-    out += decode_type;
+    out += effective_type;
     out += ")\x1b[K\r\n";
   }
 
@@ -288,17 +289,18 @@ int run_once(tianshu::core::MonitorApp& app, const std::string& decode_type) {
     static_cast<void>(std::printf(  // NOLINT(concurrency-mt-unsafe)
         "%s: hz=%.1f seq=%llu size=%zu buffered=%zu\n", ch.name.c_str(), ch.stats.hz,
         static_cast<unsigned long long>(ch.stats.last_seq), ch.stats.last_size, ch.buffered));
-    if (!decode_type.empty()) {
+    const std::string effective_type = !decode_type.empty() ? decode_type : ch.schema_type_name;
+    if (!effective_type.empty()) {
       tianshu::core::FieldTreeView view;
-      if (tianshu::core::DecoderRegistry::instance().decode(decode_type, snap.frame.payload.data(),
-                                                            snap.frame.payload.size(), &view)) {
+      if (tianshu::core::DecoderRegistry::instance().decode(
+              effective_type, snap.frame.payload.data(), snap.frame.payload.size(), &view)) {
         for (const auto& f : view.fields) {
           static_cast<void>(std::printf(  // NOLINT(concurrency-mt-unsafe)
               "  %s = %s\n", f.name.c_str(), f.text.c_str()));
         }
       } else {
         static_cast<void>(std::printf(  // NOLINT(concurrency-mt-unsafe)
-            "  (no field table registered for %s)\n", decode_type.c_str()));
+            "  (no field table registered for %s)\n", effective_type.c_str()));
       }
     }
   }

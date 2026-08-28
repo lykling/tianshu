@@ -1,6 +1,6 @@
 # ADR-0020：消息运行期反射与 Monitor 解析（多消息格式）
 
-- **状态**：已接受（Phase 1 已实现：POD 字段表 + FieldTreeView + DecoderRegistry + ti-monitor --decode；Phase 2 schema 分发待做）
+- **状态**：已接受（Phase 1 已实现：POD 字段表 + FieldTreeView + DecoderRegistry + ti-monitor --decode；Phase 2 已实现：SHM sidecar schema 分发，ti-monitor 免参数自动解码）
 - **日期**：2026-08-27
 - **决策者**：Pride Leong
 - **关联**：[adr/0008](./0008-message-format-multi.md) · [adr/0010](./0010-transport-shm-infra.md) · [adr/0014](./0014-console.md) · [adr/0015](./0015-discovery-abstraction.md)
@@ -96,6 +96,7 @@ TIANSHU_TRAITS_POD_FIELDS(ImuData, "tianshu.pod.ImuData",
 ### 4. 与发现协议的集成点
 
 - Phase 1（无独立 discovery 服务）：`IntraChannelRegistry` / SHM `ChannelHeader` 旁挂 schema（SHM 段 header 预留 `schema_offset`，或独立小段 `tianshu_schema_<hash>`——实现时按段的定额成本二选一）
+  - **已选定独立小段**（2026-08-28 落地）：`/tianshu_schema_<fnv1a>` 与 `/tianshu_ch_<fnv1a>` 同哈希派生。理由：零改动现有段布局（`schema_offset` 方案变更 `ChannelHeader`，破坏在飞段的 ABI）；定额成本为每 schema'd 通道一页。发布语义：blob 先写、magic release-store 收尾（读者 acquire）；首写者胜出；段随 writer 进程存活（与数据段同生命周期）
 - Phase 2（ADR-0015 DiscoveryBackend 落地）：schema 随 join 通告分发（cyber `DisposeJoin → RegisterMessage` 同构）
 - **通道类型元信息不再需要手传**：`ti monitor /sensing/imu` 自动拿到 `kPod + tianshu.pod.ImuData + 字段表`
 
@@ -121,7 +122,7 @@ cyber 关键实现参照（上游 `ApolloAuto/apollo@d53aa3d`）：
 ### 分期
 
 - **本 ADR 只锁架构**（SchemaInfo 形状、注册表接口、POD 字段表宏、分发原则）
-- **实现分期**：Phase 1 末先做 POD 字段表 + FieldTreeView + ti-monitor 字段渲染（零新依赖，立刻可用）；Protobuf/FlatBuffers 解码随 L4-CORE-11/12 依赖引入后补齐（blob 格式已定，接口不变）
+- **实现分期**：Phase 1（已完成）POD 字段表 + FieldTreeView + ti-monitor 字段渲染；Phase 2（已完成）SHM sidecar schema 分发 + monitor 免参数自动解码；Protobuf/FlatBuffers 解码随 L4-CORE-11/12 依赖引入后补齐（blob 格式已定，接口不变）
 - 新增功能点：L4-TRANS-33（通道 schema 元数据分发）、F-L4-CONSOLE 补充（monitor 解析渲染）——进开发计划
 
 ### 与既有 ADR 的关系

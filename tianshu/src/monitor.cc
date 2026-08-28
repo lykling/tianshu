@@ -25,8 +25,11 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <vector>
 
+#include "tianshu/core/field_table.h"
 #include "tianshu/core/node.h"
+#include "tianshu/transport/schema_sidecar.h"
 
 namespace tianshu::core {
 
@@ -193,8 +196,17 @@ bool MonitorApp::add_channel(std::string_view channel) {
   if (reader == nullptr) {
     return false;
   }
-  channels_.push_back(
-      std::make_unique<MonitorChannel>(std::string(channel), buffer_depth_, std::move(reader)));
+  auto mon =
+      std::make_unique<MonitorChannel>(std::string(channel), buffer_depth_, std::move(reader));
+  std::vector<std::uint8_t> blob;
+  if (transport::shm::read_channel_schema(channel, &blob)) {
+    OwnedSchemaTable table;
+    if (decode_pod_schema(blob.data(), blob.size(), &table)) {
+      mon->set_schema_type_name(table.type_name);
+      DecoderRegistry::instance().register_schema(std::move(table));
+    }
+  }
+  channels_.push_back(std::move(mon));
   return true;
 }
 
@@ -271,6 +283,7 @@ MonitorUiSnapshot MonitorApp::snapshot() {
     view.cursor = ch->buffer().cursor();
     view.buffered = ch->buffer().size();
     view.total_pushed = ch->buffer().total_pushed();
+    view.schema_type_name = ch->schema_type_name();
     snap.channels.push_back(std::move(view));
   }
   if (selected_ < channels_.size()) {

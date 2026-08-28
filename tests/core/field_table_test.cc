@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 #include <gtest/gtest.h>
 
@@ -127,4 +128,53 @@ TEST(FieldTableTest, RegistryRegistrationIsIdempotent) {
       "test.PodMsg", reinterpret_cast<const std::uint8_t*>(&msg), sizeof(msg), &view));
   EXPECT_EQ(view.fields.size(), 1U);
   EXPECT_EQ(view.fields[0].name, "vec");
+}
+
+TEST(FieldTableTest, SchemaCodecRoundtrip) {
+  const auto blob = tianshu::core::encode_pod_schema("test.codec.PodMsg",
+                                                     tianshu::core::PodFieldTable<PodMsg>::kFields,
+                                                     tianshu::core::PodFieldTable<PodMsg>::kCount);
+  tianshu::core::OwnedSchemaTable table;
+  ASSERT_TRUE(tianshu::core::decode_pod_schema(blob.data(), blob.size(), &table));
+  EXPECT_EQ(table.type_name, "test.codec.PodMsg");
+  ASSERT_EQ(table.fields.size(), tianshu::core::PodFieldTable<PodMsg>::kCount);
+  for (std::size_t i = 0; i < table.fields.size(); ++i) {
+    EXPECT_STREQ(table.fields[i].name, tianshu::core::PodFieldTable<PodMsg>::kFields[i].name);
+    EXPECT_EQ(table.fields[i].offset, tianshu::core::PodFieldTable<PodMsg>::kFields[i].offset);
+    EXPECT_EQ(table.fields[i].type, tianshu::core::PodFieldTable<PodMsg>::kFields[i].type);
+    EXPECT_EQ(table.fields[i].count, tianshu::core::PodFieldTable<PodMsg>::kFields[i].count);
+  }
+}
+
+TEST(FieldTableTest, OwnedSchemaDecodesViaRegistry) {
+  // Type name with no compile-time table: proves the owned-storage path.
+  const auto blob = tianshu::core::encode_pod_schema("test.owned.ViaBlob", EXTRA_FIELDS, 1);
+  tianshu::core::OwnedSchemaTable table;
+  ASSERT_TRUE(tianshu::core::decode_pod_schema(blob.data(), blob.size(), &table));
+  tianshu::core::DecoderRegistry::instance().register_schema(std::move(table));
+  const PodMsg msg{.d = 0.0,
+                   .f = 0.0F,
+                   .i32 = 0,
+                   .i64 = 0,
+                   .u32 = 0,
+                   .u64 = 0,
+                   .b = false,
+                   .vec = {1.5, 2.5, 3.5}};
+  tianshu::core::FieldTreeView view;
+  EXPECT_TRUE(tianshu::core::DecoderRegistry::instance().decode(
+      "test.owned.ViaBlob", reinterpret_cast<const std::uint8_t*>(&msg), sizeof(msg), &view));
+  ASSERT_EQ(view.fields.size(), 1U);
+  EXPECT_EQ(view.fields[0].name, "vec");
+  EXPECT_EQ(view.fields[0].text, "[1.5, 2.5, 3.5]");
+}
+
+TEST(FieldTableTest, SchemaCodecRejectsMalformedBlobs) {
+  const auto blob = tianshu::core::encode_pod_schema("test.codec.PodMsg",
+                                                     tianshu::core::PodFieldTable<PodMsg>::kFields,
+                                                     tianshu::core::PodFieldTable<PodMsg>::kCount);
+  tianshu::core::OwnedSchemaTable table;
+  EXPECT_FALSE(tianshu::core::decode_pod_schema(blob.data(), blob.size() - 3, &table));
+  auto bad = blob;
+  bad[0] ^= static_cast<std::uint8_t>(0xFF);
+  EXPECT_FALSE(tianshu::core::decode_pod_schema(bad.data(), bad.size(), &table));
 }

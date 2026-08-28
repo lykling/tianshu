@@ -33,6 +33,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "tianshu/transport/transport_backend.h"
@@ -102,10 +103,16 @@ class MonitorChannel {
   [[nodiscard]] const std::string& name() const;
   [[nodiscard]] MonitorChannelStats stats() const;
 
+  // Type name advertised by the channel's schema sidecar (empty when the
+  // publisher ships no schema). Set once from add_channel.
+  void set_schema_type_name(std::string type_name) { schema_type_name_ = std::move(type_name); }
+  [[nodiscard]] const std::string& schema_type_name() const { return schema_type_name_; }
+
  private:
   void recompute_hz_locked(std::chrono::steady_clock::time_point now);
 
   std::string name_;
+  std::string schema_type_name_;
   std::unique_ptr<transport::ReaderBase> reader_;
   MonitorBuffer buffer_;
   mutable std::mutex stats_mutex_;
@@ -124,6 +131,7 @@ struct MonitorUiSnapshot {
     std::size_t cursor{0};
     std::size_t buffered{0};
     std::uint64_t total_pushed{0};
+    std::string schema_type_name;
   };
   std::vector<ChannelView> channels;
   std::size_t selected{0};

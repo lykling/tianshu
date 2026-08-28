@@ -22,17 +22,20 @@
 //   - DecoderRegistry: (type_name, FieldDesc*) lookup for tools that
 //     know the type name but not the C++ type
 //
-// Phase 1 constraint: field tables are compile-time; the tool binary
-// must link the translation unit that registers them. Cross-process
-// schema distribution arrives with ADR-0020 Phase 2 (discovery).
+// Cross-process: a compiled-in table can also be encoded into a schema
+// blob (encode_pod_schema) and shipped beside the channel; receivers
+// decode it (decode_pod_schema) and register the owned table — the tool
+// binary no longer needs to link the publisher's types.
 
 #pragma once
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <deque>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace tianshu::core {
@@ -77,6 +80,38 @@ FieldTreeView decode_pod(std::string_view type_name, const FieldDesc* fields,
                          std::size_t field_count, const std::uint8_t* payload,
                          std::size_t payload_size);
 
+// True when T opted in via TIANSHU_TRAITS_POD_FIELDS (SFINAE-detected).
+template <typename T, typename = void>
+struct HasPodFieldTable : std::false_type {};
+
+template <typename T>
+struct HasPodFieldTable<T, std::void_t<decltype(PodFieldTable<T>::kFields)>> : std::true_type {};
+
+// --- schema blob codec (ADR-0020 Phase 2) ----------------------------------
+//
+// Wire format (little-endian, fixed):
+//   [u64 magic][u16 type_name_len][type_name][u32 field_count]
+//   per field: [u16 name_len][name][u64 offset][u8 type][u64 count]
+
+inline constexpr std::uint64_t kPodSchemaMagic = 0x54534843'4d303201ULL;
+
+// Runtime-loaded table: `names` owns the storage; `fields[i].name`
+// points into `names[i]` after decode_pod_schema (deque keeps element
+// addresses stable across move and growth).
+struct OwnedSchemaTable {
+  std::string type_name;
+  std::deque<std::string> names;
+  std::vector<FieldDesc> fields;
+};
+
+[[nodiscard]] std::vector<std::uint8_t> encode_pod_schema(std::string_view type_name,
+                                                          const FieldDesc* fields,
+                                                          std::size_t field_count);
+
+// Defensive parse: returns false on any truncation or bad magic.
+[[nodiscard]] bool decode_pod_schema(const std::uint8_t* blob, std::size_t size,
+                                     OwnedSchemaTable* out);
+
 // --- registry -------------------------------------------------------------
 
 // Runtime registry for tools that look up by type name (ti-monitor).
@@ -88,6 +123,11 @@ class DecoderRegistry {
   // a failed registration is non-fatal — decode() falls back to hex dump.
   void register_fields(std::string_view type_name, const FieldDesc* fields,
                        std::size_t count) noexcept;
+
+  // Runtime-loaded schema (sidecar segment, ADR-0020 Phase 2). Same
+  // best-effort semantics as register_fields; replaces any prior entry
+  // for the same type name.
+  void register_schema(OwnedSchemaTable&& table) noexcept;
 
   // Returns true and fills `out` on success; false when the type has no
   // registered table (caller falls back to hex dump).
@@ -101,8 +141,9 @@ class DecoderRegistry {
 
   struct Entry {
     std::string type_name;
-    const FieldDesc* fields;
-    std::size_t count;
+    const FieldDesc* fields{nullptr};
+    std::size_t count{0};
+    OwnedSchemaTable owned;
   };
 
   std::vector<Entry> entries_;

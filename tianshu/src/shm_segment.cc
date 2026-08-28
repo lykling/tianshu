@@ -49,6 +49,18 @@ std::unique_ptr<ShmSegment> ShmSegment::open_or_create(std::string_view name, st
   return segment;
 }
 
+std::unique_ptr<ShmSegment> ShmSegment::open_existing(std::string_view name) {
+  auto segment = std::unique_ptr<ShmSegment>(new ShmSegment());
+  if (name.empty() || name.size() >= sizeof(segment->name_)) {
+    return nullptr;
+  }
+  std::memcpy(segment->name_, name.data(), name.size());
+  if (!segment->attach_existing()) {
+    return nullptr;
+  }
+  return segment;
+}
+
 ShmSegment::~ShmSegment() {
   if (base_ == nullptr) {
     return;

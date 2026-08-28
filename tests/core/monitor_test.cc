@@ -28,6 +28,7 @@
 #include <sys/wait.h>
 
 #include "tianshu/core/field_table.h"
+#include "tianshu/core/message_traits.h"
 #include "tianshu/core/node.h"
 #include "tianshu/transport/transport_backend.h"
 
@@ -201,6 +202,7 @@ TEST(MonitorAppTest, AttachesToShmChannelAndSeesFrames) {
 
 }  // namespace
 
+TIANSHU_TRAITS_POD(Imu, "test.monitor.Imu")
 TIANSHU_TRAITS_POD_FIELDS(Imu, "test.monitor.Imu", TIANSHU_FIELD(Imu, ax, Double),
                           TIANSHU_FIELD(Imu, az, Double))
 
@@ -236,6 +238,50 @@ TEST(MonitorDecodeTest, DecodesFramesViaRegistry) {
   ASSERT_EQ(view.fields.size(), 2U);
   EXPECT_EQ(view.fields[0].name, "ax");
   EXPECT_FALSE(view.fields[0].text.empty());
+  EXPECT_EQ(view.fields[1].name, "az");
+  EXPECT_EQ(view.fields[1].text, "9.81");
+
+  int status = 0;
+  kill(pid, SIGTERM);  // NOLINT(misc-include-cleaner)
+  waitpid(pid, &status, 0);
+}
+
+// End to end schema distribution (ADR-0020 Phase 2): the typed writer
+// publishes the field table via the sidecar segment; the monitor process
+// auto-loads it at attach time and decodes without --decode.
+TEST(MonitorSchemaSidecarTest, AutoLoadsSchemaFromSidecarSegment) {
+  const char* channel = "/monitor/schema-sidecar";
+  const pid_t pid = fork();  // NOLINT(misc-include-cleaner)
+  ASSERT_GE(pid, 0);
+  if (pid == 0) {
+    tianshu::core::Node node(tianshu::transport::TransportMode::kShm);
+    auto writer = node.create_typed_writer<Imu>(channel);
+    if (writer == nullptr) {
+      _exit(10);
+    }
+    for (int i = 0; i < 300; ++i) {
+      writer->write(Imu{.ax = i * 0.25, .az = 9.81});
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    _exit(0);
+  }
+
+  // The schema is read once at attach: let the publisher create the
+  // channel + sidecar first.
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  tianshu::core::MonitorApp app(8);
+  ASSERT_TRUE(app.add_channel(channel));
+  EXPECT_EQ(app.wait_first_frames(std::chrono::milliseconds(5000)), 0U);
+
+  const auto snap = app.snapshot();
+  ASSERT_EQ(snap.channels.size(), 1U);
+  EXPECT_EQ(snap.channels[0].schema_type_name, "test.monitor.Imu");
+
+  tianshu::core::FieldTreeView view;
+  EXPECT_TRUE(tianshu::core::DecoderRegistry::instance().decode(snap.channels[0].schema_type_name,
+                                                                snap.frame.payload.data(),
+                                                                snap.frame.payload.size(), &view));
+  ASSERT_EQ(view.fields.size(), 2U);
   EXPECT_EQ(view.fields[1].name, "az");
   EXPECT_EQ(view.fields[1].text, "9.81");
 

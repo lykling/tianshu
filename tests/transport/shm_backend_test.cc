@@ -33,6 +33,7 @@
 #include <sys/wait.h>
 
 #include "tianshu/core/node.h"
+#include "tianshu/transport/schema_sidecar.h"
 #include "tianshu/transport/transport_backend.h"
 
 namespace {
@@ -302,6 +303,31 @@ TEST(ShmBackendTest, CrossProcessEndToEnd) {
   ASSERT_EQ(waitpid(pid, &status, 0), pid);
   EXPECT_TRUE(WIFEXITED(status));     // NOLINT(misc-include-cleaner)  // glibc: bits/waitflags
   EXPECT_EQ(WEXITSTATUS(status), 0);  // NOLINT(misc-include-cleaner)  // glibc: bits/waitflags
+}
+
+TEST(SchemaSidecarTest, WriteReadRoundtrip) {
+  const std::vector<std::uint8_t> blob = {0x01, 0x02, 0x03, 0x04, 0x05};
+  tianshu::transport::shm::write_channel_schema("/test/schema/rt", blob.data(), blob.size());
+  std::vector<std::uint8_t> out;
+  EXPECT_TRUE(tianshu::transport::shm::read_channel_schema("/test/schema/rt", &out));
+  EXPECT_EQ(out, blob);
+}
+
+TEST(SchemaSidecarTest, MissingSidecarReturnsFalse) {
+  std::vector<std::uint8_t> out;
+  EXPECT_FALSE(tianshu::transport::shm::read_channel_schema("/test/schema/absent", &out));
+}
+
+TEST(SchemaSidecarTest, BackendWriterPublishesSchema) {
+  tianshu::transport::shm::ShmBackend backend;
+  ChannelConfig cfg;
+  cfg.channel_name = "/test/schema/backend";
+  cfg.schema_blob = {0xAA, 0xBB};
+  auto writer = backend.create_writer(cfg);
+  ASSERT_NE(writer, nullptr);
+  std::vector<std::uint8_t> out;
+  EXPECT_TRUE(tianshu::transport::shm::read_channel_schema("/test/schema/backend", &out));
+  EXPECT_EQ(out, (std::vector<std::uint8_t>{0xAA, 0xBB}));
 }
 
 }  // namespace

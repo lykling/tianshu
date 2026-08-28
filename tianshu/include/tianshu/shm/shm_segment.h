@@ -44,6 +44,9 @@ class ShmSegment {
   // `size` is the payload capacity; sizeof(SegmentHeader) is added on top.
   static std::unique_ptr<ShmSegment> open_or_create(std::string_view name, std::size_t size);
 
+  // Attaches to an existing segment without creating; nullptr when absent.
+  static std::unique_ptr<ShmSegment> open_existing(std::string_view name);
+
   ~ShmSegment();
 
   ShmSegment(const ShmSegment&) = delete;

@@ -33,6 +33,7 @@
 
 #include "tianshu/shm/shm_ring.h"
 #include "tianshu/shm/shm_segment.h"
+#include "tianshu/transport/schema_sidecar.h"
 #include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::transport::shm {
@@ -43,18 +44,6 @@ std::int64_t now_ns() {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(
              std::chrono::steady_clock::now().time_since_epoch())
       .count();
-}
-
-std::string segment_name_for(std::string_view channel) {
-  std::uint64_t hash = 14695981039346656037ULL;
-  for (const char c : channel) {
-    hash ^= static_cast<std::uint8_t>(c);
-    hash *= 1099511628211ULL;
-  }
-  char buf[48];
-  static_cast<void>(std::snprintf(buf, sizeof(buf), "/tianshu_ch_%016llx",
-                                  static_cast<unsigned long long>(hash)));
-  return {buf};
 }
 
 std::size_t slot_stride_bytes(std::uint32_t ring_capacity) {
@@ -314,6 +303,9 @@ std::unique_ptr<WriterBase> ShmBackend::create_writer(const ChannelConfig& cfg) 
   auto channel = ShmChannelRegistry::instance().get_or_open(cfg.channel_name);
   if (channel == nullptr) {
     return nullptr;
+  }
+  if (!cfg.schema_blob.empty()) {
+    write_channel_schema(cfg.channel_name, cfg.schema_blob.data(), cfg.schema_blob.size());
   }
   return std::make_unique<ShmWriter>(cfg.channel_name, std::move(channel));
 }

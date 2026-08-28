@@ -18,6 +18,7 @@ add_library(tianshu SHARED
     src/launcher.cc
     src/monitor.cc
     src/field_table.cc
+    src/schema_sidecar.cc
     src/lineage.cc
     src/dsl_runtime.cc
     src/hybrid_transport.cc
