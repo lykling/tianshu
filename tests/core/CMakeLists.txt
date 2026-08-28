@@ -21,3 +21,7 @@ gtest_discover_tests(launcher_test PROPERTIES ENVIRONMENT "TI_BIN_DIR=${CMAKE_BI
 add_executable(monitor_test monitor_test.cc)
 target_link_libraries(monitor_test PRIVATE tianshu GTest::gtest_main)
 gtest_discover_tests(monitor_test)
+
+add_executable(field_table_test field_table_test.cc)
+target_link_libraries(field_table_test PRIVATE tianshu GTest::gtest_main)
+gtest_discover_tests(field_table_test)

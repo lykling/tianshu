@@ -50,6 +50,23 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### ti-monitor field decoding (ADR-0020 Phase 1)
+
+- Field table: FieldDesc (name/offset/type/count) + FieldType scalars
+  (double/float/i32/i64/u32/u64/bool) + inline arrays (up to 16 shown);
+  decode_pod walks payload bytes defensively (schema drift -> skipped
+  fields, never OOB)
+- TIANSHU_TRAITS_POD_FIELDS macro: opt-in specialization +
+  auto-registration in DecoderRegistry at static init (noexcept path);
+  TIANSHU_FIELD helper emits the descriptor entry
+- DecoderRegistry: type-name lookup (idempotent registration), decode()
+  fills a format-neutral FieldTreeView
+- ti-monitor --decode TYPE: renders "name = value" fields in the TUI
+  detail pane and --once output; falls back to hex dump when the type
+  has no table (cross-process schema distribution = Phase 2)
+- Verified: 8 new unit tests + fork E2E (same-binary registry -> SHM
+  frames -> decoded az=9.81); shm_talker authors ImuData fields
+
 ### L1-DSL / L2-LIN — Declarative flow + automatic lineage (ADR-0021/0022)
 
 - DSL v0: FlowBuilder chained API (source/map/sink + with_sla slot),
@@ -94,7 +111,7 @@ Examples: shm_talker / shm_listener standalone cross-process demo binaries
 
 ### Verification
 
-- 214/214 CMake tests (Clang + GCC), 20/20 Bazel tests
+- 222/222 CMake tests (Clang + GCC), 21/21 Bazel tests
 - Line coverage 96.5%, function coverage 100% (lcov, filtered)
 - Zero-warning build on both compilers
 

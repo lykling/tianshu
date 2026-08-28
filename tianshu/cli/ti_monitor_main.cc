@@ -14,7 +14,7 @@
 
 // ti-monitor: live channel monitor TUI (cyber_monitor-equivalent).
 //
-//   ti monitor <channel>... [--depth N] [--once]
+//   ti monitor <channel>... [--depth N] [--once] [--decode TYPE]
 //
 // Keys (vi-flavoured, count prefix supported, e.g. `5j`):
 //   j / k        select channel (down / up)
@@ -42,6 +42,7 @@
 
 #include <sys/ioctl.h>
 
+#include "tianshu/core/field_table.h"
 #include "tianshu/core/monitor.h"
 
 namespace {
@@ -96,13 +97,8 @@ std::size_t terminal_cols() {
   return 80;
 }
 
-void draw(const tianshu::core::MonitorUiSnapshot& snap) {
-  const std::size_t rows = terminal_rows();
-  const std::size_t cols = terminal_cols();
-  std::string out;
-  out.reserve(8192U);
-  out += "\x1b[H\x1b[2J";
-
+void draw_channel_list(std::string& out, const tianshu::core::MonitorUiSnapshot& snap,
+                       std::size_t rows, std::size_t cols) {
   const std::size_t list_width = 34;
   const std::size_t detail_width = cols > list_width + 2 ? cols - list_width - 2 : 20;
 
@@ -125,41 +121,78 @@ void draw(const tianshu::core::MonitorUiSnapshot& snap) {
 
   // Separator
   out += "\x1b[K\r\n";
+}
 
-  // Detail: frame header + hex dump of the current view frame
-  if (!snap.channels.empty()) {
-    const auto& ch = snap.channels[snap.selected];
-    char head[160];
-    static_cast<void>(std::snprintf(  // NOLINT
-        head, sizeof(head), " %s  seq=%llu  ts=%lldns  size=%zu  frame %zu/%zu %s", ch.name.c_str(),
-        static_cast<unsigned long long>(snap.frame.seq),
-        static_cast<long long>(snap.frame.timestamp_ns), snap.frame.payload.size(),
-        ch.buffered == 0 ? 0 : ch.cursor + 1, ch.buffered,
-        snap.app_paused ? "[PAUSED]" : "[LIVE]"));
-    out += head;
-    out += "\x1b[K\r\n";
-
-    constexpr std::size_t kBytesPerRow = 8;
-    for (std::size_t row = 0; row + 3 < rows; ++row) {
-      const std::size_t base = row * kBytesPerRow;
-      if (base >= snap.frame.payload.size()) {
-        break;
-      }
-      char hexline[160];
-      auto written = static_cast<std::size_t>(
-          std::snprintf(hexline, sizeof(hexline), " %04zx:", base));  // NOLINT
-      // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-      for (std::size_t b = 0; b < kBytesPerRow && base + b < snap.frame.payload.size(); ++b) {
-        written += static_cast<std::size_t>(std::snprintf(  // NOLINT
-            hexline + written, sizeof(hexline) - written, " %02x", snap.frame.payload[base + b]));
-      }
-      // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-      out.append(hexline, written);
-      out += "\x1b[K\r\n";
-    }
-  } else {
+// Frame header + decoded fields (or hex dump) of the current view frame.
+// With --decode: registry lookup by type name (ADR-0020 Phase 1); falls
+// back to hex dump when the type has no field table.
+void draw_detail(std::string& out, const tianshu::core::MonitorUiSnapshot& snap, std::size_t rows,
+                 const std::string& decode_type) {
+  if (snap.channels.empty()) {
     out += " no channels\x1b[K\r\n";
+    return;
   }
+  const auto& ch = snap.channels[snap.selected];
+  char head[160];
+  static_cast<void>(std::snprintf(  // NOLINT
+      head, sizeof(head), " %s  seq=%llu  ts=%lldns  size=%zu  frame %zu/%zu %s", ch.name.c_str(),
+      static_cast<unsigned long long>(snap.frame.seq),
+      static_cast<long long>(snap.frame.timestamp_ns), snap.frame.payload.size(),
+      ch.buffered == 0 ? 0 : ch.cursor + 1, ch.buffered, snap.app_paused ? "[PAUSED]" : "[LIVE]"));
+  out += head;
+  out += "\x1b[K\r\n";
+
+  tianshu::core::FieldTreeView view;
+  if (!decode_type.empty()) {
+    if (tianshu::core::DecoderRegistry::instance().decode(decode_type, snap.frame.payload.data(),
+                                                          snap.frame.payload.size(), &view)) {
+      for (std::size_t row = 0; row + 3 < rows && row < view.fields.size(); ++row) {
+        const auto& f = view.fields[row];
+        char fl[192];
+        static_cast<void>(std::snprintf(  // NOLINT
+            fl, sizeof(fl), " %-16s = %s", f.name.c_str(), f.text.c_str()));
+        out += fl;
+        out += "\x1b[K\r\n";
+      }
+      if (view.fields.empty()) {
+        out += " (payload shorter than schema)\x1b[K\r\n";
+      }
+      return;
+    }
+    out += " (no field table registered for ";
+    out += decode_type;
+    out += ")\x1b[K\r\n";
+  }
+
+  constexpr std::size_t kBytesPerRow = 8;
+  for (std::size_t row = 0; row + 3 < rows; ++row) {
+    const std::size_t base = row * kBytesPerRow;
+    if (base >= snap.frame.payload.size()) {
+      break;
+    }
+    char hexline[160];
+    auto written = static_cast<std::size_t>(
+        std::snprintf(hexline, sizeof(hexline), " %04zx:", base));  // NOLINT
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    for (std::size_t b = 0; b < kBytesPerRow && base + b < snap.frame.payload.size(); ++b) {
+      written += static_cast<std::size_t>(std::snprintf(  // NOLINT
+          hexline + written, sizeof(hexline) - written, " %02x", snap.frame.payload[base + b]));
+    }
+    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    out.append(hexline, written);
+    out += "\x1b[K\r\n";
+  }
+}
+
+void draw(const tianshu::core::MonitorUiSnapshot& snap, const std::string& decode_type) {
+  const std::size_t rows = terminal_rows();
+  const std::size_t cols = terminal_cols();
+  std::string out;
+  out.reserve(8192U);
+  out += "\x1b[H\x1b[2J";
+
+  draw_channel_list(out, snap, rows, cols);
+  draw_detail(out, snap, rows, decode_type);
 
   // Status bar
   out += "\x1b[7m ";
@@ -177,7 +210,7 @@ int apply_count(int& pending_count) {
   return n;
 }
 
-int run_tui(tianshu::core::MonitorApp& app) {
+int run_tui(tianshu::core::MonitorApp& app, const std::string& decode_type) {
   TermGuard term;
   term.enter_raw();
   TermGuard::enter_tui();
@@ -185,7 +218,7 @@ int run_tui(tianshu::core::MonitorApp& app) {
   int pending_count = 0;
   bool quit = false;
   while (!quit) {
-    draw(app.snapshot());
+    draw(app.snapshot(), decode_type);
 
     // NOLINTNEXTLINE(misc-include-cleaner)  // glibc: poll.h
     pollfd pfd{.fd = STDIN_FILENO, .events = POLLIN, .revents = 0};
@@ -248,13 +281,26 @@ int run_tui(tianshu::core::MonitorApp& app) {
   return 0;
 }
 
-int run_once(tianshu::core::MonitorApp& app) {
+int run_once(tianshu::core::MonitorApp& app, const std::string& decode_type) {
   const std::size_t missing = app.wait_first_frames(std::chrono::milliseconds(3000));
   const auto snap = app.snapshot();
   for (const auto& ch : snap.channels) {
     static_cast<void>(std::printf(  // NOLINT(concurrency-mt-unsafe)
         "%s: hz=%.1f seq=%llu size=%zu buffered=%zu\n", ch.name.c_str(), ch.stats.hz,
         static_cast<unsigned long long>(ch.stats.last_seq), ch.stats.last_size, ch.buffered));
+    if (!decode_type.empty()) {
+      tianshu::core::FieldTreeView view;
+      if (tianshu::core::DecoderRegistry::instance().decode(decode_type, snap.frame.payload.data(),
+                                                            snap.frame.payload.size(), &view)) {
+        for (const auto& f : view.fields) {
+          static_cast<void>(std::printf(  // NOLINT(concurrency-mt-unsafe)
+              "  %s = %s\n", f.name.c_str(), f.text.c_str()));
+        }
+      } else {
+        static_cast<void>(std::printf(  // NOLINT(concurrency-mt-unsafe)
+            "  (no field table registered for %s)\n", decode_type.c_str()));
+      }
+    }
   }
   return missing == 0 ? 0 : 1;
 }
@@ -265,6 +311,7 @@ int main(int argc, char** argv) {
   std::vector<std::string> channels;
   std::size_t depth = 512;
   bool once = false;
+  std::string decode_type;
   for (int i = 1; i < argc; ++i) {
     const std::string arg(argv[i]);  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     if (arg == "--depth" && i + 1 < argc) {
@@ -272,6 +319,9 @@ int main(int argc, char** argv) {
       depth = static_cast<std::size_t>(std::strtoul(argv[++i], nullptr, 10));
     } else if (arg == "--once") {
       once = true;
+    } else if (arg == "--decode" && i + 1 < argc) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      decode_type = argv[++i];
     } else if (!arg.starts_with("--")) {
       channels.push_back(arg);
     } else {
@@ -280,8 +330,8 @@ int main(int argc, char** argv) {
     }
   }
   if (channels.empty()) {
-    static_cast<void>(
-        std::fprintf(stderr, "usage: ti-monitor <channel>... [--depth N] [--once]\n"));
+    static_cast<void>(std::fprintf(
+        stderr, "usage: ti-monitor <channel>... [--depth N] [--once] [--decode TYPE]\n"));
     return 2;
   }
 
@@ -294,8 +344,8 @@ int main(int argc, char** argv) {
   }
 
   if (once) {
-    return run_once(app);
+    return run_once(app, decode_type);
   }
 
-  return run_tui(app);
+  return run_tui(app, decode_type);
 }

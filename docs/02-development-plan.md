@@ -71,7 +71,7 @@
 | **L4-CORE** | 1, 2, 3, 4, 5, 6, 7, 10 | 8 | MessageConcept + 类型化 Writer/Reader + DataVisitor/Dispatcher/Notifier（AllLatest 融合） |
 | **L4-COMP** | 1, 2, 3, 10 | 4 | Component/TwoInput/Timer/TimerSource + 工厂注册宏 |
 | **L4-MAIN** | 1 | 1 | **ti + ti-launch DAG 启动器，hello DAG 端到端 15/15**（命名决策见 [adr/0002 术语边界](./adr/0002-cyber-relation.md)） |
-| **ti-monitor** | — | 1 | TUI 通道监视：vi 键位 / 暂停锁缓冲 / 帧导航 / fork E2E（[adr/0020](./adr/0020-message-reflection-monitor.md) 解析方案已定） |
+| **ti-monitor** | — | 1 | TUI 通道监视：vi 键位 / 暂停锁缓冲 / 帧导航 / fork E2E + 字段解码 Phase 1（[adr/0020](./adr/0020-message-reflection-monitor.md)） |
 | **L1-DSL v0** | — | 1 | 声明式 flow + 解释器（[adr/0021](./adr/0021-dsl-v0.md)）；L1-DSL-1..3 的 v0 子集 |
 | **L2-LIN v0** | — | 1 | 消息级血缘自动级联（[adr/0022](./adr/0022-lineage-v0.md)）；L2-LIN-1..2 的 v0 子集 |
 | 合计 | | **33 项**（L4-COMP-6 AllLatest 已随 DataVisitor 落地；kAuto 自动选路待 L4-TRANS-21） |

@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstdio>
 
+#include "tianshu/core/field_table.h"
 #include "tianshu/core/message_traits.h"
 #include "tianshu/core/node.h"
 #include "tianshu/transport/transport_backend.h"
@@ -47,6 +48,14 @@ struct ImuData {
 }  // namespace
 
 TIANSHU_TRAITS_POD(ImuData, "tianshu.example.ImuData");
+// Field table (ADR-0020 Phase 1): registers in DecoderRegistry at
+// static init. Same-binary monitors decode automatically; cross-process
+// decoding arrives with schema distribution (ADR-0020 Phase 2).
+TIANSHU_TRAITS_POD_FIELDS(ImuData, "tianshu.example.ImuData",
+                          TIANSHU_FIELD(ImuData, timestamp, Double),
+                          TIANSHU_FIELD(ImuData, ax, Double), TIANSHU_FIELD(ImuData, ay, Double),
+                          TIANSHU_FIELD(ImuData, az, Double), TIANSHU_FIELD(ImuData, gx, Double),
+                          TIANSHU_FIELD(ImuData, gy, Double), TIANSHU_FIELD(ImuData, gz, Double))
 
 int main() {
   static_cast<void>(std::signal(SIGINT, handle_signal));

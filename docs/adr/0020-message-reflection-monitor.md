@@ -1,6 +1,6 @@
 # ADR-0020：消息运行期反射与 Monitor 解析（多消息格式）
 
-- **状态**：已接受
+- **状态**：已接受（Phase 1 已实现：POD 字段表 + FieldTreeView + DecoderRegistry + ti-monitor --decode；Phase 2 schema 分发待做）
 - **日期**：2026-08-27
 - **决策者**：Pride Leong
 - **关联**：[adr/0008](./0008-message-format-multi.md) · [adr/0010](./0010-transport-shm-infra.md) · [adr/0014](./0014-console.md) · [adr/0015](./0015-discovery-abstraction.md)

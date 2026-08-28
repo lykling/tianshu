@@ -61,3 +61,13 @@ cc_test(
     ],
     size = "small",
 )
+
+cc_test(
+    name = "field_table_test",
+    srcs = ["field_table_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)
