@@ -354,3 +354,110 @@ TEST(DslRuntimeTest, ClosedLoopFeedbackConvergesWithBoundedLineage) {
   }
   EXPECT_TRUE(has_loop_hops);
 }
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // box contract uses instance invocation
+class DoublerBox {
+ public:
+  static void on_init(tianshu::dsl::BoxPub<FusedMsg>& pub) {
+    pub.publish(FusedMsg{.fast_t = 0, .slow_t = 0});
+  }
+
+  static void handle(const TickMsg& in, tianshu::dsl::BoxPub<FusedMsg>& pub) {
+    pub.publish(FusedMsg{.fast_t = in.tick, .slow_t = in.tick * 2});
+  }
+};
+
+TEST(DslRuntimeTest, BoxLifecycleLineageSemantics) {
+  std::vector<std::string> samples;
+
+  tianshu::dsl::FlowBuilder builder("bx");
+  auto ticks = builder.source<TickMsg>("ticks", std::chrono::milliseconds(5),
+                                       [](std::uint64_t t) { return TickMsg{.tick = t}; });
+  auto boxed = builder.box<TickMsg, FusedMsg>(ticks, "out", DoublerBox{});
+  boxed.sink([&](const FusedMsg&, const tianshu::core::Lineage& lin) {
+    if (samples.size() < 64) {
+      samples.push_back(lin.describe());
+    }
+  });
+  const auto flow = builder.build();
+  EXPECT_NE(flow.describe().find("box[bx/ticks -> bx/out]"), std::string::npos);
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(60));
+
+  ASSERT_GE(samples.size(), 2U);
+  // on_init publication: rooted at the box channel (source semantics).
+  EXPECT_EQ(samples.front(), "bx/out#0");
+  // handle publications: input lineage + output hop (map semantics).
+  EXPECT_EQ(samples[1], "bx/ticks#0 -> bx/out#1");
+}
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // box contract uses instance invocation
+class CruiseBox {
+ public:
+  static void on_init(tianshu::dsl::BoxPub<LoopState>& pub) {
+    pub.publish(LoopState{.t = 0, .v = 0.0});
+  }
+
+  void handle(const LoopCmd& cmd, tianshu::dsl::BoxPub<LoopState>& pub) {
+    v_ += cmd.u * 0.1;
+    pub.publish(LoopState{.t = cmd.t, .v = v_});
+  }
+
+ private:
+  double v_{0.0};
+};
+
+TEST(DslRuntimeTest, BoxBootstrapsFeedbackLoopWithoutSeedSource) {
+  std::vector<double> speeds;
+  std::vector<std::string> lineages;
+
+  tianshu::dsl::FlowBuilder builder("bbox");
+  auto meas = builder.source<LoopMeas>("meas", std::chrono::milliseconds(10), [](std::uint64_t t) {
+    return LoopMeas{.t = t, .hazard = 0.5};
+  });
+  // Cycle-breaker port: planning references the state channel before the
+  // box writing it exists — NO seed source anywhere.
+  auto state_port = builder.tap<LoopState>("state");
+  auto plan = builder.join<LoopMeas, LoopState, LoopPlan>(
+      meas, state_port, [](const LoopMeas& m, const LoopState& s) {
+        return LoopPlan{.t = m.t, .target = 10.0 - m.hazard, .v = s.v};
+      });
+  auto cmd = plan.map<LoopCmd>(
+      [](const LoopPlan& p) { return LoopCmd{.t = p.t, .u = 1.5 * (p.target - p.v)}; });
+  auto state = builder.box<LoopCmd, LoopState>(cmd, "state", CruiseBox{});
+  state.sink([&](const LoopState& s, const tianshu::core::Lineage& lin) {
+    if (speeds.size() < 256) {
+      speeds.push_back(s.v);
+      lineages.push_back(lin.describe());
+    }
+  });
+
+  const auto flow = builder.build();
+  // The graph has no source on the state channel — the box IS the chassis.
+  EXPECT_EQ(flow.describe().find("src[bbox/state]"), std::string::npos);
+  EXPECT_NE(flow.describe().find("box[bbox/~1 -> bbox/state]"), std::string::npos);
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(800));
+
+  // Bootstrap: the very first state message is the box's on_init report.
+  ASSERT_GE(speeds.size(), 2U);
+  EXPECT_EQ(speeds.front(), 0.0);
+  // Closed loop converges toward the 9.5 m/s target.
+  EXPECT_GT(speeds.back(), 6.0);
+  EXPECT_LT(speeds.back(), 12.0);
+  // Lineage bounded and carrying the loop hops.
+  for (const auto& lin : lineages) {
+    EXPECT_TRUE(lin.find("bbox/meas#") != std::string::npos ||
+                lin.find("bbox/state#") != std::string::npos);
+  }
+  bool has_loop_hops = false;
+  for (const auto& lin : lineages) {
+    if (lin.find("bbox/state#") != std::string::npos && lin.find("bbox/~1#") != std::string::npos) {
+      has_loop_hops = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_loop_hops);
+}

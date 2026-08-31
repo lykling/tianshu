@@ -14,7 +14,8 @@
 
 // Full-chain demo: sensor fusion -> perception -> prediction -> planning
 // -> control -> chassis, with the chassis state FEED BACK into planning
-// (a closed loop, per the DSL v0.5 join/map_to/multi-consumer features).
+// (a closed loop; DSL v0.5 join + multi-consumer, box primitive per
+// ADR-0024).
 //
 //   radar/front (20ms) ---+
 //   radar/rear  (25ms) ---join-> fused obstacles ---+
@@ -22,12 +23,13 @@
 //                                                        |
 //                                                        v
 //                                             map -> prediction ---+
-//   chassis report (200ms, initial state) --------------------------join-> planning
+//   chassis port (tap, cycle-breaker) ----------------------join-> planning
 //                                                                      |
 //                                                     map -> control --|
-//                                                     map_to(chassis) <-'  (plant: integrates
-//                                                     speed)
-//                                                                      |
+//                                                BOX "chassis" <-'  (ChassisMain: on_init publishes
+//                                                                             the power-on state;
+//                                                                             handle integrates
+//                                                                             commands)
 //                             chassis channel feeds planning AND printing (multi-consumer)
 //
 // The loop is real: planning sees the plant's speed, control computes the
@@ -38,6 +40,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "tianshu/core/lineage.h"
@@ -133,6 +136,26 @@ struct ChassisLog {
   std::string lineage;
 };
 
+// Read-write box (ADR-0024): one logical chassis unit. on_init publishes
+// the power-on state (feedback-loop bootstrap — a real chassis ECU also
+// reports before any command); handle integrates control commands.
+class ChassisMain {
+ public:
+  explicit ChassisMain(std::shared_ptr<double> speed) : speed_(std::move(speed)) {}
+
+  static void on_init(tianshu::dsl::BoxPub<ChassisState>& pub) {
+    pub.publish(ChassisState{.t = 0, .speed = 0.0, .steer = 0.0});
+  }
+
+  void handle(const ControlCmd& cmd, tianshu::dsl::BoxPub<ChassisState>& pub) {
+    *speed_ += cmd.accel * 0.05;
+    pub.publish(ChassisState{.t = cmd.t, .speed = *speed_, .steer = cmd.steer_cmd});
+  }
+
+ private:
+  std::shared_ptr<double> speed_;
+};
+
 tianshu::dsl::Flow build_avp_flow(std::vector<ChassisLog>& chassis_log,
                                   const std::shared_ptr<double>& plant_speed) {
   tianshu::dsl::FlowBuilder builder("avp");
@@ -170,15 +193,12 @@ tianshu::dsl::Flow build_avp_flow(std::vector<ChassisLog>& chassis_log,
     return PredictionOut{.t = p.t, .n_obstacles = p.n_obstacles, .risk = risk};
   });
 
-  // Chassis heartbeat/initial report: seeds the loop so planning's AllLatest
-  // join can fire before the plant has produced anything (a real chassis
-  // ECU reports state at startup too). Same channel the plant writes to.
-  auto chassis_fb = builder.source<ChassisState>(
-      "chassis", std::chrono::milliseconds(200),
-      [](std::uint64_t t) { return ChassisState{.t = t, .speed = 0.0, .steer = 0.0}; });
+  // Cycle-breaker port: planning references the chassis channel before
+  // the box writing it is constructed (feedback edge, ADR-0024).
+  auto chassis_port = builder.tap<ChassisState>("chassis");
 
   auto plan = builder.join<PredictionOut, ChassisState, Plan>(
-      prediction, chassis_fb, [](const PredictionOut& pred, const ChassisState& ch) {
+      prediction, chassis_port, [](const PredictionOut& pred, const ChassisState& ch) {
         const double target = 20.0 - (pred.risk * 8.0);
         const double curvature = 0.01 * static_cast<double>(pred.n_obstacles);
         return Plan{
@@ -190,13 +210,11 @@ tianshu::dsl::Flow build_avp_flow(std::vector<ChassisLog>& chassis_log,
     return ControlCmd{.t = p.t, .accel = accel, .steer_cmd = p.curvature};
   });
 
-  // Plant: integrates the accel into speed (stateful stage — the cascade is
-  // single-threaded per tick, so the shared state is race-free) and writes
-  // BACK into the chassis channel (feedback edge via map_to).
-  auto chassis = control.map_to<ChassisState>("chassis", [plant_speed](const ControlCmd& c) {
-    *plant_speed += c.accel * 0.05;
-    return ChassisState{.t = c.t, .speed = *plant_speed, .steer = c.steer_cmd};
-  });
+  // The chassis as ONE unit (ADR-0024): reads commands, writes state,
+  // self-starts — on_init publishes the power-on report so the feedback
+  // loop ignites without any seed source.
+  auto chassis =
+      builder.box<ControlCmd, ChassisState>(control, "chassis", ChassisMain{plant_speed});
 
   perception.sink([](const PerceptionOut& p, const Lineage& lin) {
     if (p.t % 5 == 0) {
@@ -220,7 +238,7 @@ tianshu::dsl::Flow build_avp_flow(std::vector<ChassisLog>& chassis_log,
 
   // Chassis channel consumers: planning's join above AND this sink
   // (multi-consumer) — the feedback edge and observability coexist.
-  chassis_fb.sink([&chassis_log](const ChassisState& c, const Lineage& lin) {
+  chassis.sink([&chassis_log](const ChassisState& c, const Lineage& lin) {
     if (chassis_log.size() < 200) {
       chassis_log.push_back({.t = c.t,
                              .speed = c.speed,

@@ -53,6 +53,10 @@ std::function<void(FlowRuntime&)> make_join_wire(std::string in_a, std::string i
                                                  std::string out_channel,
                                                  std::function<TC(const TA&, const TB&)> fn);
 
+template <typename TIn, typename TOut, typename TBox>
+std::function<void(FlowRuntime&)> make_box_wire(std::string in_channel, std::string out_channel,
+                                                TBox box);
+
 template <typename T>
 std::function<void(FlowRuntime&)> make_sink_wire(
     std::string channel, std::function<void(const T&, const core::Lineage&)> fn);
@@ -108,6 +112,13 @@ class Flow {
     std::string out_type_name;
     std::function<void(FlowRuntime& rt)> wire;
   };
+  struct BoxDecl {
+    std::string in_channel;
+    std::string out_channel;
+    std::string in_type_name;
+    std::string out_type_name;
+    std::function<void(FlowRuntime& rt)> wire;
+  };
   struct SinkDecl {
     std::string channel;
     std::string type_name;
@@ -118,6 +129,7 @@ class Flow {
   [[nodiscard]] const std::vector<SourceDecl>& sources() const { return sources_; }
   [[nodiscard]] const std::vector<MapDecl>& maps() const { return maps_; }
   [[nodiscard]] const std::vector<JoinDecl>& joins() const { return joins_; }
+  [[nodiscard]] const std::vector<BoxDecl>& boxes() const { return boxes_; }
   [[nodiscard]] const std::vector<SinkDecl>& sinks() const { return sinks_; }
 
   // Wiring summary: "src -> map -> sink" with channels, for tests.
@@ -131,6 +143,9 @@ class Flow {
     }
     for (const auto& j : joins_) {
       out += " join[" + j.in_channel_a + " + " + j.in_channel_b + " -> " + j.out_channel + "]";
+    }
+    for (const auto& b : boxes_) {
+      out += " box[" + b.in_channel + " -> " + b.out_channel + "]";
     }
     for (const auto& s : sinks_) {
       out += " sink[" + s.channel + "]";
@@ -146,6 +161,7 @@ class Flow {
   std::vector<SourceDecl> sources_;
   std::vector<MapDecl> maps_;
   std::vector<JoinDecl> joins_;
+  std::vector<BoxDecl> boxes_;
   std::vector<SinkDecl> sinks_;
 };
 
@@ -181,6 +197,21 @@ class FlowBuilder {
   FlowChain<TC> join(const FlowChain<TA>& a, const FlowChain<TB>& b,
                      std::function<TC(const TA&, const TB&)> fn);
 
+  // Read-write box with lifecycle (ADR-0024): on_init may publish an
+  // initial output at wiring time (feedback-loop bootstrap); handle
+  // transforms inputs and publishes derived outputs.
+  template <typename TIn, typename TOut, typename TBox>
+  FlowChain<TOut> box(const FlowChain<TIn>& in, std::string_view out_name, TBox impl);
+
+  // Handle-only declaration bound to a named channel (no producer
+  // declared): breaks cycles in feedback graphs — join can reference the
+  // port before the box writing it is constructed.
+  template <typename T>
+  FlowChain<T> tap(std::string_view name) {
+    return FlowChain<T>(this,
+                        Stream<T>(channel_for(name), std::string(core::MessageTraits<T>::name())));
+  }
+
   // Accepted and ignored in v0 (SLA annotation slot; L1 compiler consumes
   // it later per ADR-0021).
   FlowBuilder& with_sla(std::string_view sla);
@@ -214,6 +245,7 @@ class FlowBuilder {
   std::vector<Flow::SourceDecl> sources_;
   std::vector<Flow::MapDecl> maps_;
   std::vector<Flow::JoinDecl> joins_;
+  std::vector<Flow::BoxDecl> boxes_;
   std::vector<Flow::SinkDecl> sinks_;
   std::uint64_t anon_{0};
 };
@@ -277,6 +309,7 @@ inline Flow FlowBuilder::build() {
   flow.sources_ = std::move(sources_);
   flow.maps_ = std::move(maps_);
   flow.joins_ = std::move(joins_);
+  flow.boxes_ = std::move(boxes_);
   flow.sinks_ = std::move(sinks_);
   return flow;
 }
@@ -308,6 +341,17 @@ void FlowBuilder::sink_stream(const Stream<T>& in,
   Flow::SinkDecl decl{in.channel(), in.type_name(),
                       detail::make_sink_wire<T>(in.channel(), std::move(fn))};
   sinks_.push_back(std::move(decl));
+}
+
+template <typename TIn, typename TOut, typename TBox>
+FlowChain<TOut> FlowBuilder::box(const FlowChain<TIn>& in, std::string_view out_name, TBox impl) {
+  const std::string out = channel_for(out_name);
+  Flow::BoxDecl decl{
+      in.stream_.channel(), out, in.stream_.type_name(),
+      std::string(core::MessageTraits<TOut>::name()),
+      detail::make_box_wire<TIn, TOut, TBox>(in.stream_.channel(), out, std::move(impl))};
+  boxes_.push_back(std::move(decl));
+  return FlowChain<TOut>(this, Stream<TOut>(out, std::string(core::MessageTraits<TOut>::name())));
 }
 
 template <typename TA, typename TB, typename TC>

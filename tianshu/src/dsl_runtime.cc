@@ -59,6 +59,15 @@ void FlowRuntime::publish_derived(const core::Lineage& parent, const std::string
   publish_bytes(channel, data, size, lin);
 }
 
+void FlowRuntime::publish_box(const std::string& channel, const void* data, std::size_t size,
+                              const core::Lineage& parent) {
+  if (parent.empty()) {
+    publish_bytes(channel, data, size, core::Lineage::rooted(channel, next_seq(channel)));
+    return;
+  }
+  publish_derived(parent, channel, data, size);
+}
+
 std::uint64_t FlowRuntime::next_seq(const std::string& channel) {
   const std::scoped_lock lock(mutex_);
   return seq_counters_[channel]++;
@@ -71,8 +80,16 @@ void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) 
   for (const auto& join_decl : flow.joins()) {
     join_decl.wire(*this);
   }
+  for (const auto& box_decl : flow.boxes()) {
+    box_decl.wire(*this);
+  }
   for (const auto& sink_decl : flow.sinks()) {
     sink_decl.wire(*this);
+  }
+  // Bootstrap publications LAST: every consumer mailbox of a box output
+  // channel is registered by the time on_init fires (ADR-0024).
+  for (const auto& hook : init_hooks_) {
+    hook();
   }
 
   std::vector<std::thread> source_threads;

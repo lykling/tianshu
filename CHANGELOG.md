@@ -50,6 +50,28 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### DSL box primitive (ADR-0024)
+
+- builder.box<TIn, TOut>(chain, name, impl): read-write node with
+  lifecycle — the DSL-layer projection of cyber's chassis/actuator
+  Component. on_init publishes at wiring time (feedback loops bootstrap
+  without seed sources — kills the ghost-state mispairing the demo
+  workaround had); handle transforms inputs like a map
+- BoxPub<T>: publish handle valid inside on_init/handle; lineage is
+  map-identical from handle (input + hop) and source-identical from
+  on_init (rooted at the box channel)
+- builder.tap<T>(name): handle-only channel declaration — breaks
+  cycles in feedback graphs (join references the port before the box
+  writing it is constructed)
+- on_init hooks run AFTER all wiring: every consumer mailbox of a box
+  output is registered before the bootstrap publication
+- full_chain_demo: chassis rewritten as ChassisMain box (seed source
+  and plant map_to deleted); the graph has no chassis source at all —
+  the box IS the chassis
+- 2 new tests: box lifecycle lineage semantics (init root / handle
+  derived, exact strings), feedback bootstrap without any seed source
+  (convergence band + loop hops present)
+
 ### Full-chain closed-loop demo (sensors -> perception -> prediction -> planning -> control -> chassis -> feedback)
 
 - full_chain_demo: 2 radars + GNSS -> radar fusion join -> perception
@@ -174,7 +196,7 @@ Examples: shm_talker / shm_listener standalone cross-process demo binaries
 
 ### Verification
 
-- 237/237 CMake tests (Clang + GCC), 21/21 Bazel tests
+- 239/239 CMake tests (Clang + GCC), 21/21 Bazel tests
 - Line coverage 96.5%, function coverage 100% (lcov, filtered)
 - Zero-warning build on both compilers
 

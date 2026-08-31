@@ -46,6 +46,9 @@ struct ChassisMain {
 
 auto chassis = builder.box<ControlCmd, ChassisState>(control_chain, "chassis", ChassisMain{...});
 // 返回 FlowChain<ChassisState>：下游可 join / sink / map，与其它原语无缝组合
+
+// 反馈环断环用：纯句柄声明（不声明生产者），join 可先引用、box 后构造
+auto chassis_port = builder.tap<ChassisState>("chassis");
 ```
 
 - `BoxPub<T>` 是运行期发布句柄，绑定 box 的输出通道；**只能在 on_init/handle 调用期间使用**（存下来事后调用是契约违背，v0 不做运行期检测，演进项加 assert）
