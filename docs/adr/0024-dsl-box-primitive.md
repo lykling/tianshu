@@ -22,9 +22,9 @@
 
 **否决**：幽灵状态注入是正确性缺陷不是美观问题；"演示可以、模式不可复制"；驱动复用完全没有表达。
 
-### 方案 2：DSL 节点直接引用 L4 ComponentFactory
+### 方案 2：DSL 节点直接引用 L4 ComponentFactory（单一 from 原语）
 
-`source_from<T>(ch, "radar_driver_v2")` 直接查组件工厂、驱动其生命周期。
+`from<T>(ch, "radar_driver_v2")` 按注册名直接查组件工厂、驱动其生命周期。
 
 **否决（现在）**：组件生命周期/调度器与 DSL 解释器的互操作（谁拥有线程、DAG 装配与 Flow 声明如何合流）值得单独一轮设计。Flow 声明层应先稳定自己的节点模型。作为演进项保留（见「复用路径」）。
 
@@ -71,7 +71,7 @@ auto chassis_port = builder.tap<ChassisState>("chassis");
 ### 4. 复用路径（分期）
 
 - **现在（源码级）**：驱动/底盘打包为库类型（如 `ChassisMain`），任何应用构造同类型交给 `builder.box`——C++ 组合即复用
-- **演进（部署级）**：`box_from`/`source_from` 按注册名引用，绑定 L4 ComponentFactory（`TIANSHU_REGISTER_COMPONENT` 已在）；DSL 声明 ↔ DAG 装配在 L1 编译器合流。届时同一驱动 .so 服务 DSL flow 与 DAG 两种前端
+- **演进（部署级）**：**单一引用原语** `from<T...>(name, [输入链])` 按注册名绑定 L4 ComponentFactory（`TIANSHU_REGISTER_COMPONENT` 已在）；被引用组件的端口形状由其注册签名决定，DSL 侧只声明期望类型做编译期校验（0 进口组件即无输入链调用）。**不按节点种类造词**——节点语义（source/map/join/block）与实现来源（inline/注册）是正交维度，引用机制只作用于后一轴，一个动词足够（初稿曾并列 `source_from`/`box_from` 两词，属词汇按 M×N 膨胀的设计错误，已废弃）。届时同一驱动 .so 服务 DSL flow 与 DAG 两种前端
 - **契约面（已具备）**：`MessageTraits`（类型/序列化）+ schema sidecar（ADR-0020，工具免配置观测）
 
 ### 5. 执行模型约束（承袭 ADR-0021/0022）
