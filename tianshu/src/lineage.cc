@@ -28,6 +28,24 @@ void append_hop(std::string* out, const LineageHop& hop) {
 
 }  // namespace
 
+void Lineage::merge(const Lineage& other) {
+  for (const Branch& incoming : other.branches_) {
+    bool replaced = false;
+    for (Branch& existing : branches_) {
+      if (existing.root.channel == incoming.root.channel) {
+        if (incoming.hops.size() > existing.hops.size()) {
+          existing = incoming;
+        }
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced && branches_.size() < kMaxBranches) {
+      branches_.push_back(incoming);
+    }
+  }
+}
+
 std::string Lineage::describe() const {
   std::string out;
   for (std::size_t b = 0; b < branches_.size(); ++b) {

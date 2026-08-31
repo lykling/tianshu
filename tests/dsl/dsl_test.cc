@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -68,6 +69,36 @@ struct FusedMsg {
 TIANSHU_TRAITS_POD(FastMsg, "t.FastMsg");
 TIANSHU_TRAITS_POD(SlowMsg, "t.SlowMsg");
 TIANSHU_TRAITS_POD(FusedMsg, "t.FusedMsg");
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // traits must precede template use
+struct LoopMeas {
+  std::uint64_t t;
+  double hazard;
+};
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // traits must precede template use
+struct LoopPlan {
+  std::uint64_t t;
+  double target;
+  double v;
+};
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // traits must precede template use
+struct LoopCmd {
+  std::uint64_t t;
+  double u;
+};
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // traits must precede template use
+struct LoopState {
+  std::uint64_t t;
+  double v;
+};
+
+TIANSHU_TRAITS_POD(LoopMeas, "t.LoopMeas");
+TIANSHU_TRAITS_POD(LoopPlan, "t.LoopPlan");
+TIANSHU_TRAITS_POD(LoopCmd, "t.LoopCmd");
+TIANSHU_TRAITS_POD(LoopState, "t.LoopState");
 
 namespace {
 
@@ -260,4 +291,66 @@ TEST(DslRuntimeTest, JoinFusesAllLatestWithMergedLineage) {
     }
   }
   EXPECT_TRUE(diverged);
+}
+
+TEST(DslRuntimeTest, ClosedLoopFeedbackConvergesWithBoundedLineage) {
+  struct Sample {
+    double v;
+    std::size_t branches;
+    std::string lineage;
+  };
+  std::vector<Sample> samples;
+  const auto plant_v = std::make_shared<double>(0.0);
+
+  tianshu::dsl::FlowBuilder builder("loop");
+  const auto meas =
+      builder.source<LoopMeas>("meas", std::chrono::milliseconds(10),
+                               [](std::uint64_t t) { return LoopMeas{.t = t, .hazard = 0.5}; });
+  // Seed/heartbeat for the feedback channel (the loop needs one chassis
+  // message before the plant has produced any).
+  auto state_fb =
+      builder.source<LoopState>("state", std::chrono::milliseconds(150),
+                                [](std::uint64_t t) { return LoopState{.t = t, .v = 0.0}; });
+  auto plan = builder.join<LoopMeas, LoopState, LoopPlan>(
+      meas, state_fb, [](const LoopMeas& m, const LoopState& s) {
+        return LoopPlan{.t = m.t, .target = 10.0 - m.hazard, .v = s.v};
+      });
+  auto cmd = plan.map<LoopCmd>(
+      [](const LoopPlan& p) { return LoopCmd{.t = p.t, .u = 1.5 * (p.target - p.v)}; });
+  const auto plant = cmd.map_to<LoopState>("state", [plant_v](const LoopCmd& c) {
+    *plant_v += c.u * 0.1;
+    return LoopState{.t = c.t, .v = *plant_v};
+  });
+  static_cast<void>(plant);
+  state_fb.sink([&](const LoopState&, const tianshu::core::Lineage& lin) {
+    if (samples.size() < 256) {
+      samples.push_back(
+          {.v = *plant_v, .branches = lin.branches().size(), .lineage = lin.describe()});
+    }
+  });
+
+  const auto flow = builder.build();
+  EXPECT_NE(flow.describe().find("map[loop/~1 -> loop/state]"), std::string::npos);
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(800));
+
+  ASSERT_FALSE(samples.empty());
+  for (const auto& s : samples) {
+    EXPECT_LE(s.branches, tianshu::core::Lineage::kMaxBranches);
+  }
+  // The plant caught up with the planner's target (9.5 m/s).
+  EXPECT_GT(samples.back().v, 6.0);
+  EXPECT_LT(samples.back().v, 12.0);
+  // The lineage carries the sensor root AND the loop-carrying hops.
+  EXPECT_NE(samples.back().lineage.find("loop/meas#"), std::string::npos);
+  bool has_loop_hops = false;
+  for (const auto& s : samples) {
+    if (s.lineage.find("loop/state#") != std::string::npos &&
+        s.lineage.find("loop/~1#") != std::string::npos) {
+      has_loop_hops = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_loop_hops);
 }

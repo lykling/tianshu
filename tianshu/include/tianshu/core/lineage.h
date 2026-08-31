@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -64,12 +65,11 @@ class Lineage {
     }
   }
 
-  // Union of both branch sets (join provenance).
-  void merge(const Lineage& other) {
-    for (const Branch& b : other.branches_) {
-      branches_.push_back(b);
-    }
-  }
+  // Root-deduplicated union (join provenance; loop-safe): a branch whose
+  // root channel already exists is dropped unless it is the LONGER one
+  // (feedback revisits the same origins — keep the branch that travelled
+  // around the loop, drop the stale copy). Bounded by kMaxBranches.
+  void merge(const Lineage& other);
 
   [[nodiscard]] bool empty() const { return branches_.empty(); }
 
@@ -85,6 +85,8 @@ class Lineage {
   }
 
   [[nodiscard]] const std::vector<Branch>& branches() const { return branches_; }
+
+  static constexpr std::size_t kMaxBranches = 8;
 
   // Linear: "demo/imu#42 -> demo/~0#42".
   // Joined:  "a#1 -> demo/~0#3 | b#0 -> demo/~0#3".

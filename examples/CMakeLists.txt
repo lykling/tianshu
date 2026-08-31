@@ -15,3 +15,6 @@ target_link_libraries(hello_dag PRIVATE tianshu)
 
 add_executable(dsl_demo dsl_demo.cc)
 target_link_libraries(dsl_demo PRIVATE tianshu)
+
+add_executable(full_chain_demo full_chain_demo.cc)
+target_link_libraries(full_chain_demo PRIVATE tianshu)

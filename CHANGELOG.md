@@ -50,6 +50,21 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### Full-chain closed-loop demo (sensors -> perception -> prediction -> planning -> control -> chassis -> feedback)
+
+- full_chain_demo: 2 radars + GNSS -> radar fusion join -> perception
+  join (3-branch lineage) -> prediction -> planning joins the chassis
+  state (feedback) -> control -> stateful plant integrating speed ->
+  writes BACK into the chassis channel; speed converges 0 -> ~20 m/s
+- FlowChain::map_to(channel, fn): map with an explicit output channel —
+  feedback edges (a stage writing into a channel that others join on);
+  map/map_to marked const (chains usable as const handles)
+- Lineage loop policy (v0.5.1): root-deduplicated merge (longer branch
+  wins — the fresh loop-carrying copy), kMaxBranches=8 cap; branches
+  stay constant in closed loops, loop traversal visible as hops
+- Chassis channel feeds planning AND observability sinks
+  (multi-consumer); closed-loop convergence guarded by a new test
+
 ### Lineage v0.5 branches + DSL join (ADR-0021/0022 amendments)
 
 - Lineage branch model: roots-per-branch DAG provenance; join merges
@@ -159,7 +174,7 @@ Examples: shm_talker / shm_listener standalone cross-process demo binaries
 
 ### Verification
 
-- 236/236 CMake tests (Clang + GCC), 21/21 Bazel tests
+- 237/237 CMake tests (Clang + GCC), 21/21 Bazel tests
 - Line coverage 96.5%, function coverage 100% (lcov, filtered)
 - Zero-warning build on both compilers
 

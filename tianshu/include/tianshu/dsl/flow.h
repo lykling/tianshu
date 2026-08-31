@@ -194,6 +194,14 @@ class FlowBuilder {
   template <typename TIn, typename TOut>
   Stream<TOut> map_stream(const Stream<TIn>& in, std::function<TOut(const TIn&)> fn);
 
+  template <typename TIn, typename TOut>
+  Stream<TOut> map_stream_to(const Stream<TIn>& in, std::string_view out_name,
+                             std::function<TOut(const TIn&)> fn);
+
+  template <typename TIn, typename TOut>
+  Stream<TOut> emit_map(const Stream<TIn>& in, const std::string& out_channel,
+                        std::function<TOut(const TIn&)> fn);
+
   template <typename T>
   void sink_stream(const Stream<T>& in, std::function<void(const T&, const core::Lineage&)> fn);
 
@@ -214,8 +222,16 @@ template <typename T>
 class FlowChain {
  public:
   template <typename TOut>
-  FlowChain<TOut> map(std::function<TOut(const T&)> fn) {
+  FlowChain<TOut> map(std::function<TOut(const T&)> fn) const {
     return FlowChain<TOut>(builder_, builder_->map_stream<T, TOut>(stream_, std::move(fn)));
+  }
+
+  // Map with an explicit output channel (feedback edges: a stage writing
+  // back into a channel that other stages also publish to or join on).
+  template <typename TOut>
+  FlowChain<TOut> map_to(std::string_view out_name, std::function<TOut(const T&)> fn) const {
+    return FlowChain<TOut>(builder_,
+                           builder_->map_stream_to<T, TOut>(stream_, out_name, std::move(fn)));
   }
 
   FlowChain<T>& with_sla(std::string_view sla) {
@@ -268,6 +284,17 @@ inline Flow FlowBuilder::build() {
 template <typename TIn, typename TOut>
 Stream<TOut> FlowBuilder::map_stream(const Stream<TIn>& in, std::function<TOut(const TIn&)> fn) {
   const std::string out = anon_channel();
+  Flow::MapDecl decl{in.channel(), out, in.type_name(),
+                     std::string(core::MessageTraits<TOut>::name()),
+                     detail::make_map_wire<TIn, TOut>(in.channel(), out, std::move(fn))};
+  maps_.push_back(std::move(decl));
+  return Stream<TOut>(out, std::string(core::MessageTraits<TOut>::name()));
+}
+
+template <typename TIn, typename TOut>
+Stream<TOut> FlowBuilder::map_stream_to(const Stream<TIn>& in, std::string_view out_name,
+                                        std::function<TOut(const TIn&)> fn) {
+  const std::string out = channel_for(out_name);
   Flow::MapDecl decl{in.channel(), out, in.type_name(),
                      std::string(core::MessageTraits<TOut>::name()),
                      detail::make_map_wire<TIn, TOut>(in.channel(), out, std::move(fn))};
