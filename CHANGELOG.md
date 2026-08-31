@@ -50,6 +50,33 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### from(): referencing registered components in flows (ADR-0025)
+
+- builder.from<TOut>(name, channel, interval) references a registered
+  TimerSourceComponent (driver); from<TIn, TOut>(name, chain, channel)
+  references a Component<TIn, TOut> (read-write). Unknown name or shape
+  mismatch -> invalid chain (valid() checkable)
+- The three interop questions answered and implemented: thread ownership
+  (input-driven components run on the publisher's dispatch thread;
+  timer components keep their own threads), lifecycle alignment
+  (launch at wiring; init() deferred to the init_hooks phase so the
+  power-on report bootstrap works through the bridge), output pumping
+  (intra reader -> publish_bytes with rooted lineage — component
+  outputs are lineage roots; internal processing is opaque)
+- Component output-channel injection: set_out_channel_override on
+  ComponentBase (additive, cyber-compatible) — flow-declared channels
+  override class-declared ones, so ONE driver class serves many
+  instances; input channel alignment matches the L4 DAG model
+- Quiesce semantics: ComponentBase::quiesce() (TimerComponent joins its
+  thread); run_for quiesces all referenced components BEFORE returning
+  — teardown never races an in-flight cascade (found via a reproducible
+  SIGSEGV in the demo, 8-run zero-crash verified after)
+- full_chain_demo rewritten: drivers + chassis now live in a separate
+  registered device library (avp_devices.cc); the flow only names them
+  + channels + pacing — the reuse story is closed end to end
+- 4 new tests: unknown registration, shape mismatch, driver stream with
+  rooted lineage, component closing the loop via init bootstrap
+
 ### DSL op primitive — renamed from box, terminology aligned (ADR-0024)
 
 - box -> op: executes ADR-0002's layer terminology (L1 = Operator,
@@ -210,7 +237,7 @@ Examples: shm_talker / shm_listener standalone cross-process demo binaries
 
 ### Verification
 
-- 239/239 CMake tests (Clang + GCC), 21/21 Bazel tests
+- 243/243 CMake tests (Clang + GCC), 21/21 Bazel tests
 - Line coverage 96.5%, function coverage 100% (lcov, filtered)
 - Zero-warning build on both compilers
 

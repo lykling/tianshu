@@ -57,7 +57,7 @@
 | Phase | 状态 | 完成功能点 | 工作量（点） | 备注 |
 |---|---|---|---|---|
 | **Phase 0** | ✅ **完成** | 见下方清单 | ~30/30 | 双构建系统 + 测试 + CI + 风格规范 |
-| Phase 1 | 🔨 **进行中** | 35/~155 | ~32/155 | PRIM/SCHED/CORE/COMP/MAIN/DSL/LINEAGE/MONITOR 主链路贯通 |
+| Phase 1 | 🔨 **进行中** | 36/~155 | ~34/155 | PRIM/SCHED/CORE/COMP/MAIN/DSL/LINEAGE/MONITOR 主链路贯通 |
 | Phase 2 | ❌ 未开始 | 0/~210 | 0/~210 | - |
 | Phase 3 | ❌ 未开始 | 0/~290 | 0/~290 | - |
 
@@ -72,11 +72,12 @@
 | **L4-COMP** | 1, 2, 3, 10 | 4 | Component/TwoInput/Timer/TimerSource + 工厂注册宏 |
 | **L4-MAIN** | 1 | 1 | **ti + ti-launch DAG 启动器，hello DAG 端到端 15/15**（命名决策见 [adr/0002 术语边界](./adr/0002-cyber-relation.md)） |
 | **ti-monitor** | — | 1 | TUI 通道监视：vi 键位 / 暂停锁缓冲 / 帧导航 / fork E2E + 字段解码（[adr/0020](./adr/0020-message-reflection-monitor.md)） |
+| **from() 组件引用** | — | 1 | DSL 引用注册组件（驱动/底盘）：三问三答 + 输出通道注入 + quiesce 静默（[adr/0025](./adr/0025-from-component-reference.md)）；L1-DSL v0.7 子集 |
 | **L4-TRANS-33** | — | 1 | 通道 schema 元数据分发：SHM sidecar 段 `/tianshu_schema_<hash>` + typed writer 自动发布 + monitor 免参数自动解码（[adr/0020](./adr/0020-message-reflection-monitor.md) Phase 2） |
 | **L4-TRANS-21** | — | 1 | kAuto 自动选路：双发写端 + 读端注册表判定，顺序无关（[adr/0023](./adr/0023-kauto-transport-v0.md)） |
 | **L1-DSL v0.6** | — | 1 | 声明式 flow + 解释器 + join + 多消费者 + op 自定义算子（生命周期/自举/tap 断环，[adr/0024](./adr/0024-dsl-op-primitive.md)）；L1-DSL-1..3 的 v0.6 子集 |
 | **L2-LIN v0.5** | — | 1 | 消息级血缘自动级联 + 分支模型（join DAG 出处）（[adr/0022](./adr/0022-lineage-v0.md) v0.5 增补）；L2-LIN-1..2 的 v0.5 子集 |
-| 合计 | | **35 项**（L4-COMP-6 AllLatest 已随 DataVisitor 落地；kAuto 已随 [adr/0023](./adr/0023-kauto-transport-v0.md) 落地） |
+| 合计 | | **36 项**（L4-COMP-6 AllLatest 已随 DataVisitor 落地；kAuto 已随 [adr/0023](./adr/0023-kauto-transport-v0.md) 落地） |
 
 ### Phase 0 已完成功能点
 

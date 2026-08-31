@@ -21,12 +21,16 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
+#include "tianshu/core/component.h"
 #include "tianshu/core/data_dispatcher.h"
 #include "tianshu/core/data_visitor.h"
 #include "tianshu/core/lineage.h"
+#include "tianshu/core/node.h"
 #include "tianshu/dsl/flow.h"
+#include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::dsl {
 
@@ -52,11 +56,66 @@ std::shared_ptr<detail::LineageMailbox> FlowRuntime::register_mailbox(const std:
   return mailbox;
 }
 
+FlowRuntime::~FlowRuntime() {
+  for (const auto& comp : components_) {
+    comp->shutdown();
+  }
+}
+
+void FlowRuntime::attach_referenced_source(const std::string& registry_name,
+                                           const std::string& out_channel,
+                                           std::chrono::milliseconds interval) {
+  auto comp = core::ComponentFactory::instance().create(registry_name, registry_name);
+  if (comp == nullptr) {
+    return;
+  }
+  if (bridge_node_ == nullptr) {
+    bridge_node_ = std::make_unique<core::Node>(transport::TransportMode::kIntra);
+  }
+  comp->set_out_channel_override(out_channel);
+  if (!comp->launch(*bridge_node_, {}, interval)) {
+    return;
+  }
+  attach_bridge_reader(out_channel);
+  components_.emplace_back(std::move(comp));
+  const auto held = components_.back();
+  init_hooks_.emplace_back([held] { held->init(); });
+}
+
+void FlowRuntime::attach_referenced_component(const std::string& registry_name,
+                                              const std::string& in_channel,
+                                              const std::string& out_channel) {
+  auto comp = core::ComponentFactory::instance().create(registry_name, registry_name);
+  if (comp == nullptr) {
+    return;
+  }
+  if (bridge_node_ == nullptr) {
+    bridge_node_ = std::make_unique<core::Node>(transport::TransportMode::kIntra);
+  }
+  comp->set_out_channel_override(out_channel);
+  if (!comp->launch(*bridge_node_, {in_channel}, {})) {
+    return;
+  }
+  attach_bridge_reader(out_channel);
+  components_.emplace_back(std::move(comp));
+  const auto held = components_.back();
+  init_hooks_.emplace_back([held] { held->init(); });
+}
+
 void FlowRuntime::publish_derived(const core::Lineage& parent, const std::string& channel,
                                   const void* data, std::size_t size) {
   core::Lineage lin = parent;
   lin.add_hop({.channel = channel, .seq = next_seq(channel)});
   publish_bytes(channel, data, size, lin);
+}
+
+void FlowRuntime::attach_bridge_reader(const std::string& out_channel) {
+  auto reader = bridge_node_->create_reader(out_channel);
+  reader->set_callback([this, out_channel](const transport::Message& msg) {
+    publish_bytes(out_channel, msg.data, msg.size,
+                  core::Lineage::rooted(out_channel, next_seq(out_channel)));
+  });
+  bridge_readers_.push_back(std::move(reader));
 }
 
 void FlowRuntime::publish_op(const std::string& channel, const void* data, std::size_t size,
@@ -83,6 +142,9 @@ void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) 
   for (const auto& op_decl : flow.ops()) {
     op_decl.wire(*this);
   }
+  for (const auto& from_decl : flow.froms()) {
+    from_decl.wire(*this);
+  }
   for (const auto& sink_decl : flow.sinks()) {
     sink_decl.wire(*this);
   }
@@ -92,11 +154,11 @@ void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) 
     hook();
   }
 
+  const auto start = std::chrono::steady_clock::now();
   std::vector<std::thread> source_threads;
   source_threads.reserve(flow.sources().size());
   for (const auto& source : flow.sources()) {
-    source_threads.emplace_back([&source, duration, this] {
-      const auto start = std::chrono::steady_clock::now();
+    source_threads.emplace_back([&source, duration, start, this] {
       const auto interval = source.interval;
       std::uint64_t tick = 0;
       auto next = start + interval;
@@ -113,6 +175,17 @@ void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) 
   }
   for (auto& thread : source_threads) {
     thread.join();
+  }
+  // Referenced timer components drive themselves on their own threads;
+  // the runtime stays alive for the full duration so they are not torn
+  // down early (pure-DSL flows have already waited via the joins).
+  if (!components_.empty()) {
+    std::this_thread::sleep_until(start + duration);
+    // Quiesce BEFORE returning: joining the timer threads drains every
+    // in-flight cascade, so teardown never races a running callback.
+    for (const auto& comp : components_) {
+      comp->quiesce();
+    }
   }
 }
 

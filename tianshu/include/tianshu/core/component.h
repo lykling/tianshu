@@ -62,6 +62,16 @@ class ComponentBase {
   virtual bool launch(Node& node, const std::vector<std::string>& input_channels,
                       std::chrono::milliseconds interval) = 0;
 
+  // Output-channel injection for bridge wiring (ADR-0025): flow-declared
+  // channels override the class-declared out_channel(). Default no-op;
+  // the templates below honor it.
+  virtual void set_out_channel_override(const std::string& channel) { static_cast<void>(channel); }
+
+  // Stops self-driven execution (timer threads) and joins them, so no
+  // callback is in flight when the owner tears the graph down. Default
+  // no-op (input-driven components only run inside a dispatch).
+  virtual void quiesce() {}
+
   [[nodiscard]] const std::string& name() const { return name_; }
 
  private:
@@ -82,8 +92,8 @@ class Component : public ComponentBase {
 
   bool start(Node* node, std::string_view ch0) {
     node_ = node;
-    if (!out_channel().empty()) {
-      writer_ = node_->create_typed_writer<TOut>(out_channel());
+    if (!effective_out_channel().empty()) {
+      writer_ = node_->create_typed_writer<TOut>(effective_out_channel());
     }
     bridge_input(ch0);
     visitor_ = std::make_unique<DataVisitor<M0>>(ch0, queue_depth(), [this] { run_proc(); });
@@ -105,6 +115,11 @@ class Component : public ComponentBase {
   [[nodiscard]] virtual std::size_t queue_depth() const { return 16; }
 
   void publish(const TOut& msg) { writer_->write(msg); }
+
+ public:
+  void set_out_channel_override(const std::string& channel) override {
+    out_channel_override_ = channel;
+  }
 
  private:
   void run_proc() {
@@ -128,6 +143,11 @@ class Component : public ComponentBase {
   std::unique_ptr<Writer<TOut>> writer_;
   std::unique_ptr<DataVisitor<M0>> visitor_;
   std::vector<std::unique_ptr<transport::ReaderBase>> input_readers_;
+  std::string out_channel_override_;
+
+  [[nodiscard]] std::string effective_out_channel() const {
+    return out_channel_override_.empty() ? std::string(out_channel()) : out_channel_override_;
+  }
 };
 
 template <typename M0, typename M1, typename TOut = M0>
@@ -137,8 +157,8 @@ class TwoInputComponent : public ComponentBase {
 
   bool start(Node* node, std::string_view ch0, std::string_view ch1) {
     node_ = node;
-    if (!out_channel().empty()) {
-      writer_ = node_->create_typed_writer<TOut>(out_channel());
+    if (!effective_out_channel().empty()) {
+      writer_ = node_->create_typed_writer<TOut>(effective_out_channel());
     }
     bridge_input(ch0);
     bridge_input(ch1);
@@ -163,6 +183,11 @@ class TwoInputComponent : public ComponentBase {
 
   void publish(const TOut& msg) { writer_->write(msg); }
 
+ public:
+  void set_out_channel_override(const std::string& channel) override {
+    out_channel_override_ = channel;
+  }
+
  private:
   void run_proc() {
     M0* msg0 = nullptr;
@@ -186,6 +211,11 @@ class TwoInputComponent : public ComponentBase {
   std::unique_ptr<Writer<TOut>> writer_;
   std::unique_ptr<DataVisitor<M0, M1>> visitor_;
   std::vector<std::unique_ptr<transport::ReaderBase>> input_readers_;
+  std::string out_channel_override_;
+
+  [[nodiscard]] std::string effective_out_channel() const {
+    return out_channel_override_.empty() ? std::string(out_channel()) : out_channel_override_;
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -231,6 +261,8 @@ class TimerComponent : public ComponentBase {
     }
   }
 
+  void quiesce() override { stop(); }
+
  protected:
   virtual void proc() = 0;
 
@@ -249,8 +281,8 @@ class TimerSourceComponent : public TimerComponent {
   bool launch(Node& node, const std::vector<std::string>& /*input_channels*/,
               std::chrono::milliseconds interval) override {
     node_ = &node;
-    if (!out_channel().empty()) {
-      writer_ = node_->create_typed_writer<TOut>(out_channel());
+    if (!effective_out_channel().empty()) {
+      writer_ = node_->create_typed_writer<TOut>(effective_out_channel());
     }
     return TimerComponent::start(interval);
   }
@@ -264,8 +296,19 @@ class TimerSourceComponent : public TimerComponent {
 
   [[nodiscard]] virtual std::string_view out_channel() const = 0;
 
+ public:
+  void set_out_channel_override(const std::string& channel) override {
+    out_channel_override_ = channel;
+  }
+
+ protected:
   Node* node_{nullptr};
   std::unique_ptr<Writer<TOut>> writer_;
+  std::string out_channel_override_;
+
+  [[nodiscard]] std::string effective_out_channel() const {
+    return out_channel_override_.empty() ? std::string(out_channel()) : out_channel_override_;
+  }
 };
 
 // ---------------------------------------------------------------------------

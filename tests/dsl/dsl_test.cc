@@ -19,10 +19,12 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
 
+#include "tianshu/core/component.h"
 #include "tianshu/core/lineage.h"
 #include "tianshu/core/message_traits.h"
 #include "tianshu/dsl/dsl_runtime.h"
@@ -460,4 +462,112 @@ TEST(DslRuntimeTest, OpBootstrapsFeedbackLoopWithoutSeedSource) {
     }
   }
   EXPECT_TRUE(has_loop_hops);
+}
+
+namespace {
+class TFromDriver final : public tianshu::core::TimerSourceComponent<FastMsg> {
+ public:
+  explicit TFromDriver(std::string name) : TimerSourceComponent(std::move(name)) {}
+
+ protected:
+  void proc() override { publish(FastMsg{.t = tick_++}); }
+
+  [[nodiscard]] std::string_view out_channel() const override { return {}; }
+
+ private:
+  std::uint64_t tick_{0};
+};
+
+class TChassisComp final : public tianshu::core::Component<LoopCmd, LoopState> {
+ public:
+  explicit TChassisComp(std::string name) : Component(std::move(name)) {}
+
+  bool init() override {
+    publish(LoopState{.t = 0, .v = 0.0});
+    return true;
+  }
+
+ protected:
+  void proc(const LoopCmd& cmd) override {
+    v_ += cmd.u * 0.1;
+    publish(LoopState{.t = cmd.t, .v = v_});
+  }
+
+  [[nodiscard]] std::string_view out_channel() const override { return {}; }
+
+ private:
+  double v_{0.0};
+};
+}  // namespace
+
+TIANSHU_REGISTER_COMPONENT(TFromDriver, "test.from.driver")
+TIANSHU_REGISTER_COMPONENT(TChassisComp, "test.from.chassis")
+
+TEST(FromReferenceTest, UnknownRegistrationYieldsInvalidChain) {
+  tianshu::dsl::FlowBuilder builder("fm");
+  const auto chain = builder.from<FastMsg>("no.such.driver", "out", std::chrono::milliseconds(5));
+  EXPECT_FALSE(chain.valid());
+}
+
+TEST(FromReferenceTest, ShapeMismatchYieldsInvalidChain) {
+  // Registered as TimerSourceComponent<FastMsg>; SlowMsg does not match.
+  tianshu::dsl::FlowBuilder builder("fs");
+  const auto chain = builder.from<SlowMsg>("test.from.driver", "out", std::chrono::milliseconds(5));
+  EXPECT_FALSE(chain.valid());
+}
+
+TEST(FromReferenceTest, DriverProducesStreamWithRootedLineage) {
+  std::vector<std::string> got;
+  const auto flow = tianshu::dsl::FlowBuilder("fd")
+                        .from<FastMsg>("test.from.driver", "radar", std::chrono::milliseconds(5))
+                        .sink([&](const FastMsg&, const tianshu::core::Lineage& lin) {
+                          if (got.size() < 32) {
+                            got.push_back(lin.describe());
+                          }
+                        })
+                        .build();
+  EXPECT_NE(flow.describe().find("from[test.from.driver -> fd/radar]"), std::string::npos);
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(120));
+
+  ASSERT_GE(got.size(), 2U);
+  // Component output lineage = rooted at the (injected) output channel.
+  EXPECT_EQ(got.front(), "fd/radar#0");
+}
+
+TEST(FromReferenceTest, ComponentClosesLoopViaInitBootstrap) {
+  std::vector<double> speeds;
+  tianshu::dsl::FlowBuilder builder("fc");
+  auto meas = builder.source<LoopMeas>("meas", std::chrono::milliseconds(10), [](std::uint64_t t) {
+    return LoopMeas{.t = t, .hazard = 0.5};
+  });
+  auto state_port = builder.tap<LoopState>("state");
+  auto plan = builder.join<LoopMeas, LoopState, LoopPlan>(
+      meas, state_port, [](const LoopMeas& m, const LoopState& s) {
+        return LoopPlan{.t = m.t, .target = 10.0 - m.hazard, .v = s.v};
+      });
+  auto cmd = plan.map<LoopCmd>(
+      [](const LoopPlan& p) { return LoopCmd{.t = p.t, .u = 1.5 * (p.target - p.v)}; });
+  auto state = builder.from<LoopCmd, LoopState>("test.from.chassis", cmd, "state");
+  ASSERT_TRUE(state.valid());
+  state.sink([&](const LoopState& s, const tianshu::core::Lineage&) {
+    if (speeds.size() < 256) {
+      speeds.push_back(s.v);
+    }
+  });
+
+  const auto flow = builder.build();
+  EXPECT_NE(flow.describe().find("from[fc/~1 via test.from.chassis -> fc/state]"),
+            std::string::npos);
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(800));
+
+  // init() bootstrap: first message is the power-on report, then the loop
+  // converges toward the 9.5 m/s target.
+  ASSERT_GE(speeds.size(), 2U);
+  EXPECT_EQ(speeds.front(), 0.0);
+  EXPECT_GT(speeds.back(), 6.0);
+  EXPECT_LT(speeds.back(), 12.0);
 }

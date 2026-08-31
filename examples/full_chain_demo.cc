@@ -26,7 +26,7 @@
 //   chassis port (tap, cycle-breaker) ----------------------join-> planning
 //                                                                      |
 //                                                     map -> control --|
-//                                                BOX "chassis" <-'  (ChassisMain: on_init publishes
+//                                                BOX "chassis" <-'  (from: init() publishes
 //                                                                             the power-on state;
 //                                                                             handle integrates
 //                                                                             commands)
@@ -38,9 +38,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
-#include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "tianshu/core/lineage.h"
@@ -136,46 +134,16 @@ struct ChassisLog {
   std::string lineage;
 };
 
-// Read-write op (ADR-0024): one logical chassis unit. on_init publishes
-// the power-on state (feedback-loop bootstrap — a real chassis ECU also
-// reports before any command); handle integrates control commands.
-class ChassisMain {
- public:
-  explicit ChassisMain(std::shared_ptr<double> speed) : speed_(std::move(speed)) {}
-
-  static void on_init(tianshu::dsl::OpPub<ChassisState>& pub) {
-    pub.publish(ChassisState{.t = 0, .speed = 0.0, .steer = 0.0});
-  }
-
-  void handle(const ControlCmd& cmd, tianshu::dsl::OpPub<ChassisState>& pub) {
-    *speed_ += cmd.accel * 0.05;
-    pub.publish(ChassisState{.t = cmd.t, .speed = *speed_, .steer = cmd.steer_cmd});
-  }
-
- private:
-  std::shared_ptr<double> speed_;
-};
-
-tianshu::dsl::Flow build_avp_flow(std::vector<ChassisLog>& chassis_log,
-                                  const std::shared_ptr<double>& plant_speed) {
+tianshu::dsl::Flow build_avp_flow(std::vector<ChassisLog>& chassis_log) {
   tianshu::dsl::FlowBuilder builder("avp");
 
+  // Registered drivers (ADR-0025): the flow names them + channels +
+  // pacing — implementations live in the device library (linked in).
   auto radar_front =
-      builder.source<RadarMsg>("radar/front", std::chrono::milliseconds(20), [](std::uint64_t t) {
-        return RadarMsg{
-            .t = t, .radar_id = 0, .n_targets = static_cast<std::uint32_t>(2 + (t % 3))};
-      });
+      builder.from<RadarMsg>("avp.radar.front", "radar/front", std::chrono::milliseconds(20));
   auto radar_rear =
-      builder.source<RadarMsg>("radar/rear", std::chrono::milliseconds(25), [](std::uint64_t t) {
-        return RadarMsg{
-            .t = t, .radar_id = 1, .n_targets = static_cast<std::uint32_t>(1 + (t % 2))};
-      });
-  auto gnss = builder.source<GnssMsg>("gnss", std::chrono::milliseconds(100), [](std::uint64_t t) {
-    return GnssMsg{.t = t,
-                   .x = 100.0 + (static_cast<double>(t) * 0.5),
-                   .y = -12.0,
-                   .heading = 0.02 * static_cast<double>(t % 10)};
-  });
+      builder.from<RadarMsg>("avp.radar.rear", "radar/rear", std::chrono::milliseconds(25));
+  auto gnss = builder.from<GnssMsg>("avp.gnss", "gnss", std::chrono::milliseconds(100));
 
   auto fused = builder.join<RadarMsg, RadarMsg, ObstacleList>(
       radar_front, radar_rear, [](const RadarMsg& f, const RadarMsg& r) {
@@ -210,10 +178,10 @@ tianshu::dsl::Flow build_avp_flow(std::vector<ChassisLog>& chassis_log,
     return ControlCmd{.t = p.t, .accel = accel, .steer_cmd = p.curvature};
   });
 
-  // The chassis as ONE unit (ADR-0024): reads commands, writes state,
-  // self-starts — on_init publishes the power-on report so the feedback
-  // loop ignites without any seed source.
-  auto chassis = builder.op<ControlCmd, ChassisState>(control, "chassis", ChassisMain{plant_speed});
+  // The chassis as a REGISTERED component (ADR-0025): its init()
+  // publishes the power-on report through the bridge — the feedback loop
+  // ignites without any seed source.
+  auto chassis = builder.from<ControlCmd, ChassisState>("avp.chassis", control, "chassis");
 
   perception.sink([](const PerceptionOut& p, const Lineage& lin) {
     if (p.t % 5 == 0) {
@@ -253,9 +221,8 @@ tianshu::dsl::Flow build_avp_flow(std::vector<ChassisLog>& chassis_log,
 
 int main() {
   std::vector<ChassisLog> chassis_log;
-  const auto plant_speed = std::make_shared<double>(0.0);
 
-  const auto flow = build_avp_flow(chassis_log, plant_speed);
+  const auto flow = build_avp_flow(chassis_log);
   static_cast<void>(std::printf("flow: %s\n\n", flow.describe().c_str()));
 
   tianshu::dsl::FlowRuntime runtime;

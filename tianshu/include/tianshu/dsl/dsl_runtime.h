@@ -37,13 +37,17 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "tianshu/core/component.h"
 #include "tianshu/core/data_visitor.h"
 #include "tianshu/core/lineage.h"
+#include "tianshu/core/node.h"
 #include "tianshu/dsl/flow.h"
+#include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::dsl {
 
@@ -117,7 +121,7 @@ class LineageMailbox {
 class FlowRuntime {
  public:
   FlowRuntime() = default;
-  ~FlowRuntime() = default;
+  ~FlowRuntime();
 
   FlowRuntime(const FlowRuntime&) = delete;
   FlowRuntime& operator=(const FlowRuntime&) = delete;
@@ -207,6 +211,16 @@ class FlowRuntime {
     init_hooks_.push_back([op_impl, pub] { op_impl->on_init(*pub); });
   }
 
+  // Referenced-component wiring (ADR-0025, called by Flow::FromDecl::wire).
+  // Source-like: timer-driven publisher; the component keeps its own
+  // thread (L4 behavior). Component-like: proc runs on the publisher's
+  // dispatch thread via its DataVisitor. Both pump outputs back through
+  // an intra reader -> publish_bytes with rooted lineage.
+  void attach_referenced_source(const std::string& registry_name, const std::string& out_channel,
+                                std::chrono::milliseconds interval);
+  void attach_referenced_component(const std::string& registry_name, const std::string& in_channel,
+                                   const std::string& out_channel);
+
   // Sink wiring (called by Flow::SinkDecl::wire).
   template <typename T>
   void attach_sink(const std::string& channel,
@@ -247,6 +261,10 @@ class FlowRuntime {
   void publish_op(const std::string& channel, const void* data, std::size_t size,
                   const core::Lineage& parent);
 
+  // Pumps a referenced component's transport output back into the DSL
+  // channel world with rooted lineage (ADR-0025 Q3).
+  void attach_bridge_reader(const std::string& out_channel);
+
   [[nodiscard]] std::uint64_t next_seq(const std::string& channel);
 
   static constexpr std::size_t kQueueDepth = 16;
@@ -254,6 +272,12 @@ class FlowRuntime {
   std::vector<std::unique_ptr<detail::StageHolder>> stages_;
   std::vector<std::shared_ptr<detail::LineageMailbox>> mailboxes_;
   std::vector<std::function<void()>> init_hooks_;
+
+  // Referenced-component plumbing (ADR-0025). Declaration order matters:
+  // components must be destroyed before the node and bridge readers.
+  std::unique_ptr<core::Node> bridge_node_;
+  std::vector<std::unique_ptr<transport::ReaderBase>> bridge_readers_;
+  std::vector<std::shared_ptr<core::ComponentBase>> components_;
 
   std::mutex mutex_;
   std::unordered_map<std::string, std::vector<detail::LineageMailbox*>> channel_queues_;
@@ -305,6 +329,40 @@ std::function<void(FlowRuntime&)> make_op_wire(std::string in_channel, std::stri
   return [in_channel = std::move(in_channel), out_channel = std::move(out_channel),
           impl](FlowRuntime& rt) {
     rt.template attach_op<TIn, TOut, TOp>(in_channel, out_channel, impl);
+  };
+}
+
+template <typename TOut>
+bool probe_source_shape(std::string_view registry_name) {
+  const auto comp =
+      core::ComponentFactory::instance().create(registry_name, std::string(registry_name));
+  return comp != nullptr && dynamic_cast<core::TimerSourceComponent<TOut>*>(comp.get()) != nullptr;
+}
+
+template <typename TIn, typename TOut>
+bool probe_component_shape(std::string_view registry_name) {
+  const auto comp =
+      core::ComponentFactory::instance().create(registry_name, std::string(registry_name));
+  return comp != nullptr && dynamic_cast<core::Component<TIn, TOut>*>(comp.get()) != nullptr;
+}
+
+template <typename TOut>
+std::function<void(FlowRuntime&)> make_from_source_wire(std::string registry_name,
+                                                        std::string out_channel,
+                                                        std::chrono::milliseconds interval) {
+  return [registry_name = std::move(registry_name), out_channel = std::move(out_channel),
+          interval](FlowRuntime& rt) {
+    rt.attach_referenced_source(registry_name, out_channel, interval);
+  };
+}
+
+template <typename TIn, typename TOut>
+std::function<void(FlowRuntime&)> make_from_component_wire(std::string registry_name,
+                                                           std::string in_channel,
+                                                           std::string out_channel) {
+  return [registry_name = std::move(registry_name), in_channel = std::move(in_channel),
+          out_channel = std::move(out_channel)](FlowRuntime& rt) {
+    rt.attach_referenced_component(registry_name, in_channel, out_channel);
   };
 }
 

@@ -42,6 +42,10 @@ cc_binary(
 
 cc_binary(
     name = "full_chain_demo",
-    srcs = ["full_chain_demo.cc"],
+    srcs = [
+        "avp_devices.cc",
+        "avp_types.h",
+        "full_chain_demo.cc",
+    ],
     deps = ["//tianshu:tianshu"],
 )

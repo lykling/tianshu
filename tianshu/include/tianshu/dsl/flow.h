@@ -57,6 +57,22 @@ template <typename TIn, typename TOut, typename TOp>
 std::function<void(FlowRuntime&)> make_op_wire(std::string in_channel, std::string out_channel,
                                                TOp impl);
 
+template <typename TOut>
+bool probe_source_shape(std::string_view registry_name);
+
+template <typename TIn, typename TOut>
+bool probe_component_shape(std::string_view registry_name);
+
+template <typename TOut>
+std::function<void(FlowRuntime&)> make_from_source_wire(std::string registry_name,
+                                                        std::string out_channel,
+                                                        std::chrono::milliseconds interval);
+
+template <typename TIn, typename TOut>
+std::function<void(FlowRuntime&)> make_from_component_wire(std::string registry_name,
+                                                           std::string in_channel,
+                                                           std::string out_channel);
+
 template <typename T>
 std::function<void(FlowRuntime&)> make_sink_wire(
     std::string channel, std::function<void(const T&, const core::Lineage&)> fn);
@@ -119,6 +135,14 @@ class Flow {
     std::string out_type_name;
     std::function<void(FlowRuntime& rt)> wire;
   };
+  struct FromDecl {
+    std::string registry_name;
+    std::string in_channel;  // empty = source-like (timer-driven)
+    std::string out_channel;
+    std::string out_type_name;
+    std::chrono::milliseconds interval{};
+    std::function<void(FlowRuntime& rt)> wire;
+  };
   struct SinkDecl {
     std::string channel;
     std::string type_name;
@@ -130,6 +154,7 @@ class Flow {
   [[nodiscard]] const std::vector<MapDecl>& maps() const { return maps_; }
   [[nodiscard]] const std::vector<JoinDecl>& joins() const { return joins_; }
   [[nodiscard]] const std::vector<OpDecl>& ops() const { return ops_; }
+  [[nodiscard]] const std::vector<FromDecl>& froms() const { return froms_; }
   [[nodiscard]] const std::vector<SinkDecl>& sinks() const { return sinks_; }
 
   // Wiring summary: "src -> map -> sink" with channels, for tests.
@@ -147,6 +172,11 @@ class Flow {
     for (const auto& b : ops_) {
       out += " op[" + b.in_channel + " -> " + b.out_channel + "]";
     }
+    for (const auto& f : froms_) {
+      out += f.in_channel.empty() ? " from[" + f.registry_name + " -> " + f.out_channel + "]"
+                                  : " from[" + f.in_channel + " via " + f.registry_name + " -> " +
+                                        f.out_channel + "]";
+    }
     for (const auto& s : sinks_) {
       out += " sink[" + s.channel + "]";
     }
@@ -162,6 +192,7 @@ class Flow {
   std::vector<MapDecl> maps_;
   std::vector<JoinDecl> joins_;
   std::vector<OpDecl> ops_;
+  std::vector<FromDecl> froms_;
   std::vector<SinkDecl> sinks_;
 };
 
@@ -212,6 +243,48 @@ class FlowBuilder {
                         Stream<T>(channel_for(name), std::string(core::MessageTraits<T>::name())));
   }
 
+  // Reference a REGISTERED component by name (ADR-0025). Source-like
+  // overload: TimerSourceComponent<TOut>; interval is flow-declared.
+  // Returns an INVALID chain when the name is unknown or the shape does
+  // not match (check valid()).
+  template <typename TOut>
+  FlowChain<TOut> from(std::string_view registry_name, std::string_view out_name,
+                       std::chrono::milliseconds interval) {
+    if (!detail::probe_source_shape<TOut>(registry_name)) {
+      return FlowChain<TOut>(this, Stream<TOut>());
+    }
+    const std::string out = channel_for(out_name);
+    Flow::FromDecl decl{
+        std::string(registry_name),
+        {},
+        out,
+        std::string(core::MessageTraits<TOut>::name()),
+        interval,
+        detail::make_from_source_wire<TOut>(std::string(registry_name), out, interval)};
+    froms_.push_back(std::move(decl));
+    return FlowChain<TOut>(this, Stream<TOut>(out, std::string(core::MessageTraits<TOut>::name())));
+  }
+
+  // Read-write overload: Component<TIn, TOut>; the input channel is the
+  // chain's, the output channel is flow-declared (injected).
+  template <typename TIn, typename TOut>
+  FlowChain<TOut> from(std::string_view registry_name, const FlowChain<TIn>& in,
+                       std::string_view out_name) {
+    if (!detail::probe_component_shape<TIn, TOut>(registry_name)) {
+      return FlowChain<TOut>(this, Stream<TOut>());
+    }
+    const std::string out = channel_for(out_name);
+    Flow::FromDecl decl{std::string(registry_name),
+                        in.stream_.channel(),
+                        out,
+                        std::string(core::MessageTraits<TOut>::name()),
+                        {},
+                        detail::make_from_component_wire<TIn, TOut>(std::string(registry_name),
+                                                                    in.stream_.channel(), out)};
+    froms_.push_back(std::move(decl));
+    return FlowChain<TOut>(this, Stream<TOut>(out, std::string(core::MessageTraits<TOut>::name())));
+  }
+
   // Accepted and ignored in v0 (SLA annotation slot; L1 compiler consumes
   // it later per ADR-0021).
   FlowBuilder& with_sla(std::string_view sla);
@@ -246,6 +319,7 @@ class FlowBuilder {
   std::vector<Flow::MapDecl> maps_;
   std::vector<Flow::JoinDecl> joins_;
   std::vector<Flow::OpDecl> ops_;
+  std::vector<Flow::FromDecl> froms_;
   std::vector<Flow::SinkDecl> sinks_;
   std::uint64_t anon_{0};
 };
@@ -277,6 +351,10 @@ class FlowChain {
   }
 
   [[nodiscard]] Flow build() { return builder_->build(); }
+
+  // False for chains returned by a failed from() reference (unknown
+  // registration or shape mismatch).
+  [[nodiscard]] bool valid() const { return stream_.valid(); }
 
  private:
   friend class FlowBuilder;
@@ -310,6 +388,7 @@ inline Flow FlowBuilder::build() {
   flow.maps_ = std::move(maps_);
   flow.joins_ = std::move(joins_);
   flow.ops_ = std::move(ops_);
+  flow.froms_ = std::move(froms_);
   flow.sinks_ = std::move(sinks_);
   return flow;
 }
