@@ -50,6 +50,20 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### DSL op primitive — renamed from box, terminology aligned (ADR-0024)
+
+- box -> op: executes ADR-0002's layer terminology (L1 = Operator,
+  Component stays the L4 assembly-layer reuse unit); lifecycle shape
+  has direct precedent in Kafka Streams Processor (init/process/
+  forward <-> on_init/handle/publish)
+- Rejected names recorded: block (reads as "blocking" in a real-time
+  framework), actor (collides with traffic actors in AD), model (NN
+  inference ambiguity)
+- Multi-port op semantics locked in the ADR (AllLatest multi-input,
+  per-output typed OpPub + tuple-of-chains return, per-output lineage
+  = merged input branches + own hop; 0-input stays source/from
+  territory); implemented on demand
+
 ### DSL box primitive (ADR-0024)
 
 - builder.box<TIn, TOut>(chain, name, impl): read-write node with

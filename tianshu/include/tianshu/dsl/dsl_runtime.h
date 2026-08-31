@@ -47,19 +47,19 @@
 
 namespace tianshu::dsl {
 
-// Box publish handle (ADR-0024): bound to one box's output channel.
+// Op publish handle (ADR-0024): bound to one output channel of the op.
 // Valid ONLY inside on_init/handle invocations; publish derives lineage
 // from the current input when called from handle (map semantics) and
 // roots at the box channel when called from on_init (source semantics).
 template <typename T>
-class BoxPub {
+class OpPub {
  public:
   void publish(const T& msg);
 
  private:
   friend class FlowRuntime;
 
-  BoxPub(FlowRuntime* rt, std::string channel) : rt_(rt), channel_(std::move(channel)) {}
+  OpPub(FlowRuntime* rt, std::string channel) : rt_(rt), channel_(std::move(channel)) {}
 
   FlowRuntime* rt_;
   std::string channel_;
@@ -123,7 +123,7 @@ class FlowRuntime {
   FlowRuntime& operator=(const FlowRuntime&) = delete;
 
   template <typename U>
-  friend class BoxPub;
+  friend class OpPub;
 
   // Copies `lineage` to every consumer mailbox on `channel`, then
   // cascades the payload through the DataDispatcher (synchronous chain).
@@ -181,30 +181,30 @@ class FlowRuntime {
     stages_.push_back(std::make_unique<detail::VisitorStage<TA, TB>>(std::move(visitor)));
   }
 
-  // Box wiring (called by Flow::BoxDecl::wire): visitor on the input
+  // Op wiring (called by Flow::OpDecl::wire): visitor on the input
   // channel + deferred on_init (runs after ALL wiring so consumers of the
   // output channel are registered before the bootstrap publication).
-  template <typename TIn, typename TOut, typename TBox>
-  void attach_box(const std::string& in_channel, const std::string& out_channel, TBox impl) {
-    const std::shared_ptr<BoxPub<TOut>> pub(new BoxPub<TOut>(this, out_channel));
+  template <typename TIn, typename TOut, typename TOp>
+  void attach_op(const std::string& in_channel, const std::string& out_channel, TOp impl) {
+    const std::shared_ptr<OpPub<TOut>> pub(new OpPub<TOut>(this, out_channel));
     const auto mailbox = register_mailbox(in_channel);
-    const auto box_impl = std::make_shared<TBox>(std::move(impl));
+    const auto op_impl = std::make_shared<TOp>(std::move(impl));
     const auto stage = std::make_shared<core::DataVisitor<TIn>*>(nullptr);
     auto visitor = std::make_unique<core::DataVisitor<TIn>>(
-        in_channel, kQueueDepth, [stage, box_impl, pub, mailbox] {
+        in_channel, kQueueDepth, [stage, op_impl, pub, mailbox] {
           auto* visitor_ptr = *stage;
           if (visitor_ptr == nullptr) {
             return;
           }
           while (TIn* msg = visitor_ptr->try_fetch_0()) {
             pub->parent_ = mailbox->pop();
-            box_impl->handle(*msg, *pub);
+            op_impl->handle(*msg, *pub);
             pub->parent_ = {};
           }
         });
     *stage = visitor.get();
     stages_.push_back(std::make_unique<detail::VisitorStage<TIn>>(std::move(visitor)));
-    init_hooks_.push_back([box_impl, pub] { box_impl->on_init(*pub); });
+    init_hooks_.push_back([op_impl, pub] { op_impl->on_init(*pub); });
   }
 
   // Sink wiring (called by Flow::SinkDecl::wire).
@@ -242,10 +242,10 @@ class FlowRuntime {
   void publish_derived(const core::Lineage& parent, const std::string& channel, const void* data,
                        std::size_t size);
 
-  // Box publication: `parent` empty (on_init) roots at the channel;
+  // Op publication: `parent` empty (on_init) roots at the channel;
   // otherwise derives from it (handle).
-  void publish_box(const std::string& channel, const void* data, std::size_t size,
-                   const core::Lineage& parent);
+  void publish_op(const std::string& channel, const void* data, std::size_t size,
+                  const core::Lineage& parent);
 
   [[nodiscard]] std::uint64_t next_seq(const std::string& channel);
 
@@ -263,8 +263,8 @@ class FlowRuntime {
 // Defined after FlowRuntime completes: publish reaches into the runtime
 // (two-phase lookup — same pattern as flow.h's detail::make_* helpers).
 template <typename T>
-void BoxPub<T>::publish(const T& msg) {
-  rt_->publish_box(channel_, &msg, sizeof(T), parent_);
+void OpPub<T>::publish(const T& msg) {
+  rt_->publish_op(channel_, &msg, sizeof(T), parent_);
 }
 
 namespace detail {
@@ -299,12 +299,12 @@ std::function<void(FlowRuntime&)> make_join_wire(std::string in_a, std::string i
   };
 }
 
-template <typename TIn, typename TOut, typename TBox>
-std::function<void(FlowRuntime&)> make_box_wire(std::string in_channel, std::string out_channel,
-                                                TBox box) {
+template <typename TIn, typename TOut, typename TOp>
+std::function<void(FlowRuntime&)> make_op_wire(std::string in_channel, std::string out_channel,
+                                               TOp impl) {
   return [in_channel = std::move(in_channel), out_channel = std::move(out_channel),
-          box](FlowRuntime& rt) {
-    rt.template attach_box<TIn, TOut, TBox>(in_channel, out_channel, box);
+          impl](FlowRuntime& rt) {
+    rt.template attach_op<TIn, TOut, TOp>(in_channel, out_channel, impl);
   };
 }
 

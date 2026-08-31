@@ -136,18 +136,18 @@ struct ChassisLog {
   std::string lineage;
 };
 
-// Read-write box (ADR-0024): one logical chassis unit. on_init publishes
+// Read-write op (ADR-0024): one logical chassis unit. on_init publishes
 // the power-on state (feedback-loop bootstrap — a real chassis ECU also
 // reports before any command); handle integrates control commands.
 class ChassisMain {
  public:
   explicit ChassisMain(std::shared_ptr<double> speed) : speed_(std::move(speed)) {}
 
-  static void on_init(tianshu::dsl::BoxPub<ChassisState>& pub) {
+  static void on_init(tianshu::dsl::OpPub<ChassisState>& pub) {
     pub.publish(ChassisState{.t = 0, .speed = 0.0, .steer = 0.0});
   }
 
-  void handle(const ControlCmd& cmd, tianshu::dsl::BoxPub<ChassisState>& pub) {
+  void handle(const ControlCmd& cmd, tianshu::dsl::OpPub<ChassisState>& pub) {
     *speed_ += cmd.accel * 0.05;
     pub.publish(ChassisState{.t = cmd.t, .speed = *speed_, .steer = cmd.steer_cmd});
   }
@@ -213,8 +213,7 @@ tianshu::dsl::Flow build_avp_flow(std::vector<ChassisLog>& chassis_log,
   // The chassis as ONE unit (ADR-0024): reads commands, writes state,
   // self-starts — on_init publishes the power-on report so the feedback
   // loop ignites without any seed source.
-  auto chassis =
-      builder.box<ControlCmd, ChassisState>(control, "chassis", ChassisMain{plant_speed});
+  auto chassis = builder.op<ControlCmd, ChassisState>(control, "chassis", ChassisMain{plant_speed});
 
   perception.sink([](const PerceptionOut& p, const Lineage& lin) {
     if (p.t % 5 == 0) {

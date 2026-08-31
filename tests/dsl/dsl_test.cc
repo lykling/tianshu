@@ -355,51 +355,51 @@ TEST(DslRuntimeTest, ClosedLoopFeedbackConvergesWithBoundedLineage) {
   EXPECT_TRUE(has_loop_hops);
 }
 
-// NOLINTNEXTLINE(misc-use-internal-linkage)  // box contract uses instance invocation
-class DoublerBox {
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // op contract uses instance invocation
+class DoublerOp {
  public:
-  static void on_init(tianshu::dsl::BoxPub<FusedMsg>& pub) {
+  static void on_init(tianshu::dsl::OpPub<FusedMsg>& pub) {
     pub.publish(FusedMsg{.fast_t = 0, .slow_t = 0});
   }
 
-  static void handle(const TickMsg& in, tianshu::dsl::BoxPub<FusedMsg>& pub) {
+  static void handle(const TickMsg& in, tianshu::dsl::OpPub<FusedMsg>& pub) {
     pub.publish(FusedMsg{.fast_t = in.tick, .slow_t = in.tick * 2});
   }
 };
 
-TEST(DslRuntimeTest, BoxLifecycleLineageSemantics) {
+TEST(DslRuntimeTest, OpLifecycleLineageSemantics) {
   std::vector<std::string> samples;
 
   tianshu::dsl::FlowBuilder builder("bx");
   auto ticks = builder.source<TickMsg>("ticks", std::chrono::milliseconds(5),
                                        [](std::uint64_t t) { return TickMsg{.tick = t}; });
-  auto boxed = builder.box<TickMsg, FusedMsg>(ticks, "out", DoublerBox{});
+  auto boxed = builder.op<TickMsg, FusedMsg>(ticks, "out", DoublerOp{});
   boxed.sink([&](const FusedMsg&, const tianshu::core::Lineage& lin) {
     if (samples.size() < 64) {
       samples.push_back(lin.describe());
     }
   });
   const auto flow = builder.build();
-  EXPECT_NE(flow.describe().find("box[bx/ticks -> bx/out]"), std::string::npos);
+  EXPECT_NE(flow.describe().find("op[bx/ticks -> bx/out]"), std::string::npos);
 
   tianshu::dsl::FlowRuntime runtime;
   runtime.run_for(flow, std::chrono::milliseconds(60));
 
   ASSERT_GE(samples.size(), 2U);
-  // on_init publication: rooted at the box channel (source semantics).
+  // on_init publication: rooted at the op's channel (source semantics).
   EXPECT_EQ(samples.front(), "bx/out#0");
   // handle publications: input lineage + output hop (map semantics).
   EXPECT_EQ(samples[1], "bx/ticks#0 -> bx/out#1");
 }
 
-// NOLINTNEXTLINE(misc-use-internal-linkage)  // box contract uses instance invocation
-class CruiseBox {
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // op contract uses instance invocation
+class CruiseOp {
  public:
-  static void on_init(tianshu::dsl::BoxPub<LoopState>& pub) {
+  static void on_init(tianshu::dsl::OpPub<LoopState>& pub) {
     pub.publish(LoopState{.t = 0, .v = 0.0});
   }
 
-  void handle(const LoopCmd& cmd, tianshu::dsl::BoxPub<LoopState>& pub) {
+  void handle(const LoopCmd& cmd, tianshu::dsl::OpPub<LoopState>& pub) {
     v_ += cmd.u * 0.1;
     pub.publish(LoopState{.t = cmd.t, .v = v_});
   }
@@ -408,7 +408,7 @@ class CruiseBox {
   double v_{0.0};
 };
 
-TEST(DslRuntimeTest, BoxBootstrapsFeedbackLoopWithoutSeedSource) {
+TEST(DslRuntimeTest, OpBootstrapsFeedbackLoopWithoutSeedSource) {
   std::vector<double> speeds;
   std::vector<std::string> lineages;
 
@@ -425,7 +425,7 @@ TEST(DslRuntimeTest, BoxBootstrapsFeedbackLoopWithoutSeedSource) {
       });
   auto cmd = plan.map<LoopCmd>(
       [](const LoopPlan& p) { return LoopCmd{.t = p.t, .u = 1.5 * (p.target - p.v)}; });
-  auto state = builder.box<LoopCmd, LoopState>(cmd, "state", CruiseBox{});
+  auto state = builder.op<LoopCmd, LoopState>(cmd, "state", CruiseOp{});
   state.sink([&](const LoopState& s, const tianshu::core::Lineage& lin) {
     if (speeds.size() < 256) {
       speeds.push_back(s.v);
@@ -434,9 +434,9 @@ TEST(DslRuntimeTest, BoxBootstrapsFeedbackLoopWithoutSeedSource) {
   });
 
   const auto flow = builder.build();
-  // The graph has no source on the state channel — the box IS the chassis.
+  // The graph has no source on the state channel — the op IS the chassis.
   EXPECT_EQ(flow.describe().find("src[bbox/state]"), std::string::npos);
-  EXPECT_NE(flow.describe().find("box[bbox/~1 -> bbox/state]"), std::string::npos);
+  EXPECT_NE(flow.describe().find("op[bbox/~1 -> bbox/state]"), std::string::npos);
 
   tianshu::dsl::FlowRuntime runtime;
   runtime.run_for(flow, std::chrono::milliseconds(800));
