@@ -30,6 +30,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -97,12 +98,21 @@ class IntraChannelRegistry {
  public:
   static IntraChannelRegistry& instance();
 
+  // Returns the channel writer, creating one when absent. Reader attach
+  // uses this; the entry alone does NOT count as a real publisher.
   std::shared_ptr<IntraWriter> get_or_create_writer(std::string_view channel);
+
+  // Marks a real publisher for the channel (create_writer path). kAuto
+  // readers query has_writer to prefer INTRA over SHM.
+  std::shared_ptr<IntraWriter> register_writer(std::string_view channel);
+
+  bool has_writer(std::string_view channel) const;
 
  private:
   IntraChannelRegistry() = default;
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::unordered_map<std::string, std::shared_ptr<IntraWriter>> writers_;
+  std::unordered_set<std::string> published_;
 };
 
 class IntraBackend : public TransportBackend {
@@ -112,7 +122,7 @@ class IntraBackend : public TransportBackend {
   bool supports_remote() const override { return false; }
 
   std::unique_ptr<WriterBase> create_writer(const ChannelConfig& cfg) override {
-    auto writer = IntraChannelRegistry::instance().get_or_create_writer(cfg.channel_name);
+    auto writer = IntraChannelRegistry::instance().register_writer(cfg.channel_name);
     // Return a new handle that references the shared writer.
     return std::make_unique<IntraWriterRef>(cfg.channel_name, writer);
   }

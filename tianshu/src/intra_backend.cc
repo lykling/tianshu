@@ -38,4 +38,22 @@ std::shared_ptr<IntraWriter> IntraChannelRegistry::get_or_create_writer(std::str
   return writer;
 }
 
+std::shared_ptr<IntraWriter> IntraChannelRegistry::register_writer(std::string_view channel) {
+  const std::scoped_lock lock(mutex_);
+  const std::string key(channel);
+  published_.insert(key);
+  auto it = writers_.find(key);
+  if (it != writers_.end()) {
+    return it->second;
+  }
+  auto writer = std::make_shared<IntraWriter>(key);
+  writers_[key] = writer;
+  return writer;
+}
+
+bool IntraChannelRegistry::has_writer(std::string_view channel) const {
+  const std::scoped_lock lock(mutex_);
+  return published_.contains(std::string(channel));
+}
+
 }  // namespace tianshu::transport::intra

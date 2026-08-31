@@ -50,6 +50,18 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### kAuto transport selection (L4-TRANS-21, ADR-0023)
+
+- AutoWriter dual-publishes (INTRA zero-copy fan-out + SHM broadcast,
+  near-free with zero SHM readers); kAuto readers pick INTRA when this
+  process hosts a real writer on the channel, else SHM — correct for
+  ANY reader/writer creation order, no discovery service needed
+- IntraChannelRegistry: register_writer marks real publishers;
+  reader-created phantom entries do not count (has_writer)
+- 4 new tests: same-process INTRA preference (synchronous delivery),
+  reader-before-writer ordering, fork cross-process SHM fallback,
+  phantom-writer immunity
+
 ### Cross-process schema sidecar (ADR-0020 Phase 2)
 
 - Schema blob codec: encode_pod_schema / decode_pod_schema serialize the
@@ -131,7 +143,7 @@ Examples: shm_talker / shm_listener standalone cross-process demo binaries
 
 ### Verification
 
-- 229/229 CMake tests (Clang + GCC), 21/21 Bazel tests
+- 233/233 CMake tests (Clang + GCC), 21/21 Bazel tests
 - Line coverage 96.5%, function coverage 100% (lcov, filtered)
 - Zero-warning build on both compilers
 

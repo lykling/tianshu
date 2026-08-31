@@ -14,14 +14,20 @@
 
 // Hybrid transport: selects the backend per channel.
 //
-// Design (per L4-TRANS-19, ADR-0010):
+// Design (per L4-TRANS-19, ADR-0010; kAuto semantics per ADR-0023):
 //   - kIntra: same process (zero-copy, default)
 //   - kShm: same machine, cross process
-//   - kAuto: service-discovery based selection (L4-TRANS-21, future)
+//   - kAuto: writers dual-publish (INTRA fan-out + SHM broadcast, which is
+//     near-free with zero SHM readers); readers pick INTRA when this
+//     process has a real writer on the channel, else SHM. Correct for any
+//     reader/writer creation order; no discovery service needed (v0).
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
+#include <string_view>
+#include <utility>
 
 #include "tianshu/transport/intra_backend.h"
 #include "tianshu/transport/shm_backend.h"
@@ -42,13 +48,8 @@ class HybridTransport : public TransportBackend {
   bool supports_zero_copy() const override { return mode_ != TransportMode::kShm; }
   bool supports_remote() const override { return false; }
 
-  std::unique_ptr<WriterBase> create_writer(const ChannelConfig& cfg) override {
-    return active_backend(cfg)->create_writer(cfg);
-  }
-
-  std::unique_ptr<ReaderBase> create_reader(const ChannelConfig& cfg) override {
-    return active_backend(cfg)->create_reader(cfg);
-  }
+  std::unique_ptr<WriterBase> create_writer(const ChannelConfig& cfg) override;
+  std::unique_ptr<ReaderBase> create_reader(const ChannelConfig& cfg) override;
 
  private:
   TransportBackend* active_backend(const ChannelConfig& cfg);
@@ -56,6 +57,26 @@ class HybridTransport : public TransportBackend {
   TransportMode mode_;
   std::unique_ptr<TransportBackend> intra_;
   std::unique_ptr<TransportBackend> shm_;
+};
+
+// kAuto writer: dual-publishes on both backends so that intra readers
+// (same process) and SHM readers (cross process, any creation order)
+// are both served without a discovery service.
+class AutoWriter : public WriterBase {
+ public:
+  AutoWriter(std::unique_ptr<WriterBase> intra, std::unique_ptr<WriterBase> shm)
+      : intra_(std::move(intra)), shm_(std::move(shm)) {}
+
+  void write(const void* data, std::size_t size) override {
+    intra_->write(data, size);
+    shm_->write(data, size);
+  }
+
+  std::string_view channel() const override { return intra_->channel(); }
+
+ private:
+  std::unique_ptr<WriterBase> intra_;
+  std::unique_ptr<WriterBase> shm_;
 };
 
 }  // namespace tianshu::transport
