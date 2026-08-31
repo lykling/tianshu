@@ -17,10 +17,10 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
 
 #include "tianshu/core/data_dispatcher.h"
@@ -34,12 +34,22 @@ void FlowRuntime::publish_bytes(const std::string& channel, const void* data, st
                                 const core::Lineage& lineage) {
   {
     const std::scoped_lock lock(mutex_);
-    side_lineage_[channel].push_back(lineage);
-    if (side_lineage_[channel].size() > kQueueDepth * 2) {
-      side_lineage_[channel].pop_front();
+    const auto it = channel_queues_.find(channel);
+    if (it != channel_queues_.end()) {
+      for (detail::LineageMailbox* mailbox : it->second) {
+        mailbox->push(lineage);
+      }
     }
   }
   core::DataDispatcher::instance().dispatch(core::channel_id_for(channel), data, size);
+}
+
+std::shared_ptr<detail::LineageMailbox> FlowRuntime::register_mailbox(const std::string& channel) {
+  auto mailbox = std::make_shared<detail::LineageMailbox>(kQueueDepth * 2);
+  const std::scoped_lock lock(mutex_);
+  channel_queues_[channel].push_back(mailbox.get());
+  mailboxes_.push_back(mailbox);
+  return mailbox;
 }
 
 void FlowRuntime::publish_derived(const core::Lineage& parent, const std::string& channel,
@@ -47,17 +57,6 @@ void FlowRuntime::publish_derived(const core::Lineage& parent, const std::string
   core::Lineage lin = parent;
   lin.add_hop({.channel = channel, .seq = next_seq(channel)});
   publish_bytes(channel, data, size, lin);
-}
-
-core::Lineage FlowRuntime::pop_lineage(const std::string& channel) {
-  const std::scoped_lock lock(mutex_);
-  auto it = side_lineage_.find(channel);
-  if (it == side_lineage_.end() || it->second.empty()) {
-    return {};
-  }
-  core::Lineage lin = std::move(it->second.front());
-  it->second.pop_front();
-  return lin;
 }
 
 std::uint64_t FlowRuntime::next_seq(const std::string& channel) {
@@ -68,6 +67,9 @@ std::uint64_t FlowRuntime::next_seq(const std::string& channel) {
 void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) {
   for (const auto& map_decl : flow.maps()) {
     map_decl.wire(*this);
+  }
+  for (const auto& join_decl : flow.joins()) {
+    join_decl.wire(*this);
   }
   for (const auto& sink_decl : flow.sinks()) {
     sink_decl.wire(*this);

@@ -49,6 +49,26 @@ TIANSHU_TRAITS_POD(TickMsg, "t.TickMsg");
 TIANSHU_TRAITS_POD(DoubledMsg, "t.DoubledMsg");
 TIANSHU_TRAITS_POD(ScaledMsg, "t.ScaledMsg");
 
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // traits must precede template use
+struct FastMsg {
+  std::uint64_t t;
+};
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // same ordering constraint
+struct SlowMsg {
+  std::uint64_t t;
+};
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // same ordering constraint
+struct FusedMsg {
+  std::uint64_t fast_t;
+  std::uint64_t slow_t;
+};
+
+TIANSHU_TRAITS_POD(FastMsg, "t.FastMsg");
+TIANSHU_TRAITS_POD(SlowMsg, "t.SlowMsg");
+TIANSHU_TRAITS_POD(FusedMsg, "t.FusedMsg");
+
 namespace {
 
 TEST(LineageTest, RootedDescribe) {
@@ -154,3 +174,90 @@ TEST(DslRuntimeTest, SlaAnnotationAcceptedButIgnored) {
 }
 
 }  // namespace
+
+TEST(LineageTest, JoinMergesBranches) {
+  auto la = tianshu::core::Lineage::rooted("a", 1);
+  la.add_hop({.channel = "x", .seq = 1});
+  auto lb = tianshu::core::Lineage::rooted("b", 5);
+
+  auto merged = la;
+  merged.merge(lb);
+  merged.add_hop({.channel = "j", .seq = 0});
+
+  EXPECT_EQ(merged.branches().size(), 2U);
+  EXPECT_EQ(merged.describe(), "a#1 -> x#1 -> j#0 | b#5 -> j#0");
+}
+
+TEST(DslRuntimeTest, TwoSinksOnOneChannelBothSeeEverything) {
+  std::vector<std::string> sink_a;
+  std::vector<std::string> sink_b;
+  const auto flow = tianshu::dsl::FlowBuilder("dual")
+                        .source<TickMsg>("ticks", std::chrono::milliseconds(5),
+                                         [](std::uint64_t t) { return TickMsg{.tick = t}; })
+                        .sink([&](const TickMsg&, const tianshu::core::Lineage& lin) {
+                          sink_a.push_back(lin.describe());
+                        })
+                        .sink([&](const TickMsg&, const tianshu::core::Lineage& lin) {
+                          sink_b.push_back(lin.describe());
+                        })
+                        .build();
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(120));
+
+  // Per-consumer mailboxes: both sinks see EVERY message with its full
+  // lineage (the v0 side FIFO would have interleaved steals here).
+  ASSERT_FALSE(sink_a.empty());
+  ASSERT_EQ(sink_a.size(), sink_b.size());
+  for (std::size_t i = 0; i < sink_a.size(); ++i) {
+    EXPECT_EQ(sink_a[i], sink_b[i]);
+    EXPECT_FALSE(sink_a[i].empty());
+  }
+}
+
+TEST(DslRuntimeTest, JoinFusesAllLatestWithMergedLineage) {
+  struct Sample {
+    std::uint64_t fast_root;
+    std::uint64_t slow_root;
+    std::string lineage;
+  };
+  std::vector<Sample> samples;
+
+  tianshu::dsl::FlowBuilder builder("fused");
+  auto fast = builder.source<FastMsg>("fast", std::chrono::milliseconds(5),
+                                      [](std::uint64_t t) { return FastMsg{.t = t}; });
+  auto slow = builder.source<SlowMsg>("slow", std::chrono::milliseconds(20),
+                                      [](std::uint64_t t) { return SlowMsg{.t = t}; });
+  auto joined = builder.join<FastMsg, SlowMsg, FusedMsg>(
+      fast, slow,
+      [](const FastMsg& f, const SlowMsg& s) { return FusedMsg{.fast_t = f.t, .slow_t = s.t}; });
+  joined.sink([&](const FusedMsg&, const tianshu::core::Lineage& lin) {
+    if (samples.size() < 32) {
+      samples.push_back({.fast_root = lin.branches()[0].root.seq,
+                         .slow_root = lin.branches()[1].root.seq,
+                         .lineage = lin.describe()});
+    }
+  });
+  const auto flow = builder.build();
+
+  EXPECT_NE(flow.describe().find("join["), std::string::npos);
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(300));
+
+  ASSERT_FALSE(samples.empty());
+  // Fused values pair a fast tick with a slow tick.
+  for (const auto& s : samples) {
+    EXPECT_TRUE(s.lineage.find(" | ") != std::string::npos);
+    EXPECT_LE(s.slow_root, s.fast_root);
+  }
+  // Different source rates: the fast branch runs ahead of the slow one.
+  bool diverged = false;
+  for (const auto& s : samples) {
+    if (s.fast_root > s.slow_root) {
+      diverged = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(diverged);
+}

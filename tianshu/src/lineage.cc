@@ -14,17 +14,31 @@
 
 #include "tianshu/core/lineage.h"
 
+#include <cstddef>
 #include <string>
 
 namespace tianshu::core {
+namespace {
+
+void append_hop(std::string* out, const LineageHop& hop) {
+  *out += hop.channel;
+  *out += '#';
+  *out += std::to_string(hop.seq);
+}
+
+}  // namespace
 
 std::string Lineage::describe() const {
-  std::string out = root_.channel + "#" + std::to_string(root_.seq);
-  for (const auto& hop : hops_) {
-    out += " -> ";
-    out += hop.channel;
-    out += "#";
-    out += std::to_string(hop.seq);
+  std::string out;
+  for (std::size_t b = 0; b < branches_.size(); ++b) {
+    if (b != 0) {
+      out += " | ";
+    }
+    append_hop(&out, branches_[b].root);
+    for (const LineageHop& hop : branches_[b].hops) {
+      out += " -> ";
+      append_hop(&out, hop);
+    }
   }
   return out;
 }

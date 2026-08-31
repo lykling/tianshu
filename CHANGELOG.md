@@ -50,6 +50,22 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### Lineage v0.5 branches + DSL join (ADR-0021/0022 amendments)
+
+- Lineage branch model: roots-per-branch DAG provenance; join merges
+  both parents' branch sets, subsequent hops close every branch
+  ("a#1 -> x#1 -> j#0 | b#5 -> j#0"); linear chains render byte-identical
+  to v0 (root()/hops() accessors preserved)
+- Per-consumer lineage mailboxes replace the single side FIFO: publish
+  fans a copy out to every stage registered on the channel — multiple
+  sinks/joins on one channel no longer steal from each other
+- FlowBuilder::join<A, B, C>(chainA, chainB, fn): AllLatest fusion over
+  two streams (DataVisitor<A, B>, L4-COMP-6 semantics); chains can be
+  held and composed (fan-out DAG declarations)
+- 3 new tests: branch merge format, two-sinks-on-one-channel (both see
+  every message with full lineage), join E2E with divergent source
+  rates (branch root seqs verifiably different)
+
 ### kAuto transport selection (L4-TRANS-21, ADR-0023)
 
 - AutoWriter dual-publishes (INTRA zero-copy fan-out + SHM broadcast,
@@ -143,7 +159,7 @@ Examples: shm_talker / shm_listener standalone cross-process demo binaries
 
 ### Verification
 
-- 233/233 CMake tests (Clang + GCC), 21/21 Bazel tests
+- 236/236 CMake tests (Clang + GCC), 21/21 Bazel tests
 - Line coverage 96.5%, function coverage 100% (lcov, filtered)
 - Zero-warning build on both compilers
 
