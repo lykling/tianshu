@@ -35,12 +35,13 @@
 | [0021](./0021-dsl-v0.md) | DSL v0：声明式图 API 与执行语义 | dsl | ✅ | fluent builder 记图 + 解释器同步级联；IR 字段即 FlowDecl |
 | [0022](./0022-lineage-v0.md) | Lineage v0：数据血缘级联模型 | runtime | ✅ | root+hops 值对象；DSL map 自动追加 hop；旁路 FIFO v0 |
 | [0023](./0023-kauto-transport-v0.md) | kAuto 自动选路 v0 | runtime | ✅ | 双发写端 + 读端注册表判定；顺序无关；无 discovery 依赖 |
+| [0024](./0024-dsl-box-primitive.md) | DSL box 原语：端口 + 生命周期节点 | dsl | ✅ | 读写一体盒（底盘/执行器）；on_init 自举反馈环；血缘 map/source 同构 |
 
 ## 域视图
 
 - **build**：0003 · 0004 · 0018
 - **infra**：0002 · 0005 · 0007 · 0009 · 0011 · 0012 · 0016 · 0017
 - **runtime**（transport/message/sched/lineage）：0008 · 0010 · 0013 · 0015 · 0019 · 0022 · 0023
-- **dsl/compiler**：0001 · 0021
+- **dsl/compiler**：0001 · 0021 · 0024
 - **gpu**：0006
 - **tooling**（ti 家族/console/monitor）：0014 · 0020
