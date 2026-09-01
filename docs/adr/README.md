@@ -36,13 +36,14 @@
 | [0022](./0022-lineage-v0.md) | Lineage v0：数据血缘级联模型 | runtime | ✅ | root+hops 值对象；DSL map 自动追加 hop；旁路 FIFO v0 |
 | [0023](./0023-kauto-transport-v0.md) | kAuto 自动选路 v0 | runtime | ✅ | 双发写端 + 读端注册表判定；顺序无关；无 discovery 依赖 |
 | [0024](./0024-dsl-op-primitive.md) | DSL op 原语：自定义算子（端口 + 生命周期） | dsl | ✅ | 读写一体算子（底盘/执行器）；on_init 自举反馈环；血缘 map/source 同构；单一 from 引用原语 |
-| [0025](./0025-from-component-reference.md) | from() 组件引用：DSL ↔ L4 合流 | dsl | ✅ | 三问三答（线程/生命周期/泵回）；输出通道注入；rooted 血缘边界；quiesce 静默 |
+| [0025](./0025-from-component-reference.md) | from() 组件引用：DSL ↔ L4 合流 | dsl | ✅ | 三问三答（线程/生命周期/泵回）；输出通道注入；血缘边界修正为同步/异步；quiesce 静默 |
+| [0026](./0026-slice-input-model.md) | 数据切片输入模型：触发器 + 有界历史查询 | dsl | ✅ | stage = trigger + fetch（map/join 为退化）；多父血缘 + 区间跳；在线/离线同 API |
 
 ## 域视图
 
 - **build**：0003 · 0004 · 0018
 - **infra**：0002 · 0005 · 0007 · 0009 · 0011 · 0012 · 0016 · 0017
 - **runtime**（transport/message/sched/lineage）：0008 · 0010 · 0013 · 0015 · 0019 · 0022 · 0023
-- **dsl/compiler**：0001 · 0021 · 0024 · 0025
+- **dsl/compiler**：0001 · 0021 · 0024 · 0025 · 0026
 - **gpu**：0006
 - **tooling**（ti 家族/console/monitor）：0014 · 0020
