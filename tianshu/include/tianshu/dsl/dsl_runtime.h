@@ -32,6 +32,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <deque>
 #include <functional>
 #include <memory>
@@ -258,6 +259,70 @@ class FlowRuntime {
   void attach_referenced_component(const std::string& registry_name, const std::string& in_channel,
                                    const std::string& out_channel);
 
+  // Span wiring (called by Flow::SpanDecl::wire, ADR-0026): visitor on
+  // the TRIGGER channel; on each trigger, materialize the data channel's
+  // history slice where time(msg) in [t0,t1] and publish with merged
+  // lineage (trigger branch + data RANGE branch).
+  template <typename TTrig, typename TData, typename TOut, typename TSpanFn, typename TTimeFn,
+            typename TImpl>
+  void attach_span(const std::string& trig_channel, const std::string& data_channel,
+                   const std::string& out_channel, TSpanFn span_fn, TTimeFn time_fn, TImpl impl) {
+    const auto mailbox = register_mailbox(trig_channel);
+    const auto op_impl = std::make_shared<TImpl>(std::move(impl));
+    const auto span = std::make_shared<TSpanFn>(std::move(span_fn));
+    const auto time_of = std::make_shared<TTimeFn>(std::move(time_fn));
+    const auto stage = std::make_shared<core::DataVisitor<TTrig>*>(nullptr);
+    auto visitor = std::make_unique<core::DataVisitor<TTrig>>(
+        trig_channel, kQueueDepth,
+        [this, stage, mailbox, op_impl, span, time_of, data_channel, out_channel] {
+          auto* visitor_ptr = *stage;
+          if (visitor_ptr == nullptr) {
+            return;
+          }
+          while (TTrig* trig = visitor_ptr->try_fetch_0()) {
+            const core::Lineage parent = mailbox->pop();
+            const auto range = (*span)(*trig);
+
+            Slice<TData> slice;
+            slice.seq_lo = 1;  // empty marker: lo > hi
+            const auto* hist = history(data_channel);
+            if (hist != nullptr) {
+              for (const auto& entry : hist->entries()) {
+                TData msg{};
+                if (entry.bytes.size() != sizeof(TData)) {
+                  continue;
+                }
+                std::memcpy(&msg, entry.bytes.data(), sizeof(msg));
+                const std::uint64_t t = (*time_of)(msg);
+                if (t < range.first || t > range.second) {
+                  continue;
+                }
+                if (slice.items.empty()) {
+                  slice.seq_lo = entry.seq;
+                }
+                slice.seq_hi = entry.seq;
+                slice.items.push_back(msg);
+              }
+              const auto& entries = hist->entries();
+              if (!entries.empty() && entries.front().seq > 0) {
+                TData front_msg{};
+                std::memcpy(&front_msg, entries.front().bytes.data(), sizeof(front_msg));
+                slice.truncated = (*time_of)(front_msg) > range.first;
+              }
+            }
+
+            TOut out = (*op_impl)(*trig, slice);
+            core::Lineage lin = parent;
+            if (!slice.empty()) {
+              lin.merge(core::Lineage::rooted_range(data_channel, slice.seq_lo, slice.seq_hi));
+            }
+            publish_derived(lin, out_channel, &out, sizeof(TOut));
+          }
+        });
+    *stage = visitor.get();
+    stages_.push_back(std::make_unique<detail::VisitorStage<TTrig>>(std::move(visitor)));
+  }
+
   // Stateful wiring (called by Flow::StatefulDecl::wire, ADR-0027):
   // one input visitor, TWO publish handles (output + state); both share
   // the input lineage as parent, so a state version's provenance points
@@ -402,6 +467,20 @@ std::function<void(FlowRuntime&)> make_op_wire(std::string in_channel, std::stri
   return [in_channel = std::move(in_channel), out_channel = std::move(out_channel),
           impl](FlowRuntime& rt) {
     rt.template attach_op<TIn, TOut, TOp>(in_channel, out_channel, impl);
+  };
+}
+
+template <typename TTrig, typename TData, typename TOut, typename TSpanFn, typename TTimeFn,
+          typename TImpl>
+std::function<void(FlowRuntime&)> make_span_wire(std::string trig_channel, std::string data_channel,
+                                                 std::string out_channel, TSpanFn span_fn,
+                                                 TTimeFn time_fn, TImpl impl) {
+  return [trig_channel = std::move(trig_channel), data_channel = std::move(data_channel),
+          out_channel = std::move(out_channel), span_fn = std::move(span_fn),
+          time_fn = std::move(time_fn), impl = std::move(impl)](FlowRuntime& rt) mutable {
+    rt.template attach_span<TTrig, TData, TOut, TSpanFn, TTimeFn, TImpl>(
+        trig_channel, data_channel, out_channel, std::move(span_fn), std::move(time_fn),
+        std::move(impl));
   };
 }
 

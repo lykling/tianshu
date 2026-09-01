@@ -55,3 +55,9 @@ cc_binary(
     srcs = ["state_recovery_demo.cc"],
     deps = ["//tianshu:tianshu"],
 )
+
+cc_binary(
+    name = "lidar_imu_demo",
+    srcs = ["lidar_imu_demo.cc"],
+    deps = ["//tianshu:tianshu"],
+)

@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -47,6 +48,27 @@ struct OutMsg {
   double val;
 };
 
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // traits must precede template use
+struct LidarMsg {
+  std::uint64_t t;
+  std::uint32_t points;
+};
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // same ordering constraint
+struct ImuMsg {
+  std::uint64_t t;
+  double w;
+};
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // same ordering constraint
+struct CompMsg {
+  std::uint64_t n_imu;
+  std::uint64_t points;
+};
+
+TIANSHU_TRAITS_POD(LidarMsg, "ss.LidarMsg");
+TIANSHU_TRAITS_POD(ImuMsg, "ss.ImuMsg");
+TIANSHU_TRAITS_POD(CompMsg, "ss.CompMsg");
 TIANSHU_TRAITS_POD(EvMsg, "ss.EvMsg");
 TIANSHU_TRAITS_POD(AccMsg, "ss.AccMsg");
 TIANSHU_TRAITS_POD(OutMsg, "ss.OutMsg");
@@ -248,6 +270,90 @@ TEST(StatefulRecoveryTest, RecoverFromStatePlusSuffixReplayMatchesFullRun) {
   EXPECT_DOUBLE_EQ(rec_final.sum, full_final.sum);
   // And the first recovered version's lineage points at its input.
   EXPECT_EQ(rec_acc->entries().front().lineage.describe(), "rec/ev#60 -> rec/acc#0");
+}
+
+TEST(SpanJoinTest, MaterializesTriggerAlignedSliceWithRangeLineage) {
+  tianshu::dsl::FlowBuilder builder("sp");
+  auto lidar = builder.tap<LidarMsg>("lidar");
+  auto imu = builder.tap<ImuMsg>("imu");
+  auto comp = builder.span_join<CompMsg>(
+      lidar, imu,
+      [](const LidarMsg& trig) {
+        return std::pair<std::uint64_t, std::uint64_t>((trig.t * 20) - 18, trig.t * 20);
+      },
+      [](const ImuMsg& m) { return m.t; },
+      [](const LidarMsg& trig, const tianshu::dsl::Slice<ImuMsg>& slice) {
+        return CompMsg{.n_imu = slice.items.size(), .points = trig.points};
+      });
+  std::vector<std::string> lineage_samples;
+  std::vector<CompMsg> comps;
+  comp.sink([&](const CompMsg& c, const tianshu::core::Lineage& lin) {
+    comps.push_back(c);
+    if (lineage_samples.size() < 8) {
+      lineage_samples.push_back(lin.describe());
+    }
+  });
+  const auto flow = builder.build();
+  EXPECT_NE(flow.describe().find("span[sp/lidar x sp/imu -> sp/~"), std::string::npos);
+
+  tianshu::dsl::FlowRuntime rt;
+  for (const auto& decl : flow.spans()) {
+    decl.wire(rt);
+  }
+  for (const auto& decl : flow.sinks()) {
+    decl.wire(rt);
+  }
+
+  for (std::uint64_t i = 0; i < 41; ++i) {  // t=0..40: both spans [2,20] and [22,40] fully covered
+    const ImuMsg m{.t = i, .w = 0.1 * static_cast<double>(i)};
+    rt.publish_bytes("sp/imu", &m, sizeof(m), tianshu::core::Lineage::rooted("sp/imu", i));
+  }
+  const LidarMsg l1{.t = 1, .points = 1200};
+  rt.publish_bytes("sp/lidar", &l1, sizeof(l1), tianshu::core::Lineage::rooted("sp/lidar", 0));
+  const LidarMsg l2{.t = 2, .points = 1150};
+  rt.publish_bytes("sp/lidar", &l2, sizeof(l2), tianshu::core::Lineage::rooted("sp/lidar", 1));
+
+  ASSERT_EQ(comps.size(), 2U);
+  EXPECT_EQ(comps[0].n_imu, 19U);
+  EXPECT_EQ(comps[1].n_imu, 19U);
+  EXPECT_EQ(lineage_samples[0], "sp/lidar#0 -> sp/~0#0 | sp/imu#2..#20 -> sp/~0#0");
+  EXPECT_EQ(lineage_samples[1], "sp/lidar#1 -> sp/~0#1 | sp/imu#22..#40 -> sp/~0#1");
+}
+
+TEST(SpanJoinTest, EmptySliceOmitsRangeBranch) {
+  tianshu::dsl::FlowBuilder builder("se");
+  auto lidar = builder.tap<LidarMsg>("lidar");
+  auto imu = builder.tap<ImuMsg>("imu");
+  auto comp = builder.span_join<CompMsg>(
+      lidar, imu,
+      [](const LidarMsg& trig) {
+        return std::pair<std::uint64_t, std::uint64_t>(trig.t + 100, trig.t + 200);
+      },
+      [](const ImuMsg& m) { return m.t; },
+      [](const LidarMsg&, const tianshu::dsl::Slice<ImuMsg>& slice) {
+        return CompMsg{.n_imu = slice.items.size(), .points = 0};
+      });
+  std::vector<std::string> lineage_samples;
+  comp.sink([&](const CompMsg&, const tianshu::core::Lineage& lin) {
+    if (lineage_samples.size() < 4) {
+      lineage_samples.push_back(lin.describe());
+    }
+  });
+  const auto flow = builder.build();
+  tianshu::dsl::FlowRuntime rt;
+  for (const auto& decl : flow.spans()) {
+    decl.wire(rt);
+  }
+  for (const auto& decl : flow.sinks()) {
+    decl.wire(rt);
+  }
+  const ImuMsg m{.t = 1, .w = 0.0};
+  rt.publish_bytes("se/imu", &m, sizeof(m), tianshu::core::Lineage::rooted("se/imu", 0));
+  const LidarMsg l{.t = 0, .points = 10};
+  rt.publish_bytes("se/lidar", &l, sizeof(l), tianshu::core::Lineage::rooted("se/lidar", 0));
+
+  ASSERT_EQ(lineage_samples.size(), 1U);
+  EXPECT_EQ(lineage_samples[0], "se/lidar#0 -> se/~0#0");
 }
 
 }  // namespace

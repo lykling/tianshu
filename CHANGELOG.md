@@ -50,6 +50,21 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### Slice inputs: trigger-aligned spans with range lineage (ADR-0026, M2)
+
+- builder.span_join<Out>(trig, data, span_fn, time_fn, impl): on each
+  trigger, materializes the data channel's bounded-history slice where
+  time(msg) in [t0,t1] — Slice<T> is a framework-materialized member
+  view (items + seq_lo/seq_hi + truncated flag), so the parent set is
+  exactly known
+- Output lineage merges the trigger branch with a RANGE branch:
+  'lidar#0 -> comp#0 | imu#1..#19 -> comp#0' — 19 parents, one branch;
+  empty slices omit the range branch
+- lidar_imu_demo: 10Hz lidar x 200Hz IMU motion compensation, the
+  canonical AllLatest-impossible shape — every frame gets exactly the
+  19 IMU samples inside its sweep, lineage advances frame by frame
+  (#1..#19, #21..#39, ...)
+
 ### from(): referencing registered components in flows (ADR-0025)
 
 - builder.from<TOut>(name, channel, interval) references a registered
@@ -237,7 +252,7 @@ Examples: shm_talker / shm_listener standalone cross-process demo binaries
 
 ### Verification
 
-- 243/243 CMake tests (Clang + GCC), 21/21 Bazel tests
+- 252/252 CMake tests (Clang + GCC), 22/22 Bazel tests
 - Line coverage 96.5%, function coverage 100% (lcov, filtered)
 - Zero-warning build on both compilers
 

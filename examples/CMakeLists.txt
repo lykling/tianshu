@@ -21,3 +21,6 @@ target_link_libraries(full_chain_demo PRIVATE tianshu)
 
 add_executable(state_recovery_demo state_recovery_demo.cc)
 target_link_libraries(state_recovery_demo PRIVATE tianshu)
+
+add_executable(lidar_imu_demo lidar_imu_demo.cc)
+target_link_libraries(lidar_imu_demo PRIVATE tianshu)

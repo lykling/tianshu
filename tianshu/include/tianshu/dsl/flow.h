@@ -62,6 +62,12 @@ std::function<void(FlowRuntime&)> make_stateful_wire(std::string in_channel,
                                                      std::string out_channel,
                                                      std::string state_channel, TImpl impl);
 
+template <typename TTrig, typename TData, typename TOut, typename TSpanFn, typename TTimeFn,
+          typename TImpl>
+std::function<void(FlowRuntime&)> make_span_wire(std::string trig_channel, std::string data_channel,
+                                                 std::string out_channel, TSpanFn span_fn,
+                                                 TTimeFn time_fn, TImpl impl);
+
 template <typename TOut>
 bool probe_source_shape(std::string_view registry_name);
 
@@ -82,6 +88,20 @@ template <typename T>
 std::function<void(FlowRuntime&)> make_sink_wire(
     std::string channel, std::function<void(const T&, const core::Lineage&)> fn);
 }  // namespace detail
+
+// Materialized slice of a channel's bounded history (ADR-0026): the
+// framework copies matching messages (POD memcpy) at trigger time, so
+// the member set is exactly known — that is what makes slice lineage
+// precise.
+template <typename T>
+struct Slice {
+  std::vector<T> items;
+  std::uint64_t seq_lo{0};
+  std::uint64_t seq_hi{0};  // inclusive; lo > hi when empty
+  bool truncated{false};    // history ring may have dropped span head
+
+  [[nodiscard]] bool empty() const { return seq_lo > seq_hi; }
+};
 
 // Typed handle to a graph edge; the template parameter makes wiring
 // mistakes a compile error.
@@ -140,6 +160,13 @@ class Flow {
     std::string out_type_name;
     std::function<void(FlowRuntime& rt)> wire;
   };
+  struct SpanDecl {
+    std::string trig_channel;
+    std::string data_channel;
+    std::string out_channel;
+    std::string out_type_name;
+    std::function<void(FlowRuntime& rt)> wire;
+  };
   struct StatefulDecl {
     std::string in_channel;
     std::string out_channel;
@@ -168,6 +195,7 @@ class Flow {
   [[nodiscard]] const std::vector<JoinDecl>& joins() const { return joins_; }
   [[nodiscard]] const std::vector<OpDecl>& ops() const { return ops_; }
   [[nodiscard]] const std::vector<StatefulDecl>& statefuls() const { return statefuls_; }
+  [[nodiscard]] const std::vector<SpanDecl>& spans() const { return spans_; }
   [[nodiscard]] const std::vector<FromDecl>& froms() const { return froms_; }
   [[nodiscard]] const std::vector<SinkDecl>& sinks() const { return sinks_; }
 
@@ -188,6 +216,9 @@ class Flow {
     }
     for (const auto& s : statefuls_) {
       out += " stateful[" + s.in_channel + " -> " + s.out_channel + " + " + s.state_channel + "]";
+    }
+    for (const auto& s : spans_) {
+      out += " span[" + s.trig_channel + " x " + s.data_channel + " -> " + s.out_channel + "]";
     }
     for (const auto& f : froms_) {
       out += f.in_channel.empty() ? " from[" + f.registry_name + " -> " + f.out_channel + "]"
@@ -210,6 +241,7 @@ class Flow {
   std::vector<JoinDecl> joins_;
   std::vector<OpDecl> ops_;
   std::vector<StatefulDecl> statefuls_;
+  std::vector<SpanDecl> spans_;
   std::vector<FromDecl> froms_;
   std::vector<SinkDecl> sinks_;
 };
@@ -269,6 +301,24 @@ class FlowBuilder {
                             detail::make_stateful_wire<TIn, TOut, TState, TImpl>(
                                 in.stream_.channel(), out, st, std::move(impl))};
     statefuls_.push_back(std::move(decl));
+    return FlowChain<TOut>(this, Stream<TOut>(out, std::string(core::MessageTraits<TOut>::name())));
+  }
+
+  // Trigger-aligned slice fusion (ADR-0026): on each trigger message,
+  // materialize the data channel's history slice where time(msg) is in
+  // [t0, t1] = span_fn(trigger) — the output lineage merges the trigger
+  // branch with a RANGE branch over the slice members.
+  template <typename TOut, typename TTrig, typename TData, typename TSpanFn, typename TTimeFn,
+            typename TImpl>
+  FlowChain<TOut> span_join(const FlowChain<TTrig>& trig, const FlowChain<TData>& data,
+                            TSpanFn span_fn, TTimeFn time_fn, TImpl impl) {
+    const std::string out = anon_channel();
+    Flow::SpanDecl decl{trig.stream_.channel(), data.stream_.channel(), out,
+                        std::string(core::MessageTraits<TOut>::name()),
+                        detail::make_span_wire<TTrig, TData, TOut, TSpanFn, TTimeFn, TImpl>(
+                            trig.stream_.channel(), data.stream_.channel(), out, std::move(span_fn),
+                            std::move(time_fn), std::move(impl))};
+    spans_.push_back(std::move(decl));
     return FlowChain<TOut>(this, Stream<TOut>(out, std::string(core::MessageTraits<TOut>::name())));
   }
 
@@ -358,6 +408,7 @@ class FlowBuilder {
   std::vector<Flow::JoinDecl> joins_;
   std::vector<Flow::OpDecl> ops_;
   std::vector<Flow::StatefulDecl> statefuls_;
+  std::vector<Flow::SpanDecl> spans_;
   std::vector<Flow::FromDecl> froms_;
   std::vector<Flow::SinkDecl> sinks_;
   std::uint64_t anon_{0};
@@ -428,6 +479,7 @@ inline Flow FlowBuilder::build() {
   flow.joins_ = std::move(joins_);
   flow.ops_ = std::move(ops_);
   flow.statefuls_ = std::move(statefuls_);
+  flow.spans_ = std::move(spans_);
   flow.froms_ = std::move(froms_);
   flow.sinks_ = std::move(sinks_);
   return flow;

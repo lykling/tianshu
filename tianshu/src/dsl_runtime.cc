@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -155,6 +156,26 @@ std::uint64_t FlowRuntime::next_seq(const std::string& channel) {
   return seq_counters_[channel]++;
 }
 
+namespace {
+
+void drive_source(const Flow::SourceDecl& source, std::chrono::milliseconds duration,
+                  std::chrono::steady_clock::time_point start, FlowRuntime* rt) {
+  const auto interval = source.interval;
+  std::uint64_t tick = 0;
+  auto next = start + interval;
+  while (std::chrono::steady_clock::now() - start < duration) {
+    std::this_thread::sleep_until(next);
+    if (std::chrono::steady_clock::now() - start >= duration) {
+      return;
+    }
+    source.drive(*rt, tick);
+    ++tick;
+    next += interval;
+  }
+}
+
+}  // namespace
+
 void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) {
   for (const auto& map_decl : flow.maps()) {
     map_decl.wire(*this);
@@ -167,6 +188,9 @@ void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) 
   }
   for (const auto& st_decl : flow.statefuls()) {
     st_decl.wire(*this);
+  }
+  for (const auto& span_decl : flow.spans()) {
+    span_decl.wire(*this);
   }
   for (const auto& from_decl : flow.froms()) {
     from_decl.wire(*this);
@@ -184,20 +208,7 @@ void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) 
   std::vector<std::thread> source_threads;
   source_threads.reserve(flow.sources().size());
   for (const auto& source : flow.sources()) {
-    source_threads.emplace_back([&source, duration, start, this] {
-      const auto interval = source.interval;
-      std::uint64_t tick = 0;
-      auto next = start + interval;
-      while (std::chrono::steady_clock::now() - start < duration) {
-        std::this_thread::sleep_until(next);
-        if (std::chrono::steady_clock::now() - start >= duration) {
-          return;
-        }
-        source.drive(*this, tick);
-        ++tick;
-        next += interval;
-      }
-    });
+    source_threads.emplace_back(drive_source, std::cref(source), duration, start, this);
   }
   for (auto& thread : source_threads) {
     thread.join();
