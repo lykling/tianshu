@@ -49,3 +49,9 @@ cc_binary(
     ],
     deps = ["//tianshu:tianshu"],
 )
+
+cc_binary(
+    name = "state_recovery_demo",
+    srcs = ["state_recovery_demo.cc"],
+    deps = ["//tianshu:tianshu"],
+)

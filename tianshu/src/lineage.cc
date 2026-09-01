@@ -24,6 +24,10 @@ void append_hop(std::string* out, const LineageHop& hop) {
   *out += hop.channel;
   *out += '#';
   *out += std::to_string(hop.seq);
+  if (hop.is_range()) {
+    *out += "..#";
+    *out += std::to_string(hop.seq_end);
+  }
 }
 
 }  // namespace

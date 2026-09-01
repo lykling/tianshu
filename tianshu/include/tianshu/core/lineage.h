@@ -39,6 +39,13 @@ namespace tianshu::core {
 struct LineageHop {
   std::string channel;
   std::uint64_t seq{0};
+  // Range extent (inclusive): seq_end == seq for a single message;
+  // seq_end > seq encodes a SLICE of consecutive messages on the channel
+  // (ADR-0026 range hop). The full member table stays queryable from the
+  // runtime's channel history by (channel, [seq, seq_end]).
+  std::uint64_t seq_end{0};
+
+  [[nodiscard]] bool is_range() const { return seq_end > seq; }
 };
 
 class Lineage {
@@ -52,8 +59,18 @@ class Lineage {
 
   static Lineage rooted(std::string channel, std::uint64_t seq) {
     Lineage lin;
+    lin.branches_.push_back(Branch{
+        .root = LineageHop{.channel = std::move(channel), .seq = seq, .seq_end = seq}, .hops = {}});
+    return lin;
+  }
+
+  // Branch rooted at a RANGE of consecutive messages on one channel
+  // (slice provenance, ADR-0026): renders "imu#102..#121".
+  static Lineage rooted_range(std::string channel, std::uint64_t seq_lo, std::uint64_t seq_hi) {
+    Lineage lin;
     lin.branches_.push_back(
-        Branch{.root = LineageHop{.channel = std::move(channel), .seq = seq}, .hops = {}});
+        Branch{.root = LineageHop{.channel = std::move(channel), .seq = seq_lo, .seq_end = seq_hi},
+               .hops = {}});
     return lin;
   }
 
@@ -63,6 +80,17 @@ class Lineage {
     for (Branch& b : branches_) {
       b.hops.push_back(hop);
     }
+  }
+
+  void add_hop(LineageHop&& hop) {
+    for (Branch& b : branches_) {
+      b.hops.push_back(hop);
+    }
+  }
+
+  // Range hop convenience: a slice of [seq_lo, seq_hi] on `channel`.
+  void add_range_hop(std::string channel, std::uint64_t seq_lo, std::uint64_t seq_hi) {
+    add_hop(LineageHop{.channel = std::move(channel), .seq = seq_lo, .seq_end = seq_hi});
   }
 
   // Root-deduplicated union (join provenance; loop-safe): a branch whose

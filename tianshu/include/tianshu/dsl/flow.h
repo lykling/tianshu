@@ -57,6 +57,11 @@ template <typename TIn, typename TOut, typename TOp>
 std::function<void(FlowRuntime&)> make_op_wire(std::string in_channel, std::string out_channel,
                                                TOp impl);
 
+template <typename TIn, typename TOut, typename TState, typename TImpl>
+std::function<void(FlowRuntime&)> make_stateful_wire(std::string in_channel,
+                                                     std::string out_channel,
+                                                     std::string state_channel, TImpl impl);
+
 template <typename TOut>
 bool probe_source_shape(std::string_view registry_name);
 
@@ -135,6 +140,14 @@ class Flow {
     std::string out_type_name;
     std::function<void(FlowRuntime& rt)> wire;
   };
+  struct StatefulDecl {
+    std::string in_channel;
+    std::string out_channel;
+    std::string state_channel;
+    std::string out_type_name;
+    std::string state_type_name;
+    std::function<void(FlowRuntime& rt)> wire;
+  };
   struct FromDecl {
     std::string registry_name;
     std::string in_channel;  // empty = source-like (timer-driven)
@@ -154,6 +167,7 @@ class Flow {
   [[nodiscard]] const std::vector<MapDecl>& maps() const { return maps_; }
   [[nodiscard]] const std::vector<JoinDecl>& joins() const { return joins_; }
   [[nodiscard]] const std::vector<OpDecl>& ops() const { return ops_; }
+  [[nodiscard]] const std::vector<StatefulDecl>& statefuls() const { return statefuls_; }
   [[nodiscard]] const std::vector<FromDecl>& froms() const { return froms_; }
   [[nodiscard]] const std::vector<SinkDecl>& sinks() const { return sinks_; }
 
@@ -171,6 +185,9 @@ class Flow {
     }
     for (const auto& b : ops_) {
       out += " op[" + b.in_channel + " -> " + b.out_channel + "]";
+    }
+    for (const auto& s : statefuls_) {
+      out += " stateful[" + s.in_channel + " -> " + s.out_channel + " + " + s.state_channel + "]";
     }
     for (const auto& f : froms_) {
       out += f.in_channel.empty() ? " from[" + f.registry_name + " -> " + f.out_channel + "]"
@@ -192,6 +209,7 @@ class Flow {
   std::vector<MapDecl> maps_;
   std::vector<JoinDecl> joins_;
   std::vector<OpDecl> ops_;
+  std::vector<StatefulDecl> statefuls_;
   std::vector<FromDecl> froms_;
   std::vector<SinkDecl> sinks_;
 };
@@ -233,6 +251,26 @@ class FlowBuilder {
   // transforms inputs and publishes derived outputs.
   template <typename TIn, typename TOut, typename TOp>
   FlowChain<TOut> op(const FlowChain<TIn>& in, std::string_view out_name, TOp impl);
+
+  // Stateful operator (ADR-0027): like op, plus a SECOND publish handle
+  // bound to a state channel — every state publication is a versioned,
+  // lineage-carrying message (state lineage = input lineage + hop, so
+  // the state's provenance records exactly which input it absorbed).
+  template <typename TOut, typename TState, typename TIn, typename TImpl>
+  FlowChain<TOut> stateful(const FlowChain<TIn>& in, std::string_view out_name,
+                           std::string_view state_name, TImpl impl) {
+    const std::string out = channel_for(out_name);
+    const std::string st = channel_for(state_name);
+    Flow::StatefulDecl decl{in.stream_.channel(),
+                            out,
+                            st,
+                            std::string(core::MessageTraits<TOut>::name()),
+                            std::string(core::MessageTraits<TState>::name()),
+                            detail::make_stateful_wire<TIn, TOut, TState, TImpl>(
+                                in.stream_.channel(), out, st, std::move(impl))};
+    statefuls_.push_back(std::move(decl));
+    return FlowChain<TOut>(this, Stream<TOut>(out, std::string(core::MessageTraits<TOut>::name())));
+  }
 
   // Handle-only declaration bound to a named channel (no producer
   // declared): breaks cycles in feedback graphs — join can reference the
@@ -319,6 +357,7 @@ class FlowBuilder {
   std::vector<Flow::MapDecl> maps_;
   std::vector<Flow::JoinDecl> joins_;
   std::vector<Flow::OpDecl> ops_;
+  std::vector<Flow::StatefulDecl> statefuls_;
   std::vector<Flow::FromDecl> froms_;
   std::vector<Flow::SinkDecl> sinks_;
   std::uint64_t anon_{0};
@@ -388,6 +427,7 @@ inline Flow FlowBuilder::build() {
   flow.maps_ = std::move(maps_);
   flow.joins_ = std::move(joins_);
   flow.ops_ = std::move(ops_);
+  flow.statefuls_ = std::move(statefuls_);
   flow.froms_ = std::move(froms_);
   flow.sinks_ = std::move(sinks_);
   return flow;

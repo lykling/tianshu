@@ -85,6 +85,37 @@ class VisitorStage : public StageHolder {
   std::unique_ptr<core::DataVisitor<Ts...>> visitor;
 };
 
+// One retained entry of a channel's bounded history (ADR-0026/0027):
+// the bytes, the channel-local seq, and the message's lineage.
+struct HistoryEntry {
+  std::uint64_t seq{0};
+  std::vector<std::uint8_t> bytes;
+  core::Lineage lineage;
+};
+
+// Bounded per-channel history ring: slice queries and state recovery
+// read from here; publish_bytes captures every message.
+class HistoryRing {
+ public:
+  explicit HistoryRing(std::size_t depth) : depth_(depth) {}
+
+  void push(std::uint64_t seq, const void* data, std::size_t size, const core::Lineage& lin) {
+    const auto* b = static_cast<const std::uint8_t*>(data);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    std::vector<std::uint8_t> bytes(b, b + size);
+    entries_.push_back(HistoryEntry{.seq = seq, .bytes = std::move(bytes), .lineage = lin});
+    if (entries_.size() > depth_) {
+      entries_.pop_front();
+    }
+  }
+
+  [[nodiscard]] const std::deque<HistoryEntry>& entries() const { return entries_; }
+
+ private:
+  std::size_t depth_;
+  std::deque<HistoryEntry> entries_;
+};
+
 // Bounded lineage mailbox: one per (stage, input channel). The publisher
 // pushes a copy to every mailbox registered on the channel; the owning
 // stage pops in its own consumption order.
@@ -112,7 +143,7 @@ class LineageMailbox {
 
  private:
   std::size_t depth_;
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::deque<core::Lineage> queue_;
 };
 
@@ -129,10 +160,16 @@ class FlowRuntime {
   template <typename U>
   friend class OpPub;
 
-  // Copies `lineage` to every consumer mailbox on `channel`, then
-  // cascades the payload through the DataDispatcher (synchronous chain).
+  // Copies `lineage` to every consumer mailbox on `channel`, captures
+  // the message into the channel's bounded history, then cascades the
+  // payload through the DataDispatcher (synchronous chain).
   void publish_bytes(const std::string& channel, const void* data, std::size_t size,
                      const core::Lineage& lineage);
+
+  // Bounded history of a published channel (nullptr when never
+  // published): (seq, bytes, lineage) entries, oldest first. Recovery
+  // and slice queries read from here (ADR-0026/0027).
+  [[nodiscard]] const detail::HistoryRing* history(const std::string& channel) const;
 
   // Map stage wiring (called by Flow::MapDecl::wire).
   template <typename TIn, typename TOut>
@@ -221,6 +258,40 @@ class FlowRuntime {
   void attach_referenced_component(const std::string& registry_name, const std::string& in_channel,
                                    const std::string& out_channel);
 
+  // Stateful wiring (called by Flow::StatefulDecl::wire, ADR-0027):
+  // one input visitor, TWO publish handles (output + state); both share
+  // the input lineage as parent, so a state version's provenance points
+  // at exactly the input that produced it — the recovery protocol reads
+  // that to find the absorption point.
+  template <typename TIn, typename TOut, typename TState, typename TImpl>
+  void attach_stateful(const std::string& in_channel, const std::string& out_channel,
+                       const std::string& state_channel, TImpl impl) {
+    const std::shared_ptr<OpPub<TOut>> out_pub(new OpPub<TOut>(this, out_channel));
+    const std::shared_ptr<OpPub<TState>> state_pub(new OpPub<TState>(this, state_channel));
+    const auto mailbox = register_mailbox(in_channel);
+    const auto op_impl = std::make_shared<TImpl>(std::move(impl));
+    const auto stage = std::make_shared<core::DataVisitor<TIn>*>(nullptr);
+    auto visitor = std::make_unique<core::DataVisitor<TIn>>(
+        in_channel, kQueueDepth, [stage, op_impl, out_pub, state_pub, mailbox] {
+          auto* visitor_ptr = *stage;
+          if (visitor_ptr == nullptr) {
+            return;
+          }
+          while (TIn* msg = visitor_ptr->try_fetch_0()) {
+            const core::Lineage parent = mailbox->pop();
+            out_pub->parent_ = parent;
+            state_pub->parent_ = parent;
+            op_impl->handle(*msg, *out_pub, *state_pub);
+            out_pub->parent_ = {};
+            state_pub->parent_ = {};
+          }
+        });
+    *stage = visitor.get();
+    stages_.push_back(std::make_unique<detail::VisitorStage<TIn>>(std::move(visitor)));
+    init_hooks_.emplace_back(
+        [op_impl, out_pub, state_pub] { op_impl->on_init(*out_pub, *state_pub); });
+  }
+
   // Sink wiring (called by Flow::SinkDecl::wire).
   template <typename T>
   void attach_sink(const std::string& channel,
@@ -268,6 +339,7 @@ class FlowRuntime {
   [[nodiscard]] std::uint64_t next_seq(const std::string& channel);
 
   static constexpr std::size_t kQueueDepth = 16;
+  static constexpr std::size_t kHistoryDepth = 64;
 
   std::vector<std::unique_ptr<detail::StageHolder>> stages_;
   std::vector<std::shared_ptr<detail::LineageMailbox>> mailboxes_;
@@ -279,9 +351,10 @@ class FlowRuntime {
   std::vector<std::unique_ptr<transport::ReaderBase>> bridge_readers_;
   std::vector<std::shared_ptr<core::ComponentBase>> components_;
 
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::unordered_map<std::string, std::vector<detail::LineageMailbox*>> channel_queues_;
   std::unordered_map<std::string, std::uint64_t> seq_counters_;
+  std::unordered_map<std::string, detail::HistoryRing> histories_;
 };
 
 // Defined after FlowRuntime completes: publish reaches into the runtime
@@ -330,6 +403,18 @@ std::function<void(FlowRuntime&)> make_op_wire(std::string in_channel, std::stri
           impl](FlowRuntime& rt) {
     rt.template attach_op<TIn, TOut, TOp>(in_channel, out_channel, impl);
   };
+}
+
+template <typename TIn, typename TOut, typename TState, typename TImpl>
+std::function<void(FlowRuntime&)> make_stateful_wire(std::string in_channel,
+                                                     std::string out_channel,
+                                                     std::string state_channel, TImpl impl) {
+  return
+      [in_channel = std::move(in_channel), out_channel = std::move(out_channel),
+       state_channel = std::move(state_channel), impl = std::move(impl)](FlowRuntime& rt) mutable {
+        rt.template attach_stateful<TIn, TOut, TState, TImpl>(in_channel, out_channel,
+                                                              state_channel, std::move(impl));
+      };
 }
 
 template <typename TOut>

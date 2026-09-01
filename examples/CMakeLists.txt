@@ -18,3 +18,6 @@ target_link_libraries(dsl_demo PRIVATE tianshu)
 
 add_executable(full_chain_demo full_chain_demo.cc avp_devices.cc)
 target_link_libraries(full_chain_demo PRIVATE tianshu)
+
+add_executable(state_recovery_demo state_recovery_demo.cc)
+target_link_libraries(state_recovery_demo PRIVATE tianshu)

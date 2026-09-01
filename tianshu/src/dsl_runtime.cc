@@ -34,6 +34,21 @@
 
 namespace tianshu::dsl {
 
+namespace {
+
+// The message's own channel-local seq: publish paths always close every
+// branch with a hop on the publishing channel (rooted for sources), so
+// the last hop of the first branch — or the root when hopless — is it.
+std::uint64_t own_seq_of(const core::Lineage& lin) {
+  if (lin.branches().empty()) {
+    return 0;
+  }
+  const auto& branch = lin.branches().front();
+  return branch.hops.empty() ? branch.root.seq : branch.hops.back().seq;
+}
+
+}  // namespace
+
 void FlowRuntime::publish_bytes(const std::string& channel, const void* data, std::size_t size,
                                 const core::Lineage& lineage) {
   {
@@ -44,8 +59,16 @@ void FlowRuntime::publish_bytes(const std::string& channel, const void* data, st
         mailbox->push(lineage);
       }
     }
+    histories_.try_emplace(channel, kHistoryDepth);
+    histories_.at(channel).push(own_seq_of(lineage), data, size, lineage);
   }
   core::DataDispatcher::instance().dispatch(core::channel_id_for(channel), data, size);
+}
+
+const detail::HistoryRing* FlowRuntime::history(const std::string& channel) const {
+  const std::scoped_lock lock(mutex_);
+  const auto it = histories_.find(channel);
+  return it == histories_.end() ? nullptr : &it->second;
 }
 
 std::shared_ptr<detail::LineageMailbox> FlowRuntime::register_mailbox(const std::string& channel) {
@@ -141,6 +164,9 @@ void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) 
   }
   for (const auto& op_decl : flow.ops()) {
     op_decl.wire(*this);
+  }
+  for (const auto& st_decl : flow.statefuls()) {
+    st_decl.wire(*this);
   }
   for (const auto& from_decl : flow.froms()) {
     from_decl.wire(*this);

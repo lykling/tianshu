@@ -11,3 +11,13 @@ cc_test(
     ],
     size = "small",
 )
+
+cc_test(
+    name = "slice_state_test",
+    srcs = ["slice_state_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)
