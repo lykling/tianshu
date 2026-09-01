@@ -173,9 +173,24 @@ tianshu::dsl::Flow build_avp_flow(std::vector<ChassisLog>& chassis_log) {
             .t = pred.t, .target_speed = target, .current_speed = ch.speed, .curvature = curvature};
       });
 
-  auto control = plan.map<ControlCmd>([](const Plan& p) {
-    const double accel = 2.0 * (p.target_speed - p.current_speed);
-    return ControlCmd{.t = p.t, .accel = accel, .steer_cmd = p.curvature};
+  // Control ALSO closes on the chassis state: the join pairs each plan
+  // with the latest MEASURED speed/steer — feedback control on the
+  // actual state, not the plan's embedded copy (second consumer of the
+  // same chassis channel).
+  auto control = builder.join<Plan, ChassisState, ControlCmd>(
+      plan, chassis_port, [](const Plan& p, const ChassisState& ch) {
+        const double accel = 2.0 * (p.target_speed - ch.speed);
+        const double steer_cmd = p.curvature + (0.2 * (p.curvature - ch.steer));
+        return ControlCmd{.t = p.t, .accel = accel, .steer_cmd = steer_cmd};
+      });
+
+  control.sink([](const ControlCmd& c, const Lineage& lin) {
+    if (c.t % 5 == 0) {
+      char what[96];
+      static_cast<void>(std::snprintf(  // NOLINT(concurrency-mt-unsafe)
+          what, sizeof(what), "accel=%+.2f m/s2  steer_cmd=%+.3f", c.accel, c.steer_cmd));
+      print_sample('C', c.t, what, lin);
+    }
   });
 
   // The chassis as a REGISTERED component (ADR-0025): its init()
