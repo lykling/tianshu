@@ -20,6 +20,7 @@ add_library(tianshu SHARED
     src/field_table.cc
     src/schema_sidecar.cc
     src/lineage.cc
+    src/record.cc
     src/dsl_runtime.cc
     src/hybrid_transport.cc
     src/node.cc

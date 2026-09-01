@@ -48,6 +48,7 @@
 #include "tianshu/core/lineage.h"
 #include "tianshu/core/node.h"
 #include "tianshu/dsl/flow.h"
+#include "tianshu/dsl/record.h"
 #include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::dsl {
@@ -171,6 +172,17 @@ class FlowRuntime {
   // published): (seq, bytes, lineage) entries, oldest first. Recovery
   // and slice queries read from here (ADR-0026/0027).
   [[nodiscard]] const detail::HistoryRing* history(const std::string& channel) const;
+
+  // Record substrate (ADR-0026 Phase C): dump every captured channel
+  // history into an append-only record file (messages in capture
+  // order, oldest first per channel).
+  [[nodiscard]] bool record_to(const std::string& path) const;
+
+  // Replay: re-publish every recorded message through this runtime in
+  // record order — the live cascade rebuilds, so downstream outputs
+  // and lineage reproduce exactly (the offline substrate of the same
+  // slice-query API).
+  void replay_from(const std::vector<RecordedMessage>& records);
 
   // Map stage wiring (called by Flow::MapDecl::wire).
   template <typename TIn, typename TOut>

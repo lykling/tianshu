@@ -24,3 +24,6 @@ target_link_libraries(state_recovery_demo PRIVATE tianshu)
 
 add_executable(lidar_imu_demo lidar_imu_demo.cc)
 target_link_libraries(lidar_imu_demo PRIVATE tianshu)
+
+add_executable(record_replay_demo record_replay_demo.cc)
+target_link_libraries(record_replay_demo PRIVATE tianshu)

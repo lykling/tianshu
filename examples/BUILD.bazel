@@ -61,3 +61,9 @@ cc_binary(
     srcs = ["lidar_imu_demo.cc"],
     deps = ["//tianshu:tianshu"],
 )
+
+cc_binary(
+    name = "record_replay_demo",
+    srcs = ["record_replay_demo.cc"],
+    deps = ["//tianshu:tianshu"],
+)

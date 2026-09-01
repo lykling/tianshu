@@ -31,6 +31,7 @@
 #include "tianshu/core/lineage.h"
 #include "tianshu/core/node.h"
 #include "tianshu/dsl/flow.h"
+#include "tianshu/dsl/record.h"
 #include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::dsl {
@@ -70,6 +71,30 @@ const detail::HistoryRing* FlowRuntime::history(const std::string& channel) cons
   const std::scoped_lock lock(mutex_);
   const auto it = histories_.find(channel);
   return it == histories_.end() ? nullptr : &it->second;
+}
+
+bool FlowRuntime::record_to(const std::string& path) const {
+  RecordFile file(path);
+  const std::scoped_lock lock(mutex_);
+  for (const auto& [channel, ring] : histories_) {
+    for (const auto& entry : ring.entries()) {
+      const RecordedMessage rec{.channel = channel,
+                                .seq = entry.seq,
+                                .bytes = entry.bytes,
+                                .lineage_text = entry.lineage.describe()};
+      file.append(rec);
+    }
+  }
+  return file.save();
+}
+
+void FlowRuntime::replay_from(const std::vector<RecordedMessage>& records) {
+  // Records arrive in capture order, so a straight re-publish
+  // reproduces the original cascade (slice query's offline substrate).
+  for (const auto& rec : records) {
+    publish_bytes(rec.channel, rec.bytes.data(), rec.bytes.size(),
+                  core::Lineage::rooted(rec.channel, rec.seq));
+  }
 }
 
 std::shared_ptr<detail::LineageMailbox> FlowRuntime::register_mailbox(const std::string& channel) {

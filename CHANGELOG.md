@@ -50,6 +50,21 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### Record/replay substrate (ADR-0026 Phase C)
+
+- RecordFile: append-only binary format (magic + per-message channel/
+  seq/payload/lineage-text), save/load round-trip
+- FlowRuntime::record_to(path): dumps every channel history ring
+  (capture order); FlowRuntime::replay_from(records): re-publishes
+  recorded SOURCE-channel messages through a fresh runtime — the live
+  cascade rebuilds, intermediate channels recompute, and outputs match
+  bit-for-bit
+- record_replay_demo: live run (39 outputs) → file (78 messages) →
+  replay through fresh runtime → 39/39 bit-identical, lineage rebuilt
+  ('live/tick#38 -> live/~0#38')
+- The same slice-query API now serves two substrates: in-memory rings
+  (live) and record files (offline) — online == offline with one API
+
 ### Component lineage connection (ADR-0025 correction, live)
 
 - WriterBase gains a lineage-carrying write(data, size, lineage_ptr);
