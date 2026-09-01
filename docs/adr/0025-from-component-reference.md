@@ -46,7 +46,7 @@ ADR-0024 留下的最后一块：`from<T...>(name, [输入链])` —— 按注�
 > | `proc` 调用栈内（绝大多数） | 本次输入 → 派生 | map 同构 |
 > | 攒批/延迟/跨线程发布 | 不可知 → rooted | 真正的黑盒点 |
 >
-> 落地钩子已预留：`transport::Message.lineage_ptr`（今日恒空）。路径：组件基类 publish 携带父血缘 → IntraWriter 传播（进程内同步回调）→ 泵回 reader 用其作 `publish_bytes` 父级 → 环跨组件边界展开。v1 实现 rooted 属实现先后，非架构必然；SHM 跨进程的血缘随行序列化仍为独立演进项。
+> 落地钩子：`transport::Message.lineage_ptr`（**已于 2026-08-31 落地**——WriterBase 三参 write、组件 proc 内 publish 携带父血缘、泵回按父派生，环跨组件边界展开）。路径：组件基类 publish 携带父血缘 → IntraWriter 传播（进程内同步回调）→ 泵回 reader 用其作 `publish_bytes` 父级 → 环跨组件边界展开。v1 实现 rooted 属实现先后，非架构必然；SHM 跨进程的血缘随行序列化仍为独立演进项。
 
 ## API（v1）
 

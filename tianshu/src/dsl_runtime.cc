@@ -120,6 +120,12 @@ void FlowRuntime::attach_referenced_component(const std::string& registry_name,
   if (!comp->launch(*bridge_node_, {in_channel}, {})) {
     return;
   }
+  // Lineage pairing (ADR-0025 correction): the mailbox pops 1:1 with the
+  // component's FIFO consumption, so every publish inside proc carries
+  // its triggering input's lineage as parent — the loop unrolls across
+  // the component boundary.
+  const auto mailbox = register_mailbox(in_channel);
+  comp->set_input_lineage_provider([mailbox] { return mailbox->pop(); });
   attach_bridge_reader(out_channel);
   components_.emplace_back(std::move(comp));
   const auto held = components_.back();
@@ -136,6 +142,15 @@ void FlowRuntime::publish_derived(const core::Lineage& parent, const std::string
 void FlowRuntime::attach_bridge_reader(const std::string& out_channel) {
   auto reader = bridge_node_->create_reader(out_channel);
   reader->set_callback([this, out_channel](const transport::Message& msg) {
+    // Component output with a parent lineage (published inside proc,
+    // ADR-0025 correction): derive from it; lineage-free outputs (no
+    // provider) and init-time publishes (empty parent) root at the
+    // channel — same rule as publish_op.
+    const auto* parent = static_cast<const core::Lineage*>(msg.lineage_ptr);
+    if (parent != nullptr && !parent->empty()) {
+      publish_derived(*parent, out_channel, msg.data, msg.size);
+      return;
+    }
     publish_bytes(out_channel, msg.data, msg.size,
                   core::Lineage::rooted(out_channel, next_seq(out_channel)));
   });

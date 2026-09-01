@@ -571,3 +571,44 @@ TEST(FromReferenceTest, ComponentClosesLoopViaInitBootstrap) {
   EXPECT_GT(speeds.back(), 6.0);
   EXPECT_LT(speeds.back(), 12.0);
 }
+
+// ADR-0025 correction, live: a referenced component's proc publishes
+// CARRY the input lineage (mailbox-paired), so the feedback loop unrolls
+// across the component boundary — no rooted truncation.
+TEST(FromReferenceTest, ComponentOutputDerivesLineageAndUnrollsLoop) {
+  std::vector<std::string> states;
+
+  tianshu::dsl::FlowBuilder builder("lu");
+  auto meas = builder.source<LoopMeas>("meas", std::chrono::milliseconds(10), [](std::uint64_t t) {
+    return LoopMeas{.t = t, .hazard = 0.5};
+  });
+  auto state_port = builder.tap<LoopState>("state");
+  auto plan = builder.join<LoopMeas, LoopState, LoopPlan>(
+      meas, state_port, [](const LoopMeas& m, const LoopState& s) {
+        return LoopPlan{.t = m.t, .target = 10.0 - m.hazard, .v = s.v};
+      });
+  auto cmd = plan.map<LoopCmd>(
+      [](const LoopPlan& p) { return LoopCmd{.t = p.t, .u = 1.5 * (p.target - p.v)}; });
+  auto state = builder.from<LoopCmd, LoopState>("test.from.chassis", cmd, "state");
+  ASSERT_TRUE(state.valid());
+  state.sink([&](const LoopState&, const tianshu::core::Lineage& lin) {
+    if (states.size() < 64) {
+      states.push_back(lin.describe());
+    }
+  });
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(builder.build(), std::chrono::milliseconds(400));
+
+  ASSERT_GE(states.size(), 4U);
+  // First state = init() report: rooted (no input in flight).
+  EXPECT_EQ(states.front(), "lu/state#0");
+  // Second state: derived from the first loop iteration — the sensor
+  // root and the loop hops cross the component boundary.
+  EXPECT_NE(states[1].find("lu/meas#"), std::string::npos);
+  EXPECT_NE(states[1].find("-> lu/~1#"), std::string::npos);
+  // Later states unroll further: each iteration adds a loop cycle.
+  const auto& last = states.back();
+  EXPECT_NE(last.find("lu/state#"), std::string::npos);
+  EXPECT_LT(last.size(), 8000U);  // bounded by root-dedup + kMaxBranches
+}

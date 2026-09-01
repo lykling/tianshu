@@ -67,8 +67,16 @@ class AutoWriter : public WriterBase {
   AutoWriter(std::unique_ptr<WriterBase> intra, std::unique_ptr<WriterBase> shm)
       : intra_(std::move(intra)), shm_(std::move(shm)) {}
 
+  using WriterBase::write;
   void write(const void* data, std::size_t size) override {
     intra_->write(data, size);
+    shm_->write(data, size);
+  }
+
+  // Lineage rides the intra arm only (SHM serialization is the recorded
+  // Phase 2 evolution, ADR-0025).
+  void write(const void* data, std::size_t size, const void* lineage_ptr) override {
+    intra_->write(data, size, lineage_ptr);
     shm_->write(data, size);
   }
 

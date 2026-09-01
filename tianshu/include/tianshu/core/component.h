@@ -39,6 +39,7 @@
 
 #include "tianshu/core/data_dispatcher.h"
 #include "tianshu/core/data_visitor.h"
+#include "tianshu/core/lineage.h"
 #include "tianshu/core/node.h"
 #include "tianshu/core/typed_writer.h"
 #include "tianshu/transport/transport_backend.h"
@@ -72,10 +73,33 @@ class ComponentBase {
   // no-op (input-driven components only run inside a dispatch).
   virtual void quiesce() {}
 
+  // Input-lineage pairing (ADR-0025 correction): the from() bridge
+  // installs a provider whose pops pair 1:1 with this component's FIFO
+  // message consumption; run_proc refreshes it before each proc and
+  // publish carries it as the parent lineage (synchronous cascade, so
+  // the pointer outlives the write). Components without a provider
+  // publish lineage-free (nullptr) exactly as before.
+  void set_input_lineage_provider(std::function<core::Lineage()> provider) {
+    lineage_provider_ = std::move(provider);
+  }
+
+  [[nodiscard]] const void* publish_lineage_ptr() const {
+    return lineage_provider_ == nullptr ? nullptr
+                                        : static_cast<const void*>(&current_input_lineage_);
+  }
+
   [[nodiscard]] const std::string& name() const { return name_; }
+
+ protected:
+  // Framework-side pairing hooks used by the templates' run_proc loops.
+  [[nodiscard]] bool has_lineage_provider() const { return lineage_provider_ != nullptr; }
+  void refresh_input_lineage() { current_input_lineage_ = lineage_provider_(); }
+  void clear_input_lineage() { current_input_lineage_ = {}; }
 
  private:
   std::string name_;
+  std::function<core::Lineage()> lineage_provider_;
+  core::Lineage current_input_lineage_;
 };
 
 // ---------------------------------------------------------------------------
@@ -114,7 +138,7 @@ class Component : public ComponentBase {
   [[nodiscard]] virtual std::string_view out_channel() const = 0;
   [[nodiscard]] virtual std::size_t queue_depth() const { return 16; }
 
-  void publish(const TOut& msg) { writer_->write(msg); }
+  void publish(const TOut& msg) { writer_->write(msg, publish_lineage_ptr()); }
 
  public:
   void set_out_channel_override(const std::string& channel) override {
@@ -124,7 +148,11 @@ class Component : public ComponentBase {
  private:
   void run_proc() {
     while (M0* msg = visitor_->try_fetch_0()) {
+      if (has_lineage_provider()) {
+        refresh_input_lineage();
+      }
       proc(*msg);
+      clear_input_lineage();
     }
   }
 
@@ -181,7 +209,7 @@ class TwoInputComponent : public ComponentBase {
   [[nodiscard]] virtual std::string_view out_channel() const = 0;
   [[nodiscard]] virtual std::size_t queue_depth() const { return 16; }
 
-  void publish(const TOut& msg) { writer_->write(msg); }
+  void publish(const TOut& msg) { writer_->write(msg, publish_lineage_ptr()); }
 
  public:
   void set_out_channel_override(const std::string& channel) override {
@@ -194,7 +222,11 @@ class TwoInputComponent : public ComponentBase {
     M1* msg1 = nullptr;
     while ((msg0 = visitor_->try_fetch_0()) != nullptr &&
            (msg1 = visitor_->try_fetch_1()) != nullptr) {
+      if (has_lineage_provider()) {
+        refresh_input_lineage();
+      }
       proc(*msg0, *msg1);
+      clear_input_lineage();
     }
   }
 

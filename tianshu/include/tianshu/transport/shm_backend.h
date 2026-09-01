@@ -99,6 +99,7 @@ class ShmWriter : public WriterBase {
   ShmWriter(std::string channel, std::shared_ptr<ShmChannel> shm_channel)
       : channel_(std::move(channel)), shm_channel_(std::move(shm_channel)) {}
 
+  using WriterBase::write;  // keep the lineage-carrying overload visible
   void write(const void* data, std::size_t size) override;
   std::string_view channel() const override { return channel_; }
 

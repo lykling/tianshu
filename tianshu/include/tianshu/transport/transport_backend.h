@@ -78,6 +78,13 @@ class WriterBase {
  public:
   virtual ~WriterBase() = default;
   virtual void write(const void* data, std::size_t size) = 0;
+
+  // Lineage-carrying write (ADR-0025 correction): the pointer must
+  // point to a core::Lineage that outlives the synchronous write; the
+  // default drops it (backends without lineage support).
+  virtual void write(const void* data, std::size_t size, const void* /*lineage_ptr*/) {
+    write(data, size);
+  }
   virtual std::string_view channel() const = 0;
 };
 

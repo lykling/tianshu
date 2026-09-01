@@ -50,6 +50,25 @@ Acceptance (fork-based benchmark, 64B messages):
 Examples: shm_talker / shm_listener standalone cross-process demo binaries
 (verified 35/35 messages, 0 dropped, ordered, zero /dev/shm residue).
 
+### Component lineage connection (ADR-0025 correction, live)
+
+- WriterBase gains a lineage-carrying write(data, size, lineage_ptr);
+  intra propagates it through the Message (SHM arm drops it —
+  serialization stays the Phase 2 evolution)
+- ComponentBase::set_input_lineage_provider: the from() bridge
+  installs a mailbox whose pops pair 1:1 with the component's FIFO
+  consumption; run_proc refreshes the parent before each proc and
+  publish carries it — component outputs now DERIVE lineage instead
+  of rooting
+- Init-time publishes (empty parent) and provider-less components
+  (plain DAG mode) still root exactly as before
+- full_chain_demo: the feedback loop unrolls across the component
+  boundary again — final chassis lineage traces to radar/front#0
+  through every loop cycle (~3#k -> ~4#k -> chassis#k -> ...),
+  restored v2 provenance inside the v3 registered architecture
+- 1 new test: component-derived lineage + loop unrolling + bounded
+  growth
+
 ### Slice inputs: trigger-aligned spans with range lineage (ADR-0026, M2)
 
 - builder.span_join<Out>(trig, data, span_fn, time_fn, impl): on each
@@ -252,7 +271,7 @@ Examples: shm_talker / shm_listener standalone cross-process demo binaries
 
 ### Verification
 
-- 252/252 CMake tests (Clang + GCC), 22/22 Bazel tests
+- 253/253 CMake tests (Clang + GCC), 22/22 Bazel tests
 - Line coverage 96.5%, function coverage 100% (lcov, filtered)
 - Zero-warning build on both compilers
 

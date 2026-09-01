@@ -44,6 +44,16 @@ class Writer {
     buffer_.resize(MessageTraits<T>::max_serialized_size());
   }
 
+  // Lineage-carrying write: `lineage_ptr` must point at a core::Lineage
+  // that outlives this synchronous call (component publish pairs it with
+  // the input message being processed, ADR-0025 correction).
+  void write(const T& msg, const void* lineage_ptr) {
+    const std::size_t size = MessageTraits<T>::serialize(msg, buffer_.data(), buffer_.size());
+    if (size > 0) {
+      base_->write(buffer_.data(), size, lineage_ptr);
+    }
+  }
+
   void write(const T& msg) {
     const std::size_t size = MessageTraits<T>::serialize(msg, buffer_.data(), buffer_.size());
     if (size > 0) {

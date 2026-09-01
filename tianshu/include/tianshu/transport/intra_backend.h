@@ -44,10 +44,14 @@ class IntraWriter : public WriterBase {
  public:
   explicit IntraWriter(std::string channel) : channel_(std::move(channel)) {}
 
-  void write(const void* data, std::size_t size) override {
+  using WriterBase::write;
+  void write(const void* data, std::size_t size) override { write(data, size, nullptr); }
+
+  void write(const void* data, std::size_t size, const void* lineage_ptr) override {
     Message msg;
     msg.data = data;
     msg.size = size;
+    msg.lineage_ptr = lineage_ptr;
     msg.seq = seq_.fetch_add(1, std::memory_order_relaxed);
 
     const std::scoped_lock lock(callbacks_mutex_);
@@ -139,7 +143,12 @@ class IntraBackend : public TransportBackend {
     IntraWriterRef(std::string channel, std::shared_ptr<IntraWriter> writer)
         : channel_(std::move(channel)), writer_(std::move(writer)) {}
 
+    using WriterBase::write;
     void write(const void* data, std::size_t size) override { writer_->write(data, size); }
+
+    void write(const void* data, std::size_t size, const void* lineage_ptr) override {
+      writer_->write(data, size, lineage_ptr);
+    }
     std::string_view channel() const override { return channel_; }
 
    private:
