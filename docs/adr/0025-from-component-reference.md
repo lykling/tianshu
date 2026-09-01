@@ -37,7 +37,16 @@ ADR-0024 留下的最后一块：`from<T...>(name, [输入链])` —— 按注�
 
 组件 `publish()` → transport Writer（INTRA，进程内零拷贝）→ **泵回 reader**（`node.create_reader(out_channel)`，callback 调 `FlowRuntime::publish_bytes(out_channel, data, size, Lineage::rooted(out_channel, seq))`）→ dispatcher + 每消费者邮箱扇出 → DSL 图的 join/sink 照常消费。
 
-**血缘边界决策**：组件输出的血缘 = `rooted(输出通道)`——从外部看，组件就是产生者，其内部加工对血缘不透明。跨组件血缘（组件输出携带其输入的链）是 L2 血缘图阶段的演进项（走 `Message.lineage_ptr`）。这条边界对 DAG 世界同样成立（今天 DAG 组件间也无血缘），不是 flow 特有的降级。
+**血缘边界决策**：组件输出的血缘 = `rooted(输出通道)`——v1 的实现现状。
+
+> **评审修正（2026-08-31）**：初稿以"组件是黑盒、运行时无法知道输入输出对应"为由将整个组件边界划为 rooted——**该理由不成立**。组件的执行循环 `run_proc` 是框架代码，`proc` 由框架逐条同步驱动，调用前设置父血缘上下文、`publish` 携带，与 `OpPub.parent_` 同一模式，同步级联下配对确定性成立（1 进 N 出 = N 条输出共享同一父，语义正确）。**正确的边界是"同步派生 vs 异步发布"，而非"内联 vs 组件"**：
+>
+> | 发布时机 | 父血缘 | 语义 |
+> |---|---|---|
+> | `proc` 调用栈内（绝大多数） | 本次输入 → 派生 | map 同构 |
+> | 攒批/延迟/跨线程发布 | 不可知 → rooted | 真正的黑盒点 |
+>
+> 落地钩子已预留：`transport::Message.lineage_ptr`（今日恒空）。路径：组件基类 publish 携带父血缘 → IntraWriter 传播（进程内同步回调）→ 泵回 reader 用其作 `publish_bytes` 父级 → 环跨组件边界展开。v1 实现 rooted 属实现先后，非架构必然；SHM 跨进程的血缘随行序列化仍为独立演进项。
 
 ## API（v1）
 
