@@ -134,27 +134,18 @@ radar/front#0 -> ~0#0 -> ~1#0 -> ~2#0 -> ~3#0 -> ~4#0 -> chassis#1 -> ~3#1 -> ~4
 
 ### 数据包格式
 
-```
-┌──────────────────────────────┐
-│ u64 magic 'TREC0001'         │
-│ u32 record_count             │
-├──────────────────────────────┤ × count
-│ u32 channel_len              │
-│     channel bytes            │  如 "avp/radar/front"
-│ u64 seq                      │  通道本地序号
-│ u32 payload_len              │
-│     payload bytes            │  原始消息字节
-│ u32 lineage_len              │
-│     lineage describe string  │  仅供工具查看（回放不读）
-└──────────────────────────────┘
-```
+v0 直线 dump 已被 ADR-0028 v2 取代（评审驱动重新设计）。核心变更：
 
-| 决策 | 理由 |
-|---|---|
-| 回放不读文件里的血缘 | 血缘由重发布级联**重建**——活跑和回放血缘语义完全一致 |
-| 只回放源通道消息 | 中间通道经活图级联重算——"离线=在线"的本质 |
-| lineage 字符串写入 | 给 ti-monitor 等工具离线看 |
-| v0 单次写盘 | 简单；流式追加是后续演进 |
+- **血缘入库**：LineageRecord 二进制序列化引用通道字典（不再只存 describe 字符串）
+- **分块压缩**：chunk 级 LZ4/ZSTD/None，流式追加
+- **严格时序**：每条消息 ts_ns（采集时钟），chunk 内升序、chunk 间非重叠
+- **分片合并**：每文件自包含（header/dict/chunks/index/stats/footer），原生 split/merge
+- **索引**：chunk 级 + 可选消息级；按 (channel, ts/seq) 二分定位
+- **统计**：per-channel count/bytes/seq-range/ts-range/avg-rate；O(1) 读取
+- **schema 嵌入**：POD 字段表 / proto FileDescriptorSet / fbs Schema——离线工具零预配置
+- **前后兼容**：record type registry + skip-unknown + TLV 扩展
+
+详见 [adr/0028](./adr/0028-record-format-v1.md)。
 
 ### demo（`record_replay_demo`）
 
