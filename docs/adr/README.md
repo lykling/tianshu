@@ -39,12 +39,13 @@
 | [0025](./0025-from-component-reference.md) | from() 组件引用：DSL ↔ L4 合流 | dsl | ✅ | 三问三答（线程/生命周期/泵回）；输出通道注入；血缘边界修正为同步/异步；quiesce 静默 |
 | [0026](./0026-slice-input-model.md) | 数据切片输入模型：触发器 + 有界历史查询 | dsl | ✅ | stage = trigger + fetch（map/join 为退化）；多父血缘 + 区间跳；在线/离线同 API |
 | [0027](./0027-state-as-data-channel-taxonomy.md) | 状态即数据 + 通道分类学 | dsl | ✅ | 状态通道（版本/血缘/恢复）；有名=契约边界、匿名=可融合边界；算子是面 |
+| [0028](./0028-record-format-v1.md) | Tianshu Record Format v1 | dsl | ✅ | 分块流式；通道字典+内嵌 schema；三级 CRC；尾部索引随机访问 |
 
 ## 域视图
 
 - **build**：0003 · 0004 · 0018
 - **infra**：0002 · 0005 · 0007 · 0009 · 0011 · 0012 · 0016 · 0017
 - **runtime**（transport/message/sched/lineage）：0008 · 0010 · 0013 · 0015 · 0019 · 0022 · 0023
-- **dsl/compiler**：0001 · 0021 · 0024 · 0025 · 0026 · 0027
+- **dsl/compiler**：0001 · 0021 · 0024 · 0025 · 0026 · 0027 · 0028
 - **gpu**：0006
 - **tooling**（ti 家族/console/monitor）：0014 · 0020
