@@ -1,6 +1,6 @@
 # ADR-0026：数据切片输入模型 —— 触发器 + 有界历史查询，多父血缘
 
-- **状态**：已接受（设计锁定，实现分期见文末）
+- **状态**：已接受（Phase A+B+C 全部落地）
 - **日期**：2026-08-31
 - **决策者**：Pride Leong
 - **关联**：[adr/0021](./0021-dsl-v0.md) · [adr/0022](./0022-lineage-v0.md) · [adr/0024](./0024-dsl-op-primitive.md) · [adr/0025](./0025-from-component-reference.md)
@@ -74,7 +74,7 @@ builder.stage<PointCloudOut>("compensate")
 
 - **A（切片原语）**：`last_n` / `window` / `span` fetch + Slice 视图 + 多父血缘（含区间跳）；DSL runtime 内实现
 - **B（典型验证）**：雷达 × IMU 运动补偿 demo——span 触发对齐 + `imu#n..m` 区间血缘断言
-- **C（离线基底）**：record 落盘/回放接切片查询（L2 阶段，与 `Message.lineage_ptr` 随行序列化同期）
+- **C（离线基底）**：~~record 落盘/回放接切片查询~~ **已落地（2026-08-31）**——RecordFile + record_to/replay_from，离线 == 在线 39/39 bit-identical
 
 ## 风险与缓解
 

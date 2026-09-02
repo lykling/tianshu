@@ -1,6 +1,6 @@
 # ADR-0027：状态即数据与通道分类学 —— 算子是面，数据流是一等公民
 
-- **状态**：已接受
+- **状态**：已接受（状态通道原语 + 恢复协议已落地，EXACT MATCH 验证通过）
 - **日期**：2026-08-31
 - **决策者**：Pride Leong
 - **关联**：[adr/0024](./0024-dsl-op-primitive.md) · [adr/0025](./0025-from-component-reference.md) · [adr/0026](./0026-slice-input-model.md) · [adr/0020](./0020-message-reflection-monitor.md)
@@ -67,7 +67,7 @@ N 入 M 出的面状节点形态已由 ADR-0024 多端口演进锁定（每路�
 
 ## 影响范围
 
-- 演进项落地顺序：状态通道原语（`.state<T>()` 声明 + OpPub 语义扩展）→ demo 中 chassis 状态显式化为状态通道（已是雏形）→ 恢复协议验证（kill -9 后缀重放）
+- 落地情况（2026-08-31）：`builder.stateful<TOut, TState>` 原语 + 恢复协议（checkpoint 血缘定吸收点 + 后缀重放）已实现，`state_recovery_demo` EXACT MATCH 验证；跨进程（kill -9 + SHM）为后续
 - 通道分类学进入 L1 编译器设计前提（融合边界规则）
 - ADR-0020 的 schema 机制成为有名通道契约的组成部分
 
