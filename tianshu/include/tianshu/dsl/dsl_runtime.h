@@ -49,6 +49,7 @@
 #include "tianshu/core/node.h"
 #include "tianshu/dsl/flow.h"
 #include "tianshu/dsl/record.h"
+#include "tianshu/dsl/record_v2.h"
 #include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::dsl {
@@ -175,8 +176,17 @@ class FlowRuntime {
 
   // Record substrate (ADR-0026 Phase C): dump every captured channel
   // history into an append-only record file (messages in capture
-  // order, oldest first per channel).
+  // order, oldest first per channel). Legacy v0 format.
   [[nodiscard]] bool record_to(const std::string& path) const;
+
+  // LIVE recording (ADR-0028 v2): hooks into publish_bytes so every
+  // message is captured in-flight with its timestamp, lineage, and
+  // per-channel schema (auto-registered on first publish). Call
+  // stop_recording() to flush chunks, index, stats, and footer.
+  void start_recording(const std::string& path,
+                       record::Compression compression = record::Compression::kLz4);
+  bool stop_recording();
+  [[nodiscard]] bool is_recording() const;
 
   // Replay: re-publish every recorded message through this runtime in
   // record order — the live cascade rebuilds, so downstream outputs
@@ -432,6 +442,11 @@ class FlowRuntime {
   std::unordered_map<std::string, std::vector<detail::LineageMailbox*>> channel_queues_;
   std::unordered_map<std::string, std::uint64_t> seq_counters_;
   std::unordered_map<std::string, detail::HistoryRing> histories_;
+
+  // Live recording (ADR-0028 v2): writer hooks into publish_bytes.
+  std::unique_ptr<record::RecordWriter> recorder_;
+  std::unordered_map<std::string, std::uint16_t> recorder_channel_ids_;
+  std::uint64_t recording_start_ts_{0};
 };
 
 // Defined after FlowRuntime completes: publish reaches into the runtime

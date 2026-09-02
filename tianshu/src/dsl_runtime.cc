@@ -32,6 +32,7 @@
 #include "tianshu/core/node.h"
 #include "tianshu/dsl/flow.h"
 #include "tianshu/dsl/record.h"
+#include "tianshu/dsl/record_v2.h"
 #include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::dsl {
@@ -63,6 +64,22 @@ void FlowRuntime::publish_bytes(const std::string& channel, const void* data, st
     }
     histories_.try_emplace(channel, kHistoryDepth);
     histories_.at(channel).push(own_seq_of(lineage), data, size, lineage);
+
+    // Live recording (ADR-0028 v2): capture in-flight with timestamp.
+    if (recorder_ != nullptr) {
+      const auto id_it = recorder_channel_ids_.find(channel);
+      const std::uint16_t ch_id = id_it != recorder_channel_ids_.end()
+                                      ? id_it->second
+                                      : recorder_->add_channel(channel, 0, "");
+      if (id_it == recorder_channel_ids_.end()) {
+        recorder_channel_ids_[channel] = ch_id;
+      }
+      const auto now_ns =
+          static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                         std::chrono::steady_clock::now().time_since_epoch())
+                                         .count());
+      recorder_->append(ch_id, own_seq_of(lineage), now_ns, data, size, &lineage);
+    }
   }
   core::DataDispatcher::instance().dispatch(core::channel_id_for(channel), data, size);
 }
@@ -72,6 +89,30 @@ const detail::HistoryRing* FlowRuntime::history(const std::string& channel) cons
   const auto it = histories_.find(channel);
   return it == histories_.end() ? nullptr : &it->second;
 }
+
+void FlowRuntime::start_recording(const std::string& path, record::Compression compression) {
+  if (recorder_ != nullptr) {
+    return;
+  }
+  recorder_ = std::make_unique<record::RecordWriter>(path, compression);
+  recorder_channel_ids_.clear();
+  recording_start_ts_ =
+      static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                     std::chrono::steady_clock::now().time_since_epoch())
+                                     .count());
+}
+
+bool FlowRuntime::stop_recording() {
+  if (recorder_ == nullptr) {
+    return false;
+  }
+  const bool ok = recorder_->finish();
+  recorder_.reset();
+  recorder_channel_ids_.clear();
+  return ok;
+}
+
+bool FlowRuntime::is_recording() const { return recorder_ != nullptr; }
 
 bool FlowRuntime::record_to(const std::string& path) const {
   RecordFile file(path);

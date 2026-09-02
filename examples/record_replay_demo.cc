@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <string>
 #include <vector>
 
@@ -29,7 +30,7 @@
 #include "tianshu/core/message_traits.h"
 #include "tianshu/dsl/dsl_runtime.h"
 #include "tianshu/dsl/flow.h"
-#include "tianshu/dsl/record.h"
+#include "tianshu/dsl/record_v2.h"
 
 // NOLINTNEXTLINE(misc-use-internal-linkage)  // traits must precede template use
 struct TickMsg {
@@ -69,7 +70,7 @@ tianshu::dsl::Flow build_flow(const std::string& name, std::vector<SqMsg>* sink_
 
 }  // namespace
 
-int main() {
+int main() try {
   static_cast<void>(std::printf("== record/replay: offline == online (ADR-0026-C) ==\n\n"));
 
   // Live run (scoped: the runtime must destruct before replay wires —
@@ -80,15 +81,24 @@ int main() {
   {
     const auto live_flow = build_flow("live", &live_out, nullptr);
     tianshu::dsl::FlowRuntime live_rt;
+    live_rt.start_recording("/tmp/tianshu_record_demo_v2.trec",
+                            tianshu::dsl::record::Compression::kLz4);
     live_rt.run_for(live_flow, std::chrono::milliseconds(200));
-    saved = live_rt.record_to("/tmp/tianshu_record_demo.bin");
+    saved = live_rt.stop_recording();
   }
   static_cast<void>(
       std::printf("[live] %zu outputs, record saved=%s\n", live_out.size(), saved ? "yes" : "no"));
 
   // Replay through a FRESH runtime with the same graph.
-  const auto records = tianshu::dsl::RecordFile::load("/tmp/tianshu_record_demo.bin");
-  static_cast<void>(std::printf("[file] %zu messages loaded\n", records.size()));
+  auto reader_opt = tianshu::dsl::record::RecordReader::open("/tmp/tianshu_record_demo_v2.trec");
+  if (!reader_opt.has_value()) {
+    std::printf("cannot open record file\n");
+    return 1;
+  }
+  auto& v2_reader = reader_opt.value();
+  static_cast<void>(std::printf("[file] %llu messages loaded (v2, %zu channels)\n",
+                                static_cast<unsigned long long>(v2_reader.stats().total_messages),
+                                v2_reader.channels().size()));
 
   std::vector<SqMsg> replay_out;
   std::vector<std::string> replay_lineage;
@@ -102,16 +112,22 @@ int main() {
   }
   // Replay SOURCE-channel messages only: intermediate channels recompute
   // through the live cascade (the whole point — offline == online).
-  std::vector<tianshu::dsl::RecordedMessage> source_records;
-  for (const auto& rec : records) {
-    if (rec.channel == "live/tick") {
-      source_records.push_back(rec);
+  // Replay: read source-channel messages from the v2 file and re-publish.
+  tianshu::dsl::record::RecordedMessageV2 v2msg;
+  std::uint64_t replayed = 0;
+  while (v2_reader.next(&v2msg)) {
+    const auto* ch = v2_reader.find_channel(v2msg.channel_id);
+    if (ch == nullptr || ch->name != "live/tick") {
+      continue;
     }
+    replay_rt.publish_bytes("live/tick", v2msg.payload.data(), v2msg.payload.size(),
+                            tianshu::core::Lineage::rooted("live/tick", v2msg.seq));
+    ++replayed;
   }
-  replay_rt.replay_from(source_records);
 
   // Compare.
-  static_cast<void>(std::printf("[replay] %zu outputs\n", replay_out.size()));
+  static_cast<void>(std::printf("[replay] %llu inputs re-published, %zu outputs\n",
+                                static_cast<unsigned long long>(replayed), replay_out.size()));
   std::size_t matches = 0;
   for (std::size_t i = 0; i < live_out.size() && i < replay_out.size(); ++i) {
     if (live_out[i].tick == replay_out[i].tick && live_out[i].sq == replay_out[i].sq) {
@@ -125,4 +141,8 @@ int main() {
     static_cast<void>(std::printf("[lineage] %s\n", replay_lineage.back().c_str()));
   }
   return 0;
+  return 0;
+} catch (const std::exception& e) {
+  static_cast<void>(std::fprintf(stderr, "error: %s\n", e.what()));
+  return 1;
 }

@@ -10,3 +10,6 @@ target_link_libraries(ti-launch PRIVATE tianshu)
 
 add_executable(ti-monitor ti_monitor_main.cc)
 target_link_libraries(ti-monitor PRIVATE tianshu)
+
+add_executable(ti-info ti_info_main.cc)
+target_link_libraries(ti-info PRIVATE tianshu)
