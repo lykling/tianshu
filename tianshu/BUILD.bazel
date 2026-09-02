@@ -16,6 +16,7 @@ cc_library(
         "src/schema_sidecar.cc",
         "src/lineage.cc",
         "src/record.cc",
+        "src/record_v2.cc",
         "src/dsl_runtime.cc",
         "src/data_dispatcher.cc",
         "src/data_notifier.cc",
@@ -39,6 +40,7 @@ cc_library(
         "include/tianshu/core/field_table.h",
         "include/tianshu/core/lineage.h",
         "include/tianshu/dsl/record.h",
+        "include/tianshu/dsl/record_v2.h",
         "include/tianshu/core/monitor.h",
         "include/tianshu/dsl/dsl_runtime.h",
         "include/tianshu/dsl/flow.h",
@@ -69,7 +71,11 @@ cc_library(
         "-Wpedantic",
         "-Werror",
     ],
-    linkopts = ["-pthread"],
+    linkopts = [
+        "-llz4",
+        "-lzstd",
+        "-pthread",
+    ],
     defines = select({
         "//bazel/tianshu:profile_desktop": ["TIANSHU_PROFILE_DESKTOP"],
         "//bazel/tianshu:profile_server":   ["TIANSHU_PROFILE_SERVER"],

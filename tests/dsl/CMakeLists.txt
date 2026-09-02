@@ -5,3 +5,7 @@ gtest_discover_tests(dsl_test)
 add_executable(slice_state_test slice_state_test.cc)
 target_link_libraries(slice_state_test PRIVATE tianshu GTest::gtest_main)
 gtest_discover_tests(slice_state_test)
+
+add_executable(record_v2_test record_v2_test.cc)
+target_link_libraries(record_v2_test PRIVATE tianshu GTest::gtest_main)
+gtest_discover_tests(record_v2_test)

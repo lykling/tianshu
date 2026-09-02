@@ -21,3 +21,13 @@ cc_test(
     ],
     size = "small",
 )
+
+cc_test(
+    name = "record_v2_test",
+    srcs = ["record_v2_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)

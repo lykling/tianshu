@@ -6,6 +6,10 @@
 # Phase 1+: core / dsl / trace / compiler / lineage / sla / runtime subdirs.
 
 # Public headers
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LZ4 REQUIRED IMPORTED_TARGET liblz4)
+pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
+
 add_library(tianshu SHARED
     src/version.cc
     src/transport_backend.cc
@@ -21,6 +25,7 @@ add_library(tianshu SHARED
     src/schema_sidecar.cc
     src/lineage.cc
     src/record.cc
+    src/record_v2.cc
     src/dsl_runtime.cc
     src/hybrid_transport.cc
     src/node.cc
@@ -55,6 +60,8 @@ install(TARGETS tianshu
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
 )
+
+target_link_libraries(tianshu PRIVATE PkgConfig::LZ4 PkgConfig::ZSTD)
 
 install(DIRECTORY include/
     DESTINATION include
