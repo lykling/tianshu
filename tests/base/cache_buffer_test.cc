@@ -188,10 +188,18 @@ TEST(CacheBufferTest, ConcurrentProducerConsumer) {
   });
 
   std::thread consumer([&]() {
-    while (true) {
+    for (;;) {
       if (buf.try_fetch() != nullptr) {
         consumed.fetch_add(1, std::memory_order_relaxed);
-      } else if (producer_done.load(std::memory_order_acquire)) {
+        continue;
+      }
+      if (producer_done.load(std::memory_order_acquire)) {
+        // Producer finished: drain items that may have landed between the
+        // failed fetch and the flag read (the flag release-publishes all
+        // fills), then stop — the buffer is empty for good.
+        while (buf.try_fetch() != nullptr) {
+          consumed.fetch_add(1, std::memory_order_relaxed);
+        }
         break;
       }
     }
