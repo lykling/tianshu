@@ -38,6 +38,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <string>
 #include <vector>
 
@@ -234,7 +235,7 @@ tianshu::dsl::Flow build_avp_flow(std::vector<ChassisLog>& chassis_log) {
 
 }  // namespace
 
-int main() {
+int main() try {
   std::vector<ChassisLog> chassis_log;
 
   const auto flow = build_avp_flow(chassis_log);
@@ -256,4 +257,7 @@ int main() {
         chassis_log.back().branches, chassis_log.back().lineage.c_str()));
   }
   return 0;
+} catch (const std::exception& e) {
+  static_cast<void>(std::fprintf(stderr, "error: %s\n", e.what()));
+  return 1;
 }

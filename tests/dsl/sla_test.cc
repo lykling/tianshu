@@ -1,0 +1,194 @@
+// Copyright 2026 Pride Leong.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// SLA compilation v0 acceptance tests (ADR-0029 acceptance section).
+
+#include <chrono>
+#include <cstdint>
+#include <stdexcept>
+#include <string>
+
+#include <gtest/gtest.h>
+
+#include "tianshu/core/lineage.h"
+#include "tianshu/core/message_traits.h"
+#include "tianshu/dsl/dsl_runtime.h"
+#include "tianshu/dsl/flow.h"
+#include "tianshu/sla/sla_analyzer.h"
+
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // traits must precede template use
+struct TickMsg {
+  std::uint64_t tick;
+};
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // same ordering constraint
+struct DetectMsg {
+  std::uint64_t tick;
+};
+// NOLINTNEXTLINE(misc-use-internal-linkage)  // same ordering constraint
+struct FuseMsg {
+  std::uint64_t tick;
+};
+
+TIANSHU_TRAITS_POD(TickMsg, "sla.TickMsg");
+TIANSHU_TRAITS_POD(DetectMsg, "sla.DetectMsg");
+TIANSHU_TRAITS_POD(FuseMsg, "sla.FuseMsg");
+
+namespace {
+
+// 1. Satisfiable chain: budgets sum to the deadline and split
+//    proportionally to the declared WCETs (std::chrono::milliseconds(8) :
+//    std::chrono::milliseconds(3) -> 36363 : 13636).
+TEST(SlaTest, SatisfiableChainAllocatesBudgets) {
+  const auto flow =
+      tianshu::dsl::FlowBuilder("sla_ok")
+          .source<TickMsg>("cam", std::chrono::milliseconds(10),
+                           [](std::uint64_t t) { return TickMsg{.tick = t}; })
+          .map<DetectMsg>([](const TickMsg& in) { return DetectMsg{.tick = in.tick}; })
+          .with_wcet(std::chrono::milliseconds(8))
+          .map<FuseMsg>([](const DetectMsg& in) { return FuseMsg{.tick = in.tick}; })
+          .with_wcet(std::chrono::milliseconds(3))
+          .sink([](const FuseMsg&, const tianshu::core::Lineage&) {})
+          .with_sla(tianshu::sla::Sla{.deadline = std::chrono::milliseconds(50)})
+          .build();
+
+  ASSERT_TRUE(flow.sla_report().ok);
+  ASSERT_EQ(flow.sla_report().budgets.size(), 2U);
+  EXPECT_TRUE(flow.sla_report().default_wcet_notes.empty());
+
+  std::int64_t total = 0;
+  std::int64_t detect_budget = 0;
+  for (const auto& b : flow.sla_report().budgets) {
+    total += b.planned.count();
+    if (b.planned.count() > 30000) {
+      detect_budget = b.planned.count();
+    }
+  }
+  // Integer truncation in the proportional split may lose 1us.
+  EXPECT_NEAR(static_cast<double>(total), 50000.0, 1.0);
+  EXPECT_NEAR(static_cast<double>(detect_budget), 36363.6, 1.0);
+
+  // The verified flow must also actually run.
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(50));
+}
+
+// 2. Overrun (11.04ms planned vs 10ms deadline): build() fails fast and
+//    the error carries the offending path and the worst offender.
+TEST(SlaTest, OverrunThrowsWithDetail) {
+  bool threw = false;
+  try {
+    static_cast<void>(
+        tianshu::dsl::FlowBuilder("sla_bad")
+            .source<TickMsg>("cam", std::chrono::milliseconds(10),
+                             [](std::uint64_t t) { return TickMsg{.tick = t}; })
+            .map<DetectMsg>([](const TickMsg& in) { return DetectMsg{.tick = in.tick}; })
+            .with_wcet(std::chrono::milliseconds(8))
+            .map<FuseMsg>([](const DetectMsg& in) { return FuseMsg{.tick = in.tick}; })
+            .with_wcet(std::chrono::milliseconds(3))
+            .sink([](const FuseMsg&, const tianshu::core::Lineage&) {})
+            .with_sla(tianshu::sla::Sla{.deadline = std::chrono::milliseconds(10)})
+            .build());
+  } catch (const std::runtime_error& e) {
+    threw = true;
+    const std::string msg = e.what();
+    EXPECT_NE(msg.find("cam"), std::string::npos);
+    EXPECT_NE(msg.find("worst offender"), std::string::npos);
+    EXPECT_NE(msg.find("map ->"), std::string::npos);
+  }
+  EXPECT_TRUE(threw);
+}
+
+// 3. Join backtracking: the std::chrono::milliseconds(8) branch (not the
+// std::chrono::milliseconds(1) one) decides L, so
+//    only its map lands on the critical path; the join node itself runs
+//    on the default WCET and is named in the notes.
+TEST(SlaTest, JoinTakesCriticalBranch) {
+  tianshu::dsl::FlowBuilder b("sla_join");
+  auto branch_a = b.source<TickMsg>("a", std::chrono::milliseconds(10),
+                                    [](std::uint64_t t) { return TickMsg{.tick = t}; });
+  auto a_mapped =
+      branch_a.map<DetectMsg>([](const TickMsg& in) { return DetectMsg{.tick = in.tick}; });
+  a_mapped.with_wcet(std::chrono::milliseconds(8));
+  auto branch_b = b.source<TickMsg>("b2", std::chrono::milliseconds(10),
+                                    [](std::uint64_t t) { return TickMsg{.tick = t}; });
+  auto b_mapped =
+      branch_b.map<DetectMsg>([](const TickMsg& in) { return DetectMsg{.tick = in.tick}; });
+  b_mapped.with_wcet(std::chrono::milliseconds(1));
+  auto joined = b.join<DetectMsg, DetectMsg, FuseMsg>(
+      a_mapped, b_mapped,
+      [](const DetectMsg& x, const DetectMsg& y) { return FuseMsg{.tick = x.tick + y.tick}; });
+  joined.sink([](const FuseMsg&, const tianshu::core::Lineage&) {});
+  joined.with_sla(tianshu::sla::Sla{.deadline = std::chrono::milliseconds(30)});
+
+  const auto flow = b.build();
+  EXPECT_TRUE(flow.sla_report().ok);
+  ASSERT_EQ(flow.sla_report().budgets.size(), 2U);             // join out + critical map
+  ASSERT_EQ(flow.sla_report().default_wcet_notes.size(), 1U);  // the join node
+  EXPECT_NE(flow.sla_report().default_wcet_notes[0].find("join"), std::string::npos);
+}
+
+// 4. Saturation: warning by default, load rejected when strict.
+TEST(SlaTest, SaturationWarnsThenRejectsWhenStrict) {
+  const auto make = [](bool strict) {
+    tianshu::dsl::FlowBuilder b("sla_sat");
+    b.with_sla_config(
+        tianshu::sla::SlaConfig{.machine_cores = 1, .margin = 0.2, .strict_utilization = strict});
+    b.source<TickMsg>("hot", std::chrono::milliseconds(1),
+                      [](std::uint64_t t) { return TickMsg{.tick = t}; })
+        .map<DetectMsg>([](const TickMsg& in) { return DetectMsg{.tick = in.tick}; })
+        .with_wcet(std::chrono::milliseconds(2))  // 2ms per 1ms period, 1 core: U = 2.0
+        .sink([](const DetectMsg&, const tianshu::core::Lineage&) {})
+        .with_sla(tianshu::sla::Sla{.deadline = std::chrono::milliseconds(5)});
+    return b.build();
+  };
+
+  const auto lenient = make(false);
+  EXPECT_TRUE(lenient.sla_report().ok);
+  EXPECT_FALSE(lenient.sla_report().saturation_warning.empty());
+
+  EXPECT_THROW(static_cast<void>(make(true)), std::runtime_error);
+}
+
+// 5. Undeclared WCET: default applied and named in the notes.
+TEST(SlaTest, DefaultWcetIsReported) {
+  const auto flow =
+      tianshu::dsl::FlowBuilder("sla_default")
+          .source<TickMsg>("cam", std::chrono::milliseconds(10),
+                           [](std::uint64_t t) { return TickMsg{.tick = t}; })
+          .map<DetectMsg>([](const TickMsg& in) { return DetectMsg{.tick = in.tick}; })
+          .sink([](const DetectMsg&, const tianshu::core::Lineage&) {})
+          .with_sla(tianshu::sla::Sla{.deadline = std::chrono::milliseconds(50)})
+          .build();
+
+  EXPECT_TRUE(flow.sla_report().ok);
+  ASSERT_EQ(flow.sla_report().default_wcet_notes.size(), 1U);
+  EXPECT_NE(flow.sla_report().default_wcet_notes[0].find("map"), std::string::npos);
+}
+
+// 6. No SLA declarations: analysis does not run, report stays empty.
+TEST(SlaTest, NoEndpointsNoAnalysis) {
+  const auto flow =
+      tianshu::dsl::FlowBuilder("sla_free")
+          .source<TickMsg>("cam", std::chrono::milliseconds(10),
+                           [](std::uint64_t t) { return TickMsg{.tick = t}; })
+          .map<DetectMsg>([](const TickMsg& in) { return DetectMsg{.tick = in.tick}; })
+          .sink([](const DetectMsg&, const tianshu::core::Lineage&) {})
+          .build();
+
+  EXPECT_TRUE(flow.sla_report().ok);
+  EXPECT_TRUE(flow.sla_report().budgets.empty());
+  EXPECT_TRUE(flow.sla_report().default_wcet_notes.empty());
+}
+
+}  // namespace

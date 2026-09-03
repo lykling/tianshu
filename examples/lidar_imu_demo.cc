@@ -21,6 +21,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 #include <string>
 #include <utility>
 #include <vector>
@@ -52,7 +53,7 @@ TIANSHU_TRAITS_POD(LidarMsg, "li.LidarMsg");
 TIANSHU_TRAITS_POD(ImuMsg, "li.ImuMsg");
 TIANSHU_TRAITS_POD(CompMsg, "li.CompMsg");
 
-int main() {
+int main() try {
   static_cast<void>(
       std::printf("== slice input: lidar x IMU motion compensation (ADR-0026) ==\n\n"));
 
@@ -113,4 +114,7 @@ int main() {
         imu_counts.size(), static_cast<double>(total) / static_cast<double>(imu_counts.size())));
   }
   return 0;
+} catch (const std::exception& e) {
+  static_cast<void>(std::fprintf(stderr, "error: %s\n", e.what()));
+  return 1;
 }

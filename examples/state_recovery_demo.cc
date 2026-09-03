@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <string>
 #include <vector>
 
@@ -95,7 +96,7 @@ tianshu::dsl::Flow make_flow(const std::string& name, FoldOp impl,
 
 }  // namespace
 
-int main() {
+int main() try {
   static_cast<void>(std::printf("== state-as-data recovery (ADR-0027) ==\n\n"));
 
   // Reference: uninterrupted run.
@@ -171,4 +172,7 @@ int main() {
                   (rec_final.n == full_final.n && rec_final.sum == full_final.sum) ? "EXACT MATCH"
                                                                                    : "MISMATCH"));
   return 0;
+} catch (const std::exception& e) {
+  static_cast<void>(std::fprintf(stderr, "error: %s\n", e.what()));
+  return 1;
 }

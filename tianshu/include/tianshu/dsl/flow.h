@@ -22,7 +22,10 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <functional>
+#include <map>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -30,6 +33,7 @@
 
 #include "tianshu/core/lineage.h"
 #include "tianshu/core/message_traits.h"
+#include "tianshu/sla/sla_analyzer.h"
 
 namespace tianshu::dsl {
 
@@ -199,6 +203,13 @@ class Flow {
   [[nodiscard]] const std::vector<FromDecl>& froms() const { return froms_; }
   [[nodiscard]] const std::vector<SinkDecl>& sinks() const { return sinks_; }
 
+  // Load-time SLA verdict (ADR-0029): budgets, violations, saturation.
+  // Empty report when the flow declared no SLA endpoints.
+  [[nodiscard]] const sla::SlaReport& sla_report() const { return sla_report_; }
+  [[nodiscard]] const std::vector<sla::SlaEndpoint>& sla_endpoints() const {
+    return sla_endpoints_;
+  }
+
   // Wiring summary: "src -> map -> sink" with channels, for tests.
   [[nodiscard]] std::string describe() const {
     std::string out = "flow " + name_ + ":";
@@ -244,6 +255,8 @@ class Flow {
   std::vector<SpanDecl> spans_;
   std::vector<FromDecl> froms_;
   std::vector<SinkDecl> sinks_;
+  std::vector<sla::SlaEndpoint> sla_endpoints_;
+  sla::SlaReport sla_report_;
 };
 
 // ---------------------------------------------------------------------------
@@ -373,9 +386,14 @@ class FlowBuilder {
     return FlowChain<TOut>(this, Stream<TOut>(out, std::string(core::MessageTraits<TOut>::name())));
   }
 
-  // Accepted and ignored in v0 (SLA annotation slot; L1 compiler consumes
-  // it later per ADR-0021).
+  // Accepted and ignored in v0 (kept for source compatibility); the
+  // typed FlowChain::with_sla(sla::Sla) is the real declaration path
+  // consumed by the load-time analyzer (ADR-0029).
   FlowBuilder& with_sla(std::string_view sla);
+
+  // Overrides the SLA analysis configuration (ADR-0029 D2/D3): default
+  // WCET, hop cost, machine cores, saturation margin/strictness.
+  FlowBuilder& with_sla_config(sla::SlaConfig config);
 
   [[nodiscard]] Flow build();
 
@@ -402,6 +420,17 @@ class FlowBuilder {
   }
   std::string anon_channel() { return name_ + "/~" + std::to_string(anon_++); }
 
+  void add_sla_endpoint(std::string channel, std::chrono::microseconds deadline) {
+    sla_endpoints_.push_back(sla::SlaEndpoint{.channel = std::move(channel), .deadline = deadline});
+  }
+  void declare_wcet(const std::string& out_channel, std::chrono::microseconds budget) {
+    wcet_by_out_[out_channel] = budget;
+  }
+
+  // Lowers the declaration graph into analyzer input (ADR-0029 D7) and
+  // runs the load-time pass. No-op for graphs without SLA endpoints.
+  void run_sla_analysis(Flow& flow) const;
+
   std::string name_;
   std::vector<Flow::SourceDecl> sources_;
   std::vector<Flow::MapDecl> maps_;
@@ -411,6 +440,9 @@ class FlowBuilder {
   std::vector<Flow::SpanDecl> spans_;
   std::vector<Flow::FromDecl> froms_;
   std::vector<Flow::SinkDecl> sinks_;
+  std::vector<sla::SlaEndpoint> sla_endpoints_;
+  std::map<std::string, std::chrono::microseconds> wcet_by_out_;
+  sla::SlaConfig sla_config_;
   std::uint64_t anon_{0};
 };
 
@@ -432,6 +464,22 @@ class FlowChain {
 
   FlowChain<T>& with_sla(std::string_view sla) {
     builder_->with_sla(sla);
+    return *this;
+  }
+
+  // Binds a deadline to the chain's current channel (endpoint semantics,
+  // ADR-0029 D1). Flow::build() verifies every endpoint at load time and
+  // throws when the worst upstream path exceeds the deadline.
+  FlowChain<T>& with_sla(sla::Sla sla) {
+    builder_->add_sla_endpoint(stream_.channel(), sla.deadline);
+    return *this;
+  }
+
+  // Declares the worst-case execution time of the node that produced
+  // this chain's channel (ADR-0029 D2). Undeclared nodes fall back to
+  // the configured default WCET and are named in the analysis output.
+  FlowChain<T>& with_wcet(std::chrono::microseconds budget) {
+    builder_->declare_wcet(stream_.channel(), budget);
     return *this;
   }
 
@@ -472,8 +520,88 @@ FlowChain<T> FlowBuilder::source(std::string_view name, std::chrono::millisecond
 
 inline FlowBuilder& FlowBuilder::with_sla(std::string_view /*sla*/) { return *this; }
 
+inline FlowBuilder& FlowBuilder::with_sla_config(sla::SlaConfig config) {
+  sla_config_ = config;
+  return *this;
+}
+
+inline void FlowBuilder::run_sla_analysis(Flow& flow) const {
+  if (sla_endpoints_.empty()) {
+    return;  // zero-overhead for graphs without SLA declarations
+  }
+
+  std::vector<sla::SlaSource> sources;
+  std::vector<sla::SlaNode> nodes;
+  sources.reserve(sources_.size() + froms_.size());
+  nodes.reserve(maps_.size() + joins_.size() + ops_.size() + statefuls_.size() + spans_.size() +
+                froms_.size());
+  const auto wcet_of = [this](const std::string& out) {
+    const auto it = wcet_by_out_.find(out);
+    return it != wcet_by_out_.end() ? it->second : std::chrono::microseconds{0};
+  };
+
+  for (const auto& s : sources_) {
+    sources.push_back(sla::SlaSource{.channel = s.channel, .interval = s.interval});
+  }
+  for (const auto& m : maps_) {
+    nodes.push_back(sla::SlaNode{.kind = "map",
+                                 .in_channels = {m.in_channel},
+                                 .out_channel = m.out_channel,
+                                 .wcet = wcet_of(m.out_channel)});
+  }
+  for (const auto& j : joins_) {
+    nodes.push_back(sla::SlaNode{.kind = "join",
+                                 .in_channels = {j.in_channel_a, j.in_channel_b},
+                                 .out_channel = j.out_channel,
+                                 .wcet = wcet_of(j.out_channel)});
+  }
+  for (const auto& b : ops_) {
+    nodes.push_back(sla::SlaNode{.kind = "op",
+                                 .in_channels = {b.in_channel},
+                                 .out_channel = b.out_channel,
+                                 .wcet = wcet_of(b.out_channel)});
+  }
+  // Stateful: the data path carries the latency contract; the state
+  // channel is recovery bookkeeping (ADR-0027) and stays out of v0.
+  for (const auto& s : statefuls_) {
+    nodes.push_back(sla::SlaNode{.kind = "stateful",
+                                 .in_channels = {s.in_channel},
+                                 .out_channel = s.out_channel,
+                                 .wcet = wcet_of(s.out_channel)});
+  }
+  for (const auto& sp : spans_) {
+    nodes.push_back(sla::SlaNode{.kind = "span",
+                                 .in_channels = {sp.trig_channel, sp.data_channel},
+                                 .out_channel = sp.out_channel,
+                                 .wcet = wcet_of(sp.out_channel)});
+  }
+  for (const auto& f : froms_) {
+    if (f.in_channel.empty()) {
+      sources.push_back(sla::SlaSource{.channel = f.out_channel, .interval = f.interval});
+    } else {
+      nodes.push_back(sla::SlaNode{.kind = "from",
+                                   .in_channels = {f.in_channel},
+                                   .out_channel = f.out_channel,
+                                   .wcet = wcet_of(f.out_channel)});
+    }
+  }
+
+  const sla::SlaReport report =
+      sla::SlaAnalyzer::analyze(sources, nodes, sla_endpoints_, sla_config_);
+  flow.sla_endpoints_ = sla_endpoints_;
+  if (!report.ok) {
+    throw std::runtime_error("flow '" + name_ + "' rejected by SLA analysis:\n" + report.format());
+  }
+  if (!report.saturation_warning.empty() || !report.default_wcet_notes.empty()) {
+    static_cast<void>(std::fprintf(stderr, "[sla] flow '%s' warnings:\n%s", name_.c_str(),
+                                   report.format().c_str()));
+  }
+  flow.sla_report_ = report;
+}
+
 inline Flow FlowBuilder::build() {
   Flow flow(name_);
+  run_sla_analysis(flow);  // reads the builder decls: must precede the moves
   flow.sources_ = std::move(sources_);
   flow.maps_ = std::move(maps_);
   flow.joins_ = std::move(joins_);

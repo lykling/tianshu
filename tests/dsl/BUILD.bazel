@@ -13,6 +13,16 @@ cc_test(
 )
 
 cc_test(
+    name = "sla_test",
+    srcs = ["sla_test.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@googletest//:gtest_main",
+    ],
+    size = "small",
+)
+
+cc_test(
     name = "slice_state_test",
     srcs = ["slice_state_test.cc"],
     deps = [
