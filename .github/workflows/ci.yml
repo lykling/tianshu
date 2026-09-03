@@ -24,6 +24,7 @@ jobs:
 
   pr-title:
     name: PR Title (Conventional Commits)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: amannn/action-semantic-pull-request@v5
@@ -61,9 +62,13 @@ jobs:
       - name: Setup compiler
         run: |
           if [[ "${{ matrix.compiler }}" == "clang" ]]; then
-            sudo apt-get install -y clang
-            echo "CC=clang" >> $GITHUB_ENV
-            echo "CXX=clang++" >> $GITHUB_ENV
+            # Pin LLVM to the same major as the local dev toolchain; the
+            # zero-warning policy is only meaningful against a fixed version.
+            wget -q https://apt.llvm.org/llvm.sh
+            chmod +x llvm.sh
+            sudo ./llvm.sh 22
+            echo "CC=clang-22" >> $GITHUB_ENV
+            echo "CXX=clang++-22" >> $GITHUB_ENV
           fi
       - name: Configure
         run: cmake --preset=${{ matrix.preset }}
@@ -120,10 +125,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install clang tools
+      - name: Install clang tools (LLVM 22, matches the format baseline)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-format clang-tidy
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 22
+          sudo apt-get install -y clang-format-22 clang-tidy-22
+          # tools/*.sh invoke the bare names
+          sudo ln -sf /usr/bin/clang-format-22 /usr/local/bin/clang-format
+          sudo ln -sf /usr/bin/clang-tidy-22 /usr/local/bin/clang-tidy
       - name: Configure (generate compile_commands.json for clang-tidy)
         run: |
           sudo apt-get install -y ninja-build

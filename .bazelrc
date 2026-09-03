@@ -99,9 +99,15 @@ build:armv7m  --cpu=cortex-m7 --crosstool_top=//bazel/toolchains:armv7m
 # -----------------------------------------------------------------------------
 # Sanitizers (only for hosted profiles)
 # -----------------------------------------------------------------------------
+# Base config shared by all sanitizer builds (referenced via --config=asan etc.)
+build:sanitizer --copt=-fno-omit-frame-pointer
 build:asan --config=sanitizer --copt=-fsanitize=address --linkopt=-fsanitize=address
 build:tsan --config=sanitizer --copt=-fsanitize=thread --linkopt=-fsanitize=thread
 build:ubsan --config=sanitizer --copt=-fsanitize=undefined --linkopt=-fsanitize=undefined
+
+# Release-mode desktop build (name mirrors the CMake `desktop-release` preset,
+# per ADR-0003 build-system equivalence)
+build:desktop-release --config=desktop --config=release
 
 # -----------------------------------------------------------------------------
 # Feature flags (refer to ADR-0008 message format feature flags)

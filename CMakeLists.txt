@@ -169,8 +169,14 @@ add_compile_options(
     -Wconversion
     -Wsign-conversion
     -Wold-style-cast
-    -Wnull-dereference
 )
+
+# GCC < 14 emits a known false-positive -Wnull-dereference inside libstdc++
+# streambuf headers under -O3 (seen on ubuntu-24.04 GCC 13 CI runners).
+if(NOT (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+        AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14))
+    add_compile_options(-Wnull-dereference)
+endif()
 
 # -----------------------------------------------------------------------------
 # Sanitizer options (per ADR-0005 / INFRA-CI-3)
@@ -240,10 +246,20 @@ endif()
 # Third-party libraries should not be held to our -Werror standard.
 # Clang >= 22 flags __COUNTER__ as a C2y extension; GoogleBenchmark's own
 # -pedantic-errors turns that into an error before -Wno-error applies.
+# The suppression flags are compiler-version specific: -Wno-c2y-extensions
+# exists only since GCC 15 / Clang 22, -Wno-character-conversion since
+# Clang 15. Older toolchains reject unknown -Wno-* with their own warning.
 foreach(_target benchmark benchmark_main gtest gtest_main gmock gmock_main)
     if(TARGET ${_target})
-        target_compile_options(${_target} PRIVATE -Wno-error -Wno-c2y-extensions
-            $<$<CXX_COMPILER_ID:Clang>:-Wno-character-conversion>)
+        target_compile_options(${_target} PRIVATE
+            # -w: third-party code is outside our zero-warning scope; our
+            # directory-level -Wconversion/-Wsign-conversion would otherwise
+            # leak into their sources on colder/newer toolchains.
+            -w
+            -Wno-error
+            $<$<OR:$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,15>>,$<AND:$<CXX_COMPILER_ID:Clang>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,22>>>:-Wno-c2y-extensions>
+            $<$<AND:$<CXX_COMPILER_ID:Clang>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,15>>:-Wno-character-conversion>
+        )
     endif()
 endforeach()
 
