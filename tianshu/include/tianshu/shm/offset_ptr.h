@@ -36,8 +36,8 @@ class offset_ptr {
 
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   explicit offset_ptr(T* ptr)
-      : offset_(ptr != nullptr ? static_cast<std::int64_t>(reinterpret_cast<const char*>(ptr) -
-                                                           reinterpret_cast<const char*>(this))
+      : offset_(ptr != nullptr ? static_cast<std::int64_t>(reinterpret_cast<std::uintptr_t>(ptr) -
+                                                           reinterpret_cast<std::uintptr_t>(this))
                                : 0) {}
 
   offset_ptr(const offset_ptr& other)
@@ -65,8 +65,8 @@ class offset_ptr {
 
   offset_ptr& operator=(T* ptr) {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    offset_ = ptr != nullptr ? static_cast<std::int64_t>(reinterpret_cast<const char*>(ptr) -
-                                                         reinterpret_cast<const char*>(this))
+    offset_ = ptr != nullptr ? static_cast<std::int64_t>(reinterpret_cast<std::uintptr_t>(ptr) -
+                                                         reinterpret_cast<std::uintptr_t>(this))
                              : 0;
     return *this;
   }
@@ -92,10 +92,13 @@ class offset_ptr {
   std::int64_t raw_offset() const { return offset_; }
 
  private:
+  // NOTE: all self-relative offsets are computed via uintptr_t subtraction.
+  // Plain pointer subtraction between unrelated objects is UB ([expr.add])
+  // and GCC -O3 exploits it (observed as pointer-comparison miscompiles).
   // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
   std::int64_t offset_from_raw(const T* ptr) const {
-    return static_cast<std::int64_t>(reinterpret_cast<const char*>(ptr) -
-                                     reinterpret_cast<const char*>(this));
+    return static_cast<std::int64_t>(reinterpret_cast<std::uintptr_t>(ptr) -
+                                     reinterpret_cast<std::uintptr_t>(this));
   }
   // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
