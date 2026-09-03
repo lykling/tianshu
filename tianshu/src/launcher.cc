@@ -218,6 +218,13 @@ void Launcher::run_until_signal() {
 }
 
 void Launcher::stop() {
+  // Quiesce ALL self-driven threads before touching any component state:
+  // an in-flight timer publish can synchronously dispatch into another
+  // component's Writer/CacheBuffer, so every thread must be parked before
+  // the first component (or its members) is shut down or destroyed.
+  for (auto* comp : std::ranges::reverse_view(started_)) {
+    comp->quiesce();
+  }
   for (auto* comp : std::ranges::reverse_view(started_)) {
     comp->shutdown();
   }
