@@ -1,0 +1,14 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_test(
+    name = "ir_test",
+    size = "small",
+    srcs = ["ir_test.cc"],
+    deps = [
+        "//tianshu",
+        "//tianshu:tianshu_compiler",
+        "@googletest//:gtest_main",
+    ],
+)

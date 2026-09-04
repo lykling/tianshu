@@ -10,8 +10,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(LZ4 REQUIRED IMPORTED_TARGET liblz4)
 pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
 
-add_library(tianshu SHARED
-    src/version.cc
+add_library(tianshu SHARED    src/version.cc
     src/transport_backend.cc
     src/intra_backend.cc
     src/shm_segment.cc
@@ -63,6 +62,13 @@ install(TARGETS tianshu
 )
 
 target_link_libraries(tianshu PRIVATE PkgConfig::LZ4 PkgConfig::ZSTD)
+
+# Compiler library (ADR-0030): IR, passes, codegen. Grows through M-B/C.
+add_library(tianshu_compiler STATIC src/ir.cc)
+target_include_directories(tianshu_compiler PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(tianshu_compiler PRIVATE PkgConfig::LZ4 PkgConfig::ZSTD)
 
 install(DIRECTORY include/
     DESTINATION include

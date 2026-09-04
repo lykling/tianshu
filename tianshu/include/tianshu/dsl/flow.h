@@ -210,6 +210,12 @@ class Flow {
     return sla_endpoints_;
   }
 
+  // Declared per-node WCETs keyed by producing node's output channel
+  // (ADR-0029 D2); consumed by the compiler IR (ADR-0030 D2).
+  [[nodiscard]] const std::map<std::string, std::chrono::microseconds>& wcet_by_out() const {
+    return wcet_by_out_;
+  }
+
   // Wiring summary: "src -> map -> sink" with channels, for tests.
   [[nodiscard]] std::string describe() const {
     std::string out = "flow " + name_ + ":";
@@ -256,6 +262,7 @@ class Flow {
   std::vector<FromDecl> froms_;
   std::vector<SinkDecl> sinks_;
   std::vector<sla::SlaEndpoint> sla_endpoints_;
+  std::map<std::string, std::chrono::microseconds> wcet_by_out_;
   sla::SlaReport sla_report_;
 };
 
@@ -601,7 +608,8 @@ inline void FlowBuilder::run_sla_analysis(Flow& flow) const {
 
 inline Flow FlowBuilder::build() {
   Flow flow(name_);
-  run_sla_analysis(flow);  // reads the builder decls: must precede the moves
+  run_sla_analysis(flow);            // reads the builder decls: must precede the moves
+  flow.wcet_by_out_ = wcet_by_out_;  // compiler IR input regardless of SLA presence
   flow.sources_ = std::move(sources_);
   flow.maps_ = std::move(maps_);
   flow.joins_ = std::move(joins_);
