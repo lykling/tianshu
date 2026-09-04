@@ -349,7 +349,7 @@ L4-TRANS-3/4 实现时确定的五项架构级决策。实现细节与踩坑记�
 | 序列化 | 无 | 仅跨进程格式 | 必须 |
 | 适用 | 同进程多 component | 多加载进程 | 多机 |
 
-天枢大部分 hot path 是同进程内（一个加载进程 内多个 component），INTRA 应该是默认。
+天枢大部分 hot path 是同进程内（一个加载进程内多个 component），INTRA 应该是默认。
 
 ## 影响范围
 
@@ -412,7 +412,7 @@ L4-TRANS-3/4 实现时确定的五项架构级决策。实现细节与踩坑记�
 | 风险 | 缓解 |
 |---|---|
 | TransportBackend 接口设计过早抽象 → 未来扩展受限 | Phase 0 多花时间评审；保留 `CUSTOM` backend 类型 |
-| ShmPool 全局单例 → 多加载进程 进程冲突 | 每加载进程 独立 ShmPool 实例（按 process_id 隔离） |
+| ShmPool 全局单例 → 多加载进程冲突 | 每加载进程独立 ShmPool 实例（按 process_id 隔离） |
 | offset_ptr 自研 bug → 跨进程崩溃 | 充分单测 + sanitizer；参考 Boost 成熟实现 |
 | HYBRID 选择逻辑出错 → 性能退化 | 编译期可指定 backend；运行时可强制覆盖 |
 | 各模块从自管 allocator 迁移到 ShmPool 工作量大 | 分模块渐进迁移（Phase 1 完成 transport，Phase 2 lineage + state） |

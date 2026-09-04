@@ -466,7 +466,7 @@
 | L4-CONSOLE-7 | Web UI（HTTP/WS + React 前端，可选） | 5 | P3 | 10 | 3 | 浏览器可访问 |
 | L4-CONSOLE-8 | 安全模型（unix socket peer cred / token，分级权限） | 2 | P2 | 2 | 3 | 只读 / 写 / 危险 三级权限 |
 | L4-CONSOLE-9 | Python/Rust/Go/Node SDK 适配（基于 C ABI） | INFRA-API-8..11, 5 | P3 | 4 | 3 | 4 语言客户端可用 |
-| L4-CONSOLE-10 | 集成测试 + 示例场景（多加载进程 联合调试） | 1-9 | P2 | 3 | 3 | 真实场景跑通 |
+| L4-CONSOLE-10 | 集成测试 + 示例场景（多加载进程联合调试） | 1-9 | P2 | 3 | 3 | 真实场景跑通 |
 
 **L4-CONSOLE 工作量汇总**：46 点，全部 P2/P3，Phase 3。
 
@@ -482,7 +482,7 @@
 | L4-GPU-4 | CPU-GPU 数据零拷贝（pinned DMA + 可选 unified memory + IPC handle） | 2 | P1 | 4 | 2 | 跨进程 GPU 张量传递 < 10μs |
 | L4-GPU-5 | GPU 事件接入 DataNotifier（cudaEventRecord + 完成回调） | L4-CORE-7, 3 | P1 | 3 | 2 | 算子输出依赖 GPU event 而非 wall-clock |
 | L4-GPU-6 | GPU 故障检测（OOM / Xid 错误 / 超时 / 热降频） | 1, L2-FT-5 | P1 | 4 | 2 | 5 类故障单测覆盖 |
-| L4-GPU-7 | 跨进程 GPU 共享（CUDA MPS daemon 管理 + MIG 硬隔离选项） | 2, L4-SD-2 | P1 | 5 | 3 | ORIN 多加载进程 共享 GPU 可跑 |
+| L4-GPU-7 | 跨进程 GPU 共享（CUDA MPS daemon 管理 + MIG 硬隔离选项） | 2, L4-SD-2 | P1 | 5 | 3 | ORIN 多加载进程共享 GPU 可跑 |
 | L4-GPU-8 | OpenCL backend（嵌入式 GPU / non-CUDA 加速器） | 1 | P2 | 4 | 3 | 至少 1 种 OpenCL 设备跑通 |
 | L4-GPU-9 | GPU 利用率/显存监控（runtime 指标，入 lineage + 监控 dashboard） | L4-GPU-2,6 | P1 | 2 | 2 | 指标可读 |
 | L4-GPU-10 | GPU 内存池观测 API（容量/命中率/碎片率） | 2 | P2 | 1 | 3 | `tianshu-ctl inspect` 可看 |
@@ -589,7 +589,7 @@
 | L2-LIN-2 | `LineageRecorder`（每消息写入 entry，零拷贝指针） | 1, L4-TRANS-5 | P0 | 3 | 2 | 记录开销 < 100ns/msg（目标 50ns） |
 | L2-LIN-3 | `LineageBuffer`（环形，按 channel 维度） | 1, L4-PRIM-2 | P0 | 2 | 2 | 满负载不丢 entry |
 | L2-LIN-4 | `LineageQuery`（从输出反查全部上游 + 状态） | 1, 3 | P1 | 3 | 2 | 单测覆盖多跳反查 |
-| L2-LIN-5 | 跨进程 lineage 聚合（一个加载进程 多 process） | 3, L4-SD-2 | P1 | 3 | 2 | 跨进程反查正确 |
+| L2-LIN-5 | 跨进程 lineage 聚合（一个加载进程多 process） | 3, L4-SD-2 | P1 | 3 | 2 | 跨进程反查正确 |
 | L2-LIN-6 | lineage 落盘（可选，按时间窗口或大小） | 3 | P2 | 2 | 3 | 离线分析可用 |
 | L2-LIN-7 | lineage 导出格式（JSON / SQLite / Parquet） | 4 | P2 | 2 | 3 | 至少 1 种格式可用 |
 | L2-LIN-8 | GPU 张量血缘（cudaIpcMemHandle + gpu_device_id + gpu_stream_id + gpu_event_ts，详见 [adr/0006](./adr/0006-gpu-acceleration.md)） | 1, L4-GPU-4 | P1 | 2 | 2 | 跨进程 GPU 张量可追溯 |
@@ -650,7 +650,7 @@
 | L3-DERIVE-2 | priority 自动推导（按 SLA 重要性排序） | L3-RTA-2 | P0 | 1 | 2 | 单测覆盖 |
 | L3-DERIVE-3 | `pending_queue_size` 自动推导（按 WCET/period） | L3-RTA-1 | P0 | 2 | 2 | 公式与 cyber 实践一致 |
 | L3-DERIVE-4 | 反压水线自动推导（按 buffer + SLA） | L3-DERIVE-3 | P1 | 1.5 | 2 | 单测覆盖 |
-| L3-DERIVE-5 | 跨加载进程 全局资源视图（避免 cpuset 冲突） | L4-SD-2 | P1 | 3 | 2 | 多进程冲突检测准确 |
+| L3-DERIVE-5 | 跨加载进程全局资源视图（避免 cpuset 冲突） | L4-SD-2 | P1 | 3 | 2 | 多进程冲突检测准确 |
 
 ### F-L3-DETECT · SLA 违反检测
 

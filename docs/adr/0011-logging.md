@@ -18,7 +18,7 @@
 | 难以多语言共享 | Python/Rust/Go/Node SDK 各自打日志，跨语言 trace 断裂 |
 | 难以过滤聚合 | 没有结构化字段，grep 难；接入 ELK/Loki 需要解析 |
 | profile 不友好 | vehicle 需要 syslog，mcu 需要串口，desktop 需要彩色 stderr |
-| 多加载进程 难追溯 | 不知道哪条日志来自哪个 加载进程 / node |
+| 多加载进程难追溯 | 不知道哪条日志来自哪个加载进程 / node |
 | 与血缘脱节 | 日志和消息流无法对齐（lineage 已有 ts/src，日志没集成） |
 
 [adr-0005 依赖治理](./0005-lightweight-multiplatform.md) 已把 glog 列入禁用清单（重 + 平台耦合）。本 ADR 设计天枢自研日志系统。

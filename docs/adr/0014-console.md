@@ -16,15 +16,15 @@
 | 方案 | **E**：混合（自研 RPC + SHM mirror + Observability） |
 | UI 形态 | **E2**：TUI + Web |
 | profile 范围 | **C3**：全平台（与框架本身 profile 一致） |
-| 跨机访问 | **必须支持**（通过 TransportBackend 抽象，console client 可远程连接任意 加载进程） |
+| 跨机访问 | **必须支持**（通过 TransportBackend 抽象，console client 可远程连接任意加载进程） |
 | 设计完成度 | **Phase 0-2 设计完整**，实现 Phase 3 |
 
 ## 核心定位
 
 控制台是**管理调试入口**，建立在通信基础上：
 
-- 独立进程，可连接任意运行中的 加载进程
-- 跨机访问（多加载进程 联合调试）
+- 独立进程，可连接任意运行中的加载进程
+- 跨机访问（多加载进程联合调试）
 - 多语言 SDK（Python/Rust/Go/Node 都能用）
 - 全 profile 支持（含 embedded / mcu 的精简变体）
 
@@ -42,7 +42,7 @@
 │                     ↓                                     │
 │       ┌──────────────────────────────┐                   │
 │       │ Console Client SDK（C ABI）  │                   │
-│       │  - 多加载进程 连接管理      │                   │
+│       │  - 多加载进程连接管理      │                   │
 │       │  - 命令分发 / 响应聚合        │                   │
 │       │  - 多语言绑定（pybind11/cxx）│                   │
 │       └──────────────────────────────┘                   │
@@ -131,7 +131,7 @@ service ConsoleService {
 - 类似 htop / lazygit 的命令行交互
 - 默认视图：channel 列表 + 实时延迟 / SLA
 - 命令模式：`:` 进入命令行（list / inspect / set / inject）
-- 多加载进程 切换：tab 键
+- 多加载进程切换：tab 键
 - 适用：desktop / server / vehicle（车端现场）
 
 ### Web UI（React + xterm.js）
@@ -151,7 +151,7 @@ service ConsoleService {
 | embedded | ⚠️（简化） | ❌ | 仅基础查询 |
 | mcu | ❌ | ❌ | 不支持（资源装不下） |
 
-**全平台支持**通过框架层抽象实现：MCU 不直接支持控制台，但 mcu 上的 加载进程 可以被**远程** desktop/server 上的控制台连接（通过 Zenoh-pico）。
+**全平台支持**通过框架层抽象实现：MCU 不直接支持控制台，但 mcu 上的加载进程可以被**远程** desktop/server 上的控制台连接（通过 Zenoh-pico）。
 
 ## 多语言 SDK
 
@@ -160,7 +160,7 @@ service ConsoleService {
 ```python
 import tianshu.console as tc
 
-# 连接多个 加载进程
+# 连接多个加载进程
 session = tc.connect(["tcp://192.168.1.10:7447", "tcp://192.168.1.11:7447"])
 
 # 列举所有 channel
@@ -202,8 +202,8 @@ session.trigger_replay("/perception/front", start_seq=1000, end_seq=2000)
 | 控制台影响主链路性能 | SHM mirror 按需开启 + 节流策略 |
 | 跨机控制台延迟 | 接受 ms 级；高频数据走订阅 |
 | 安全（远程操控车端） | 强制 token + TLS（Zenoh 原生支持） |
-| 控制台进程崩溃 | 不影响 加载进程；重启即恢复 |
-| 多加载进程 状态聚合复杂 | Client SDK 做聚合，UI 看统一视图 |
+| 控制台进程崩溃 | 不影响加载进程；重启即恢复 |
+| 多加载进程状态聚合复杂 | Client SDK 做聚合，UI 看统一视图 |
 
 ## 后续可能演进
 
