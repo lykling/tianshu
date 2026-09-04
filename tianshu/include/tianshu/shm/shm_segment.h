@@ -67,7 +67,11 @@ class ShmSegment {
   bool init(std::string_view name, std::size_t size);
   bool create_new(std::size_t total);
   bool attach_existing();
-  bool map_full(const char* n, std::size_t payload_size);
+  // Maps from an already-open descriptor: the fd keeps pointing at the
+  // original object even if the name is unlinked and recreated by a
+  // concurrent instance, which is exactly the window a name-based
+  // re-open loses.
+  bool map_fd(int fd, std::size_t payload_size);
   SegmentHeader* header() { return static_cast<SegmentHeader*>(base_); }
 
   void* base_{nullptr};

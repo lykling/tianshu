@@ -27,6 +27,7 @@
 #include <thread>
 
 #include <sys/mman.h>
+#include <sys/stat.h>
 
 namespace tianshu::shm {
 
@@ -92,7 +93,7 @@ bool ShmSegment::create_new(std::size_t total) {
   if (fd < 0) {
     return false;
   }
-  if (ftruncate(fd, static_cast<off_t>(total)) != 0 || !map_full(name_, total)) {
+  if (ftruncate(fd, static_cast<off_t>(total)) != 0 || !map_fd(fd, total)) {
     close(fd);
     shm_unlink(name_);
     return false;
@@ -109,6 +110,23 @@ bool ShmSegment::create_new(std::size_t total) {
 bool ShmSegment::attach_existing() {
   const int fd = shm_open(name_, kOpenFlagsExisting, 0600);
   if (fd < 0) {
+    return false;
+  }
+
+  // The name exists from the creator's shm_open, but the file may not be
+  // ftruncate'd yet — mapping a page of a zero-sized object is SIGBUS.
+  // Wait for the header to become backed before probing it.
+  bool sized = false;
+  const auto header_bytes = static_cast<off_t>(sizeof(SegmentHeader));
+  for (int i = 0; i < 1000 && !sized; ++i) {
+    struct stat st{};
+    sized = fstat(fd, &st) == 0 && st.st_size >= header_bytes;
+    if (!sized) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  }
+  if (!sized) {
+    close(fd);
     return false;
   }
 
@@ -136,7 +154,7 @@ bool ShmSegment::attach_existing() {
     return false;
   }
 
-  if (!map_full(name_, total_size)) {
+  if (!map_fd(fd, total_size)) {
     close(fd);
     return false;
   }
@@ -146,13 +164,8 @@ bool ShmSegment::attach_existing() {
   return true;
 }
 
-bool ShmSegment::map_full(const char* n, std::size_t size) {
-  const int fd = shm_open(n, kOpenFlagsExisting, 0600);
-  if (fd < 0) {
-    return false;
-  }
+bool ShmSegment::map_fd(int fd, std::size_t size) {
   base_ = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-  close(fd);
   if (base_ == MAP_FAILED) {
     base_ = nullptr;
     return false;
