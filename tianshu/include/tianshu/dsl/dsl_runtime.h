@@ -50,6 +50,7 @@
 #include "tianshu/dsl/flow.h"
 #include "tianshu/dsl/record.h"
 #include "tianshu/dsl/record_v2.h"
+#include "tianshu/sla/sla_stats.h"
 #include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::dsl {
@@ -173,6 +174,11 @@ class FlowRuntime {
   // published): (seq, bytes, lineage) entries, oldest first. Recovery
   // and slice queries read from here (ADR-0026/0027).
   [[nodiscard]] const detail::HistoryRing* history(const std::string& channel) const;
+
+  // SLA runtime defense (ADR-0029 D6): per-endpoint e2e histograms and
+  // miss counters for flows that declared SLA endpoints. Empty for
+  // flows without declarations (recording never arms).
+  [[nodiscard]] std::vector<sla::SlaEndpointStats> sla_snapshot() const;
 
   // Record substrate (ADR-0026 Phase C): dump every captured channel
   // history into an append-only record file (messages in capture
@@ -442,6 +448,9 @@ class FlowRuntime {
   std::unordered_map<std::string, std::vector<detail::LineageMailbox*>> channel_queues_;
   std::unordered_map<std::string, std::uint64_t> seq_counters_;
   std::unordered_map<std::string, detail::HistoryRing> histories_;
+
+  // Arms on the first run_for of a flow with SLA endpoints (ADR-0029 D6).
+  std::unique_ptr<sla::SlaStatsCollector> sla_stats_;
 
   // Live recording (ADR-0028 v2): writer hooks into publish_bytes.
   std::unique_ptr<record::RecordWriter> recorder_;

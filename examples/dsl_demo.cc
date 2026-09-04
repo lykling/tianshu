@@ -91,6 +91,15 @@ int main() {
   tianshu::dsl::FlowRuntime runtime;
   runtime.run_for(flow, std::chrono::milliseconds(600));
 
+  for (const auto& stat : runtime.sla_snapshot()) {
+    static_cast<void>(std::printf(
+        "[sla][runtime] %-12s planned=%lldus p50=%lldns p99=%lldns miss=%llu/%llu\n",
+        stat.endpoint.c_str(), static_cast<long long>(stat.deadline.count()),
+        static_cast<long long>(stat.p50.count()), static_cast<long long>(stat.p99.count()),
+        static_cast<unsigned long long>(stat.miss_count),
+        static_cast<unsigned long long>(stat.count)));
+  }
+
   for (const auto& s : samples) {
     static_cast<void>(std::printf("%s\n", s.c_str()));
   }

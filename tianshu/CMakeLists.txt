@@ -27,6 +27,7 @@ add_library(tianshu SHARED    src/version.cc
     src/record_v2.cc
     src/dsl_runtime.cc
     src/sla_analyzer.cc
+    src/sla_stats.cc
     src/hybrid_transport.cc
     src/node.cc
 )

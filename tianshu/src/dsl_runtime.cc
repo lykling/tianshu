@@ -33,6 +33,7 @@
 #include "tianshu/dsl/flow.h"
 #include "tianshu/dsl/record.h"
 #include "tianshu/dsl/record_v2.h"
+#include "tianshu/sla/sla_stats.h"
 #include "tianshu/transport/transport_backend.h"
 
 namespace tianshu::dsl {
@@ -54,6 +55,22 @@ std::uint64_t own_seq_of(const core::Lineage& lin) {
 
 void FlowRuntime::publish_bytes(const std::string& channel, const void* data, std::size_t size,
                                 const core::Lineage& lineage) {
+  // SLA runtime defense (ADR-0029 D6): the v0 cascade is synchronous
+  // within one source tick, so a thread-local birth timestamp carries
+  // the e2e origin exactly. Flows without SLA endpoints pay one null
+  // check; uninstrumented channels pay a map miss.
+  static thread_local std::uint64_t sla_born_ns = 0;
+  const bool sla_outermost = sla_stats_ != nullptr && sla_born_ns == 0;
+  std::uint64_t sla_now_ns = 0;
+  if (sla_stats_ != nullptr) {
+    sla_now_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                                std::chrono::steady_clock::now().time_since_epoch())
+                                                .count());
+    if (sla_outermost) {
+      sla_born_ns = sla_now_ns;
+    }
+  }
+
   {
     const std::scoped_lock lock(mutex_);
     const auto it = channel_queues_.find(channel);
@@ -82,12 +99,23 @@ void FlowRuntime::publish_bytes(const std::string& channel, const void* data, st
     }
   }
   core::DataDispatcher::instance().dispatch(core::channel_id_for(channel), data, size);
+
+  if (sla_stats_ != nullptr) {
+    sla_stats_->record_if_endpoint(channel, std::chrono::nanoseconds{sla_now_ns - sla_born_ns});
+    if (sla_outermost) {
+      sla_born_ns = 0;
+    }
+  }
 }
 
 const detail::HistoryRing* FlowRuntime::history(const std::string& channel) const {
   const std::scoped_lock lock(mutex_);
   const auto it = histories_.find(channel);
   return it == histories_.end() ? nullptr : &it->second;
+}
+
+std::vector<sla::SlaEndpointStats> FlowRuntime::sla_snapshot() const {
+  return sla_stats_ != nullptr ? sla_stats_->snapshot() : std::vector<sla::SlaEndpointStats>{};
 }
 
 void FlowRuntime::start_recording(const std::string& path, record::Compression compression) {
@@ -258,6 +286,12 @@ void drive_source(const Flow::SourceDecl& source, std::chrono::milliseconds dura
 }  // namespace
 
 void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) {
+  if (!flow.sla_endpoints().empty() && sla_stats_ == nullptr) {
+    sla_stats_ = std::make_unique<sla::SlaStatsCollector>();
+    for (const auto& endpoint : flow.sla_endpoints()) {
+      sla_stats_->add_endpoint(endpoint.channel, endpoint.deadline);
+    }
+  }
   for (const auto& map_decl : flow.maps()) {
     map_decl.wire(*this);
   }

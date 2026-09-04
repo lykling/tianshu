@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
 #include <gtest/gtest.h>
 
@@ -26,6 +27,7 @@
 #include "tianshu/dsl/dsl_runtime.h"
 #include "tianshu/dsl/flow.h"
 #include "tianshu/sla/sla_analyzer.h"
+#include "tianshu/sla/sla_stats.h"
 
 // NOLINTNEXTLINE(misc-use-internal-linkage)  // traits must precede template use
 struct TickMsg {
@@ -189,6 +191,83 @@ TEST(SlaTest, NoEndpointsNoAnalysis) {
   EXPECT_TRUE(flow.sla_report().ok);
   EXPECT_TRUE(flow.sla_report().budgets.empty());
   EXPECT_TRUE(flow.sla_report().default_wcet_notes.empty());
+}
+
+// 7. Runtime defense (ADR-0029 D6): a real run measures per-message e2e
+//    at the endpoint; a generous deadline records zero misses.
+TEST(SlaTest, RuntimeHistogramsMeasureE2E) {
+  const auto flow =
+      tianshu::dsl::FlowBuilder("sla_rt")
+          .source<TickMsg>("cam", std::chrono::milliseconds(10),
+                           [](std::uint64_t t) { return TickMsg{.tick = t}; })
+          .map<DetectMsg>([](const TickMsg& in) { return DetectMsg{.tick = in.tick}; })
+          .sink([](const DetectMsg&, const tianshu::core::Lineage&) {})
+          .with_sla(tianshu::sla::Sla{.deadline = std::chrono::milliseconds(50)})
+          .build();
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(150));
+
+  const auto stats = runtime.sla_snapshot();
+  ASSERT_EQ(stats.size(), 1U);
+  EXPECT_EQ(stats[0].deadline, std::chrono::milliseconds(50));
+  EXPECT_GT(stats[0].count, 0U);
+  EXPECT_EQ(stats[0].miss_count, 0U);
+}
+
+// 8. Misses counted: a map that sleeps past the deadline guarantees
+//    every message misses (sleep is a lower bound on e2e).
+TEST(SlaTest, RuntimeMissCountedWhenDeadlineExceeded) {
+  const auto flow = tianshu::dsl::FlowBuilder("sla_miss")
+                        .source<TickMsg>("cam", std::chrono::milliseconds(10),
+                                         [](std::uint64_t t) { return TickMsg{.tick = t}; })
+                        .map<DetectMsg>([](const TickMsg& in) {
+                          std::this_thread::sleep_for(std::chrono::milliseconds(3));
+                          return DetectMsg{.tick = in.tick};
+                        })
+                        .sink([](const DetectMsg&, const tianshu::core::Lineage&) {})
+                        .with_sla(tianshu::sla::Sla{.deadline = std::chrono::milliseconds(1)})
+                        .build();
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(150));
+
+  const auto stats = runtime.sla_snapshot();
+  ASSERT_EQ(stats.size(), 1U);
+  ASSERT_GT(stats[0].count, 0U);
+  EXPECT_EQ(stats[0].miss_count, stats[0].count);
+}
+
+// 9. Collector unit: log-scale bucket floors, miss accounting, and the
+//    non-endpoint no-op contract.
+TEST(SlaTest, CollectorBucketsAndMisses) {
+  tianshu::sla::SlaStatsCollector collector;
+  collector.add_endpoint("ep", std::chrono::milliseconds(4));
+  for (int i = 0; i < 100; ++i) {
+    collector.record_if_endpoint("ep", std::chrono::milliseconds(5));
+  }
+  collector.record_if_endpoint("not/registered", std::chrono::milliseconds(1));
+
+  const auto snapshot = collector.snapshot();
+  ASSERT_EQ(snapshot.size(), 1U);
+  EXPECT_EQ(snapshot[0].count, 100U);
+  EXPECT_EQ(snapshot[0].miss_count, 100U);
+  // 5ms lands in [1ms, 10ms): percentile floors are the bucket edge.
+  EXPECT_EQ(snapshot[0].p50, std::chrono::nanoseconds(1000000));
+  EXPECT_EQ(snapshot[0].p99, std::chrono::nanoseconds(1000000));
+}
+
+// 10. Flows without declarations never arm the collector.
+TEST(SlaTest, RuntimeSnapshotEmptyWithoutEndpoints) {
+  const auto flow = tianshu::dsl::FlowBuilder("sla_none")
+                        .source<TickMsg>("cam", std::chrono::milliseconds(10),
+                                         [](std::uint64_t t) { return TickMsg{.tick = t}; })
+                        .sink([](const TickMsg&, const tianshu::core::Lineage&) {})
+                        .build();
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(50));
+  EXPECT_TRUE(runtime.sla_snapshot().empty());
 }
 
 }  // namespace
