@@ -169,7 +169,7 @@ jobs:
         run: |
           for hook in ruff ruff-format shellcheck cmake-format buildifier shfmt; do
             pre-commit run "$hook" --all-files
-          done --format-check
+          done
 
   # ---------------------------------------------------------------------------
   # Build system equivalence guard (per ADR-0003, ensure CMake ~= Bazel)
