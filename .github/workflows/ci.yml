@@ -21,6 +21,16 @@ jobs:
         uses: wagoid/commitlint-github-action@v5
         with:
           configFile: .github/commitlint.config.js
+      - name: Reject non-ASCII (CJK) commit messages
+        run: |
+          # ADR-0009 backstop: the local commit-msg hook is the first
+          # line of defense; this guards against commits made with
+          # hooks disabled.
+          if git log --format="%B" origin/main..HEAD | grep -qP '[\x{4e00}-\x{9fff}]'; then
+            echo "::error::commit messages must be English-only (ADR-0009)"
+            git log --format="%h %B" origin/main..HEAD | grep -nP '[\x{4e00}-\x{9fff}]' | head -3
+            exit 1
+          fi
 
   pr-title:
     name: PR Title (Conventional Commits)

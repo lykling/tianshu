@@ -73,3 +73,14 @@ repos:
         entry: ./tools/lint.sh
         language: system
         pass_filenames: false
+
+  # ---------------------------------------------------------------------------
+  # commit-msg: message language enforcement (ADR-0009)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: commit-msg-english-only
+        name: commit message must be English-only (ADR-0009)
+        entry: ./tools/check-commit-msg.sh
+        language: system
+        stages: [commit-msg]
