@@ -252,7 +252,7 @@ def perception_flow(node: Node):
         det = detect_op(c, l)
         predict_out.write(predict_op(det))
 
-# mainboard 启动时自动 trace + 编译
+# ti launch 启动时自动 trace + 编译
 ```
 
 ### Rust SDK 示例（设计契约）

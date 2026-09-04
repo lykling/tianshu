@@ -102,7 +102,7 @@ auto names = tianshu::list_params();
 ```
 1. 命令行参数（CLI flags）
 2. 环境变量（TIANSHU_<NAME>）
-3. launch 文件注入（mainboard -d xxx.dag 时由 mainboard 注入）
+3. launch 文件注入（ti launch -d xxx.dag 时由 加载器注入）
 4. 配置文件（YAML/JSON）
 
 最后 fallback：代码默认值（TIANSHU_PARAM 宏声明）
@@ -111,7 +111,7 @@ auto names = tianshu::list_params();
 #### 来源 1：命令行参数
 
 ```bash
-tianshu-mainboard \
+ti launch \
   --param scheduler_cpu_count=8 \
   --param sla_deadline_ms=30 \
   -d perception.dag
@@ -120,7 +120,7 @@ tianshu-mainboard \
 或简化形式：
 
 ```bash
-tianshu-mainboard --scheduler_cpu_count=8 --sla_deadline_ms=30 -d perception.dag
+ti launch --scheduler_cpu_count=8 --sla_deadline_ms=30 -d perception.dag
 ```
 
 #### 来源 2：环境变量
@@ -128,7 +128,7 @@ tianshu-mainboard --scheduler_cpu_count=8 --sla_deadline_ms=30 -d perception.dag
 ```bash
 export TIANSHU_SCHEDULER_CPU_COUNT=8
 export TIANSHU_SLA_DEADLINE_MS=30
-tianshu-mainboard -d perception.dag
+ti launch -d perception.dag
 ```
 
 规则：参数名 uppercase + `TIANSHU_` 前缀。
@@ -137,7 +137,7 @@ tianshu-mainboard -d perception.dag
 
 ```yaml
 # perception.launch.yaml
-mainboards:
+launch:
   - name: perception
     dag: perception.dag
     params:
@@ -146,7 +146,7 @@ mainboards:
       enabled_flows: [perception_flow, predict_flow]
 ```
 
-`tianshu-launch perception.launch.yaml` 启动时把 params 注入每个 mainboard（通过 mainboard CLI）。
+`ti launch perception.launch.yaml` 启动时把 params 注入每个加载进程（通过 ti launch CLI）。
 
 #### 来源 4：配置文件
 
@@ -321,7 +321,7 @@ scheduler:
 #### 导出当前运行时配置
 
 ```bash
-# mainboard 运行中
+# 加载进程运行中
 tianshu-ctl export-params > current.yaml
 ```
 
@@ -360,10 +360,10 @@ enable_lineage:
 tianshu-ctl import-params current.yaml
 ```
 
-或 mainboard 启动时：
+或 ti launch 启动时：
 
 ```bash
-tianshu-mainboard --config-file current.yaml -d perception.dag
+ti launch --config-file current.yaml -d perception.dag
 ```
 
 ### §7 热加载

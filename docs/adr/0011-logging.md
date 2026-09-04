@@ -18,7 +18,7 @@
 | 难以多语言共享 | Python/Rust/Go/Node SDK 各自打日志，跨语言 trace 断裂 |
 | 难以过滤聚合 | 没有结构化字段，grep 难；接入 ELK/Loki 需要解析 |
 | profile 不友好 | vehicle 需要 syslog，mcu 需要串口，desktop 需要彩色 stderr |
-| 多 mainboard 难追溯 | 不知道哪条日志来自哪个 mainboard / node |
+| 多加载进程 难追溯 | 不知道哪条日志来自哪个 加载进程 / node |
 | 与血缘脱节 | 日志和消息流无法对齐（lineage 已有 ts/src，日志没集成） |
 
 [adr-0005 依赖治理](./0005-lightweight-multiplatform.md) 已把 glog 列入禁用清单（重 + 平台耦合）。本 ADR 设计天枢自研日志系统。
@@ -75,7 +75,7 @@ enum class LogLevel : uint8_t {
 ```cpp
 TIANSHU_TRACE("channel_ready") << "channel " << channel << " ready";
 TIANSHU_DEBUG("scheduler") << "task " << id << " queued";
-TIANSHU_INFO("mainboard") << "started, flows=" << flow_names.size();
+TIANSHU_INFO("launch") << "started, flows=" << flow_names.size();
 TIANSHU_WARN("sla") << "deadline miss count=" << miss_count;
 TIANSHU_ERROR("transport") << "shm attach failed: " << path;
 TIANSHU_FATAL("init") << "config parse failed, aborting";
@@ -256,7 +256,7 @@ TIANSHU_INFO_EVERY_N("hot", 1000).field("batch", n).log("processing");
 |---|---|---|
 | TRACE | 极细粒度（仅 TRACE 模式启用） | 单条消息字段值 |
 | DEBUG | 调试用（默认 desktop 启用） | 状态机转移、调度决策 |
-| INFO | 关键里程碑（默认级别） | mainboard 启动、flow 注册、节点上线 |
+| INFO | 关键里程碑（默认级别） | ti launch 启动、flow 注册、节点上线 |
 | WARN | 异常但可恢复 | deadline 接近、buffer 接近满、retry |
 | ERROR | 错误（用户可见） | 配置错误、消息丢失、连接断开 |
 | FATAL | 致命 | init 失败、不可恢复状态（同步 flush 后 abort） |

@@ -14,21 +14,21 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  1. 启动第一个 mainboard                                 │
+│  1. 启动第一个加载进程                                 │
 │     ↓                                                    │
-│  2. mainboard 主动 fork 一个守护进程（daemon）           │
+│  2. 加载进程 主动 fork 一个守护进程（daemon）           │
 │     ↓                                                    │
 │  3. daemon 在后台运行，作为 fork 模板                    │
 │     ↓                                                    │
-│  4. 启动第二个 mainboard：通知 daemon fork              │
+│  4. 启动第二个 加载进程：通知 daemon fork              │
 │     ↓                                                    │
-│  5. daemon fork 出第二个 mainboard 实例                  │
+│  5. daemon fork 出第二个 加载进程 实例                  │
 │     ↓                                                    │
-│  6. 第二个 mainboard 继承 daemon 的地址空间             │
+│  6. 第二个 加载进程 继承 daemon 的地址空间             │
 │     ↓                                                    │
 │  7. 共享内存中存放的指针（含 vtable 指针）可直接解引用   │
 │     ↓                                                    │
-│  8. 最后一个 mainboard 退出时，daemon 一同退出           │
+│  8. 最后一个加载进程 退出时，daemon 一同退出           │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -82,7 +82,7 @@ Linux fork(2) 语义保证：
 
 | 约束 | 说明 |
 |---|---|
-| 同一份 `.so` | 所有 mainboard 必须用同一份编译产物，hash 校验 |
+| 同一份 `.so` | 所有 加载进程 必须用同一份编译产物，hash 校验 |
 | 相同加载顺序 | 任何动态库加载顺序差异 → 地址偏移 → 解引用崩溃 |
 | `LD_LIBRARY_PATH` 一致 | 环境变量影响 |
 | glibc/libstdc++ 同版本 | OS 升级可能破坏 |
@@ -93,7 +93,7 @@ Linux fork(2) 语义保证：
 
 | 风险 | 缓解 |
 |---|---|
-| daemon 崩溃 → 无法 fork 新 mainboard | 需 daemon 自动重启；但重启后地址不一致，老进程受影响 |
+| daemon 崩溃 → 无法 fork 新 加载进程 | 需 daemon 自动重启；但重启后地址不一致，老进程受影响 |
 | daemon CPU/内存泄漏 | 长期运行风险 |
 | daemon 死锁 | 监控复杂 |
 
@@ -169,7 +169,7 @@ class PureVirtualMessage {
 ┌──────────────────────────────────────────────────────────┐
 │                     用户态                                 │
 │                                                            │
-│   mainboard #1     mainboard #2     mainboard #3           │
+│   launch #1     launch #2     launch #3           │
 │   (worker)         (worker)         (worker)               │
 │       │                │                │                  │
 │       └──── IPC ───────┴──── IPC ───────┘                 │
@@ -220,9 +220,9 @@ int main() {
     auto req = accept_fork_request(sock);
     pid_t child = fork();
     if (child == 0) {
-      // 子进程：执行 mainboard 入口
+      // 子进程：执行 加载进程 入口
       close(sock);  // 子进程不监听
-      exec_mainboard(req.argv, req.envp);
+      exec_launch(req.argv, req.envp);
     } else {
       // 父进程：记录子进程
       children[child] = req;
@@ -234,10 +234,10 @@ int main() {
 }
 ```
 
-### 4.3 mainboard 启动流程（改造后）
+### 4.3 ti launch 启动流程（改造后）
 
 ```cpp
-// mainboard main（伪代码）
+// 加载进程 main（伪代码）
 
 int main(int argc, char** argv) {
   // 1. 解析参数
@@ -253,7 +253,7 @@ int main(int argc, char** argv) {
       opts.fork_shm_mode = false;
     } else {
       // daemon 已经 fork 了我们，我们就是那个子进程
-      // 当前 mainboard 进程的地址布局与 daemon 一致
+      // 当前 加载进程 进程的地址布局与 daemon 一致
     }
   }
 
@@ -265,8 +265,8 @@ int main(int argc, char** argv) {
     }
   }
 
-  // 5. 启动 mainboard 正常逻辑
-  return mainboard_main(argc, argv);
+  // 5. 启动 加载进程 正常逻辑
+  return launch_main(argc, argv);
 }
 ```
 
@@ -333,7 +333,7 @@ TIANSHU_MARK_CROSS_PROCESS_SAFE(CrossProcessHandler);
 |---|---|---|
 | desktop | 关闭（开发不强制 ASLR 关） | 可手动开 |
 | server | 关闭（容器化部署） | 可手动开 |
-| **vehicle** | **可选开启** | **车端 mainboard 间高性能通信** |
+| **vehicle** | **可选开启** | **车端 加载进程 间高性能通信** |
 | embedded | 关闭（资源紧张） | 可手动开 |
 | mcu | ❌ 不支持 | 无 fork 系统调用 |
 
@@ -412,7 +412,7 @@ Python 用户写的 flow，如果消息是 `CrossProcessHandler` 类型，自动
 ```
 天枢主要场景是？
 │
-├── 车端 ECU（ORIN/J5），单机 mainboard 间通信，对延迟极敏感
+├── 车端 ECU（ORIN/J5），单机 加载进程 间通信，对延迟极敏感
 │   └── 倾向 ForkSHM mode（接受工程复杂度）
 │       └── 团队接受 ASLR 关闭 + 部署严苛？
 │           ├── 是 → 实现完整 ForkSHM mode（28 点）
@@ -511,7 +511,7 @@ struct MessageTraits<T> {
 
 - D1. systemd 系统服务（车端专用，启动最早）
 - D2. 用户手动启动（开发友好）
-- D3. mainboard 启动时按需起 daemon（自动化）
+- D3. ti launch 启动时按需起 daemon（自动化）
 
 ## 9. 决策后影响
 

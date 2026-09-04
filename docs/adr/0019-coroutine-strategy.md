@@ -244,7 +244,7 @@ Phase 2 的 C++20 协程是**新增**，不是替换 Phase 1 的回调调度。
 ### Phase 3+ stackful 评估条件
 
 仅当**生产数据**显示以下场景时才评估 stackful 协程：
-1. 单个组件 Proc() 超时导致整个 mainboard 线程阻塞
+1. 单个组件 Proc() 超时导致整个加载进程 线程阻塞
 2. SLA/RTA 无法在编译期预防的运行时 jitter
 3. 需要从组件内部深层调用链强制 yield
 

@@ -105,7 +105,7 @@ tianshu/
 │   ├── scheduler/         # Classic / Choreography
 │   ├── lineage/           # 血缘 + 容错
 │   ├── sla/               # RTA + 调度推导
-│   └── runtime/           # mainboard + 闭环
+│   └── runtime/           # ti launch + 闭环
 ├── tests/
 ├── benchmarks/
 ├── examples/
@@ -127,7 +127,7 @@ tianshu/
 | `Component<M0, M1, M2, M3>` | `Component<M0, M1, M2, M3>` | 兼容（但推荐用 flow 函数替代） |
 | `TimerComponent` | `TimerComponent` | 兼容 |
 | `cyber::Init(argc, argv)` | `tianshu::Init(argc, argv)` | 完全兼容 |
-| `mainboard -d xxx.dag` | `tianshu-mainboard -d xxx.dag` | 完全兼容（CLI 同名） |
+| `mainboard -d xxx.dag` | `ti launch -d xxx.dag` | 等价（ti 家族命名，见下） |
 | `.dag` / `.conf` 格式 | 完全兼容 + 扩展字段 | 二进制兼容 |
 
 迁移用户主要改动：

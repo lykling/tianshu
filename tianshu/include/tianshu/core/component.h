@@ -21,7 +21,7 @@
 //     have fresh data
 //   - TimerComponent: Proc on a fixed interval, no inputs
 //   - ComponentFactory + TIANSHU_REGISTER_COMPONENT: name -> creator map,
-//     mainboard loads DAG configs through it
+//     ti launch loads DAG configs through it
 
 #pragma once
 

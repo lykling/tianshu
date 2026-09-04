@@ -105,7 +105,7 @@ benchmarks/codegen_vs_handwritten.cc                   # M-C: H2 装置
 | M-A | IR 字段补齐 + normalize + 哈希 + `.dag`/`.conf` 导出 | describe 与导出一致 |
 | M-B | P1-P5 管线 + 源码 codegen + `.so` 装载 + 缓存 + `ti compile` | 单链（source→map→sink）产物运行 = 解释执行输出 |
 | M-C | 全节点种类 codegen + **H2 三方对比装置** | roadmap 五链路 P99 <1% |
-| M-D | dry-run trace（mainboard 启动重放）+ `REGISTER_TRACEABLE_FLOW` | README 目标 API 首行成真 |
+| M-D | dry-run trace（ti launch 启动重放）+ `REGISTER_TRACEABLE_FLOW` | README 目标 API 首行成真 |
 
 M-B 是最小可演示闭环，M-C 是 Phase 1 的 H2 判决日。
 

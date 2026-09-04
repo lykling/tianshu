@@ -168,10 +168,10 @@
 | INFRA-API-5 | API lint 守护（命名规范 + ABI 兼容性 + 公开头文件无私有依赖） | 1, 2, 3 | P0 | 3 | 1 | CI 检出违规即 fail |
 | INFRA-API-6 | ABI 兼容性检查（libabigail / abi-dumper） | 2 | P1 | 2 | 1 | 每个 release 输出 ABI diff 报告 |
 | INFRA-API-7 | 消息跨语言契约（Protobuf 序列化 + 类型注册机制） | 2, L4-CORE-1 | P0 | 3 | 1 | 跨语言消息可发收 |
-| INFRA-API-8 | Python SDK（pybind11，含 DSL/trace/compile API） | 1-3, 7 | P1 | 8 | 2 | Python 用户可写 flow + run mainboard |
-| INFRA-API-9 | Rust SDK（cxx + cbindgen + bindgen） | 1-3, 7 | P2 | 6 | 2-3 | Rust 用户可写 flow + run mainboard |
-| INFRA-API-10 | Go SDK（cgo + 手写绑定） | 1-3, 7 | P2 | 5 | 3 | Go 用户可写 flow + run mainboard |
-| INFRA-API-11 | Node.js SDK（napi-rs，Rust 写绑定） | 9, 1-3, 7 | P2 | 5 | 3 | Node 用户可写 flow + run mainboard |
+| INFRA-API-8 | Python SDK（pybind11，含 DSL/trace/compile API） | 1-3, 7 | P1 | 8 | 2 | Python 用户可写 flow + 以 ti launch 运行 |
+| INFRA-API-9 | Rust SDK（cxx + cbindgen + bindgen） | 1-3, 7 | P2 | 6 | 2-3 | Rust 用户可写 flow + 以 ti launch 运行 |
+| INFRA-API-10 | Go SDK（cgo + 手写绑定） | 1-3, 7 | P2 | 5 | 3 | Go 用户可写 flow + 以 ti launch 运行 |
+| INFRA-API-11 | Node.js SDK（napi-rs，Rust 写绑定） | 9, 1-3, 7 | P2 | 5 | 3 | Node 用户可写 flow + 以 ti launch 运行 |
 | INFRA-API-12 | 跨语言集成测试套（每种 SDK 跑同一组 flow，对比输出） | 8-11 | P1 | 4 | 2-3 | ≥ 90% 用例覆盖 |
 | INFRA-API-13 | 多语言 SDK 文档（每种 SDK 独立 quickstart + API 参考） | 8-11 | P1 | 4 | 2-3 | 每种 SDK 有完整文档 |
 
@@ -271,7 +271,7 @@
 |---|---|---|---|---|---|---|
 | INFRA-PARAM-1 | `TIANSHU_PARAM` 宏 + 类型注册（编译期） | - | P0 | 3 | 0-1 | 宏展开正确 |
 | INFRA-PARAM-2 | `tianshu::param<T>` 模板 API + RWLock | 1 | P0 | 3 | 1 | 5+ 类型可读写 |
-| INFRA-PARAM-3 | CLI 解析（`--param name=value` 短形式） | INFRA-LOG-1, L4-MAIN-1 | P0 | 2 | 1 | mainboard 接受 CLI 参数 |
+| INFRA-PARAM-3 | CLI 解析（`--param name=value` 短形式） | INFRA-LOG-1, L4-MAIN-1 | P0 | 2 | 1 | ti launch 接受 CLI 参数 |
 | INFRA-PARAM-4 | 环境变量解析（`TIANSHU_<NAME>`） | 2 | P0 | 1 | 1 | 环境变量覆盖默认 |
 | INFRA-PARAM-5 | YAML 配置文件解析（自研极简或 header-only yaml-cpp） | INFRA-DEPS-1 | P0 | 4 | 1 | 5 级搜索路径生效 |
 | INFRA-PARAM-6 | 文件路径解析（相对/绝对/~/展开，配置文件目录基准） | 5 | P0 | 1 | 1 | 相对路径基准正确 |
@@ -424,7 +424,7 @@
 | L4-MAIN-4 | 信号处理 + 优雅退出 | 2 | P0 | 1 | 1 | SIGINT 后所有 component Shutdown |
 | L4-MAIN-5 | `--remap` 全局通道映射（cyber 风格） | 2 | P1 | 2 | 2 | `-r old:/new` 生效 |
 | L4-MAIN-6 | `--flow-register`（注册 traceable flow） | 2 | P0 | 1 | 1 | flow 函数可被编译器发现 |
-| L4-MAIN-7 | mainboard 内嵌编译器（启动时 trace+codegen） | L1-PASS-* | P0 | 3 | 1 | flow → .so 自动链路打通 |
+| L4-MAIN-7 | 加载器内嵌编译器（启动时 trace+codegen） | L1-PASS-* | P0 | 3 | 1 | flow → .so 自动链路打通 |
 
 ### F-L4-SD · Service Discovery
 
@@ -458,15 +458,15 @@
 | ID | 描述 | 依赖 | 优先级 | 估算 | Phase | 验收 |
 |---|---|---|---|---|---|---|
 | L4-CONSOLE-1 | ConsoleService Protobuf 定义 + 协议文档（list/inspect/query/set/inject/replay/subscribe） | - | P2 | 2 | 3 | 协议 review 通过 |
-| L4-CONSOLE-2 | mainboard 端 ConsoleServer（RPC + Pub/Sub，基于 unix socket） | L4-TRANS-20, 1 | P2 | 6 | 3 | 客户端可连接并发命令 |
-| L4-CONSOLE-3 | mainboard 端 Inspect/Query API（暴露 Node/Reader/Writer/State 状态） | L4-CORE-*, L2-LIN-4, 2 | P2 | 5 | 3 | 控制台可查任意对象 |
+| L4-CONSOLE-2 | 加载进程端 ConsoleServer（RPC + Pub/Sub，基于 unix socket） | L4-TRANS-20, 1 | P2 | 6 | 3 | 客户端可连接并发命令 |
+| L4-CONSOLE-3 | 加载进程端 Inspect/Query API（暴露 Node/Reader/Writer/State 状态） | L4-CORE-*, L2-LIN-4, 2 | P2 | 5 | 3 | 控制台可查任意对象 |
 | L4-CONSOLE-4 | SHM mirror 旁路（按需开启，控制台订阅大数据预览零拷贝） | L4-TRANS-22, 2 | P2 | 4 | 3 | 控制台订阅 channel 零拷贝预览 |
 | L4-CONSOLE-5 | Console Client SDK（C ABI + C++ 封装，详见 [adr/0007](./adr/0007-api-spec-multi-language.md)） | 1 | P2 | 4 | 3 | C++/Python 客户端可用 |
 | L4-CONSOLE-6 | TUI（ftxui，命令行交互式控制台） | 5 | P2 | 6 | 3 | TUI 可 list/inspect/inject |
 | L4-CONSOLE-7 | Web UI（HTTP/WS + React 前端，可选） | 5 | P3 | 10 | 3 | 浏览器可访问 |
 | L4-CONSOLE-8 | 安全模型（unix socket peer cred / token，分级权限） | 2 | P2 | 2 | 3 | 只读 / 写 / 危险 三级权限 |
 | L4-CONSOLE-9 | Python/Rust/Go/Node SDK 适配（基于 C ABI） | INFRA-API-8..11, 5 | P3 | 4 | 3 | 4 语言客户端可用 |
-| L4-CONSOLE-10 | 集成测试 + 示例场景（多 mainboard 联合调试） | 1-9 | P2 | 3 | 3 | 真实场景跑通 |
+| L4-CONSOLE-10 | 集成测试 + 示例场景（多加载进程 联合调试） | 1-9 | P2 | 3 | 3 | 真实场景跑通 |
 
 **L4-CONSOLE 工作量汇总**：46 点，全部 P2/P3，Phase 3。
 
@@ -482,7 +482,7 @@
 | L4-GPU-4 | CPU-GPU 数据零拷贝（pinned DMA + 可选 unified memory + IPC handle） | 2 | P1 | 4 | 2 | 跨进程 GPU 张量传递 < 10μs |
 | L4-GPU-5 | GPU 事件接入 DataNotifier（cudaEventRecord + 完成回调） | L4-CORE-7, 3 | P1 | 3 | 2 | 算子输出依赖 GPU event 而非 wall-clock |
 | L4-GPU-6 | GPU 故障检测（OOM / Xid 错误 / 超时 / 热降频） | 1, L2-FT-5 | P1 | 4 | 2 | 5 类故障单测覆盖 |
-| L4-GPU-7 | 跨进程 GPU 共享（CUDA MPS daemon 管理 + MIG 硬隔离选项） | 2, L4-SD-2 | P1 | 5 | 3 | ORIN 多 mainboard 共享 GPU 可跑 |
+| L4-GPU-7 | 跨进程 GPU 共享（CUDA MPS daemon 管理 + MIG 硬隔离选项） | 2, L4-SD-2 | P1 | 5 | 3 | ORIN 多加载进程 共享 GPU 可跑 |
 | L4-GPU-8 | OpenCL backend（嵌入式 GPU / non-CUDA 加速器） | 1 | P2 | 4 | 3 | 至少 1 种 OpenCL 设备跑通 |
 | L4-GPU-9 | GPU 利用率/显存监控（runtime 指标，入 lineage + 监控 dashboard） | L4-GPU-2,6 | P1 | 2 | 2 | 指标可读 |
 | L4-GPU-10 | GPU 内存池观测 API（容量/命中率/碎片率） | 2 | P2 | 1 | 3 | `tianshu-ctl inspect` 可看 |
@@ -549,7 +549,7 @@
 | L1-PASS-5 | **Pass 3 · 算子融合**（多算子合入单 CRoutine） | 3 | P0 | 5 | 2 | 融合规则 ≥ 5 种，benchmark 提速 |
 | L1-PASS-6 | **Pass 4 · SLA 物理规划（RTA）** | 3, L3-* | P0 | 4 | 2 | 输出 cpuset/priority/queue_size |
 | L1-PASS-7 | **Pass 5 · Codegen**（C++ 源码 + `.dag` + `.conf`） | L1-CG-* | P0 | 2 | 1 | 输出可直接编译 |
-| L1-PASS-8 | **Pass 6 · Compile**（编译 .so 或加载预编译） | 7, L4-MAIN-2 | P0 | 2 | 1 | `.so` 可被 mainboard 加载 |
+| L1-PASS-8 | **Pass 6 · Compile**（编译 .so 或加载预编译） | 7, L4-MAIN-2 | P0 | 2 | 1 | `.so` 可被 ti launch 加载 |
 | L1-PASS-9 | Pass 性能 profiling（每 pass 耗时统计） | 1 | P2 | 1 | 2 | 加载期总耗时报告 |
 | L1-PASS-10 | Pass 失败诊断（哪个 pass 失败 + 原因 + 建议） | 1 | P1 | 2 | 2 | 错误信息可读 |
 
@@ -561,7 +561,7 @@
 |---|---|---|---|---|---|---|
 | L1-CG-1 | Codegen 框架（模板引擎 + 缩进管理 + 命名空间） | - | P0 | 2 | 1 | 可生成 hello Component |
 | L1-CG-2 | `Component<M0>` 子类代码生成（Proc 方法 + Init 方法） | 1 | P0 | 3 | 1 | 与手写二进制对比一致 |
-| L1-CG-3 | `.dag` 文件生成（cyber 兼容格式 + 扩展字段） | 1 | P0 | 1 | 1 | mainboard 可加载 |
+| L1-CG-3 | `.dag` 文件生成（cyber 兼容格式 + 扩展字段） | 1 | P0 | 1 | 1 | ti launch 可加载 |
 | L1-CG-4 | `.conf` 文件生成（含 cpuset/priority/queue_size） | 1 | P0 | 1 | 1 | scheduler 可加载 |
 | L1-CG-5 | 融合算子 codegen（多算子单 CRoutine 内联） | 2, L1-PASS-5 | P1 | 3 | 2 | 融合后函数体单测 |
 | L1-CG-6 | 状态 checkpoint 代码生成（有状态算子） | 2 | P2 | 3 | 3 | checkpoint 文件可读写 |
@@ -589,7 +589,7 @@
 | L2-LIN-2 | `LineageRecorder`（每消息写入 entry，零拷贝指针） | 1, L4-TRANS-5 | P0 | 3 | 2 | 记录开销 < 100ns/msg（目标 50ns） |
 | L2-LIN-3 | `LineageBuffer`（环形，按 channel 维度） | 1, L4-PRIM-2 | P0 | 2 | 2 | 满负载不丢 entry |
 | L2-LIN-4 | `LineageQuery`（从输出反查全部上游 + 状态） | 1, 3 | P1 | 3 | 2 | 单测覆盖多跳反查 |
-| L2-LIN-5 | 跨进程 lineage 聚合（一个 mainboard 多 process） | 3, L4-SD-2 | P1 | 3 | 2 | 跨进程反查正确 |
+| L2-LIN-5 | 跨进程 lineage 聚合（一个加载进程 多 process） | 3, L4-SD-2 | P1 | 3 | 2 | 跨进程反查正确 |
 | L2-LIN-6 | lineage 落盘（可选，按时间窗口或大小） | 3 | P2 | 2 | 3 | 离线分析可用 |
 | L2-LIN-7 | lineage 导出格式（JSON / SQLite / Parquet） | 4 | P2 | 2 | 3 | 至少 1 种格式可用 |
 | L2-LIN-8 | GPU 张量血缘（cudaIpcMemHandle + gpu_device_id + gpu_stream_id + gpu_event_ts，详见 [adr/0006](./adr/0006-gpu-acceleration.md)） | 1, L4-GPU-4 | P1 | 2 | 2 | 跨进程 GPU 张量可追溯 |
@@ -650,7 +650,7 @@
 | L3-DERIVE-2 | priority 自动推导（按 SLA 重要性排序） | L3-RTA-2 | P0 | 1 | 2 | 单测覆盖 |
 | L3-DERIVE-3 | `pending_queue_size` 自动推导（按 WCET/period） | L3-RTA-1 | P0 | 2 | 2 | 公式与 cyber 实践一致 |
 | L3-DERIVE-4 | 反压水线自动推导（按 buffer + SLA） | L3-DERIVE-3 | P1 | 1.5 | 2 | 单测覆盖 |
-| L3-DERIVE-5 | 跨 mainboard 全局资源视图（避免 cpuset 冲突） | L4-SD-2 | P1 | 3 | 2 | 多进程冲突检测准确 |
+| L3-DERIVE-5 | 跨加载进程 全局资源视图（避免 cpuset 冲突） | L4-SD-2 | P1 | 3 | 2 | 多进程冲突检测准确 |
 
 ### F-L3-DETECT · SLA 违反检测
 
@@ -669,7 +669,7 @@
 |---|---|---|---|---|---|---|
 | L3-GPU-1 | GPU WCET 估算（按 batch/分辨率/利用率插值） | L4-GPU-2,9, L3-RTA-1 | P1 | 4 | 2 | 5 类算子 WCET 误差 < 30% |
 | L3-GPU-2 | GPU 参与 RTA（CPU WCET + GPU WCET + 传输 = 总 WCET） | 1, L3-RTA-2 | P1 | 3 | 2 | CPU+GPU 联合可调度性可验证 |
-| L3-GPU-3 | GPU 任务亲和（多 GPU 绑定 + 单 GPU stream 隔离） | L4-GPU-3,7, L3-DERIVE-1 | P1 | 3 | 3 | 多 mainboard GPU 无干扰 |
+| L3-GPU-3 | GPU 任务亲和（多 GPU 绑定 + 单 GPU stream 隔离） | L4-GPU-3,7, L3-DERIVE-1 | P1 | 3 | 3 | 多加载进程 GPU 无干扰 |
 | L3-GPU-4 | 显存预算编译期校验（同驻留算子显存 ≤ profile 预算） | L4-GPU-2, L1-DSL-GPU | P1 | 3 | 2 | 超额加载期 abort |
 | L3-GPU-5 | GPU OOM 自动降级（切 fallback CPU flow） | L4-GPU-6, L2-FT-4 | P1 | 2 | 2 | OOM 后 < 1 帧切换 |
 | L3-GPU-6 | GPU 热降频感知（读 thermal → 切时变 WCET 表） | INFRA-HAL-2, L3-RTA-5 | P2 | 3 | 3 | 高温下 SLA 自动调整 |
@@ -727,7 +727,7 @@ L2 已覆盖血缘核心；这里只列**跨层集成**功能点。
 |---|---|---|---|---|---|---|
 | T-CTL-1 | CLI 框架（CLI11 / cxxopts，子命令组织） | - | P0 | 1 | 1 | `tianshu-ctl --help` 可用 |
 | T-CTL-2 | `trace <flow_name>` 子命令（独立 trace，输出 AST） | 1, L1-TRACE-5 | P0 | 2 | 1 | 输出 JSON 格式 AST |
-| T-CTL-3 | `compile <flow_name>` 子命令（独立编译，输出 .so + .dag + .conf） | 2, L1-PASS-* | P0 | 2 | 1 | 输出可直接 mainboard 加载 |
+| T-CTL-3 | `compile <flow_name>` 子命令（独立编译，输出 .so + .dag + .conf） | 2, L1-PASS-* | P0 | 2 | 1 | 输出可直接 ti launch 加载 |
 | T-CTL-4 | `inspect <dag>` 子命令（查看运行时拓扑 + SLA 报告） | L4-SD-5, L3-DETECT-4 | P1 | 3 | 2 | 输出 markdown 报告 |
 | T-CTL-5 | `replay <record>` 子命令（回放 + 状态重建） | X-LT-3 | P1 | 4 | 3 | 可复现输出 |
 | T-CTL-6 | `verify <sla>` 子命令（RTA 报告 + 建议） | L3-RTA-6 | P1 | 2 | 2 | 加载期报告对齐 |
@@ -787,7 +787,7 @@ L2 已覆盖血缘核心；这里只列**跨层集成**功能点。
 | 15 | L4-TRANS-1..5 | Transport（INTRA + SHM + MessageInfo） | 9 | 1 |
 | 16 | L4-CORE-1..7 | Node/Reader/Writer + DataVisitor/Dispatcher/Notifier | 13 | 1 |
 | 17 | L4-COMP-1..6,10 | Component 基础 + AllLatest | 8 | 1 |
-| 18 | L4-MAIN-1..4,6,7 | mainboard + ModuleController + Init | 10.5 | 1 |
+| 18 | L4-MAIN-1..4,6,7 | 加载器（ti launch）+ ModuleController + Init | 10.5 | 1 |
 | 19 | L4-SD-1,2,4 | ServiceDiscovery（同机） | 7 | 1 |
 | 20 | L1-DSL-1..5,13 | DSL fluent builder 核心 | 8.5 | 1 |
 | 21 | L1-TRACE-1..7 | Trace 引擎 + 覆盖率 + escape hatch | 13.5 | 1 |

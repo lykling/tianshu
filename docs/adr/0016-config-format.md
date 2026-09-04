@@ -97,15 +97,15 @@ pool_size_mb = 256
 enable = true
 ring_buffer_size = 1000
 
-[[mainboards]]
+[[launch]]
 name = "perception"
 dag = "perception.dag"
 
-[mainboards.params]
+[launch.params]
 scheduler_cpu_count = 8
 enabled_flows = ["perception_flow", "predict_flow"]
 
-[[mainboards]]
+[[launch]]
 name = "planning"
 dag = "planning.dag"
 ```
@@ -123,7 +123,7 @@ transport:
   default_backend: HYBRID
   shm:
     pool_size_mb: 256
-mainboards:
+launch:
   - name: perception
     dag: perception.dag
     params:
@@ -136,7 +136,7 @@ mainboards:
 ```json
 {
   "scheduler": {"cpu_count": 4},
-  "mainboards": [...]
+  "launch": [...]
 }
 ```
 

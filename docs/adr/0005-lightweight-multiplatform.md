@@ -187,7 +187,7 @@ MCU profile 默认走 `freestanding-*`，禁止异常 / RTTI / 重 STL。
 | L2 容错 DEGRADE（含 GPU OOM 降级到 CPU） | ✅ | ✅ | ✅ | ✅ | ⚠️ |
 | L3 SLA / RTA（CPU） | ✅ | ✅ | ✅ | ⚠️（简化） | ❌ |
 | L3 GPU SLA / GPU RTA | ✅ | ✅ | ✅ | ❌ | ❌ |
-| L3 跨 mainboard 全局视图 | ✅ | ✅ | ✅ | ❌ | ❌ |
+| L3 跨加载进程 全局视图 | ✅ | ✅ | ✅ | ❌ | ❌ |
 | L4 Transport INTRA | ✅ | ✅ | ✅ | ✅ | ✅ |
 | L4 Transport SHM | ✅ | ✅ | ✅ | ⚠️ | ❌ |
 | L4 Transport RTPS / 跨机 | ✅ | ✅ | ⚠️ | ❌ | ❌ |

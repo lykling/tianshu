@@ -168,7 +168,7 @@ peers = [
 |---|---|
 | Zenoh discovery 在大规模场景收敛慢 | 切换 CentralDiscovery（etcd）|
 | 多 backend 共存导致状态不一致 | 单一来源（HYBRID 自动选一个）+ 严格事件顺序 |
-| mcu 静态配置变更需重启 | 提供 mainboard 热重启机制（保留消息缓冲） |
+| mcu 静态配置变更需重启 | 提供 加载进程热重启机制（保留消息缓冲） |
 
 ## 后续可能演进
 

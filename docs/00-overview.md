@@ -8,7 +8,7 @@
 
 ## 1. 一句话定位
 
-**天枢 (TIANSHU)** 是一种 **SLA 约束的声明式实时数据流编译框架**。开发者写声明式数据流，框架在加载期通过 trace + 静态 C++ codegen 生成与手写代码二进制不可区分的原生 DAG，运行时零开销。
+**天枢 (TIANSHU)** 是一种 **SLA 约束的声明式实时数据流编译框架**。开发者写声明式数据流，框架在加载期通过 trace + 静态 C++ codegen 编译为原生 DAG；验收目标为编译产物与相同语义的手写代码 P99 延迟差异 <1%（Phase 1 H2），声明层不引入额外运行时代价。
 
 定位类比：**MapReduce → Spark** 的范式跃迁，迁移到自动驾驶车端 ECU。
 
@@ -121,7 +121,7 @@ REGISTER_TRACEABLE_FLOW("perception_flow", perception_flow);
 | 3 | 算子融合 | 优化后的图 | 融合后的图（多个算子合入单一 CRoutine） |
 | 4 | SLA 物理规划（RTA） | 融合图 + SLA | 调度方案（cpuset / priority / queue_size / 验证报告） |
 | 5 | codegen | 调度方案 | C++ 源码（`Component<M0>` 子类 + `.dag` + `.conf`） |
-| 6 | 编译 | C++ 源码 | `.so`（动态加载到 mainboard） |
+| 6 | 编译 | C++ 源码 | `.so`（动态加载到 ti launch） |
 
 ### Layer 2：零拷贝数据血缘 + 分级容错
 
@@ -169,7 +169,7 @@ REGISTER_TRACEABLE_FLOW("perception_flow", perception_flow);
 - 纯函数状态转移校验（用于有状态算子）
 - codegen 产物的语法正确性
 
-### 5.2 加载期（mainboard 启动）做的事
+### 5.2 加载期（ti launch 启动）做的事
 
 - trace flow 函数（dry-run，记录数据流操作）
 - 跑六阶段编译器

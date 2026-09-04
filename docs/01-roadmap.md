@@ -80,7 +80,7 @@ M2 MVP 上车  →  M3 认证就绪
 
 - 写法：声明式 flow 函数
 - 跑法：`tianshu-ctl compile perception_flow` → 生成 `.so` + `.dag` + `.conf`
-- 加载：`tianshu-mainboard -d perception_flow.dag` 启动
+- 加载：`ti launch perception_flow.dag` 启动
 - 验证：输出与手写等价
 
 ### 1.2 验证 H1（trace 完备性，1-2 周）
@@ -163,13 +163,13 @@ M2 MVP 上车  →  M3 认证就绪
 
 - 帧级零拷贝血缘（~50ns/消息）
 - 三级容错：`SYNC_REPLAY` / `ASYNC_REPLAY` / `DEGRADE`
-- 跨进程血缘聚合（一个 mainboard 多 process 的统一视图）
+- 跨进程血缘聚合（多进程数据流的统一视图）
 
 ### 2.3 Layer 3 SLA 调度（3-4 周）
 
 - 端到端 deadline 派生（从顶层 SLA 推到每算子）
 - 加载期 SLA 违反检测 + 建议生成
-- 多 mainboard 进程的 cpuset 全局视图（解决 cyber 跨进程 cpuset 冲突问题）
+- 多加载进程的 cpuset 全局视图（解决 cyber 跨进程 cpuset 冲突问题）
 
 ### 2.4 有状态处理（2-3 周）
 

@@ -12,14 +12,14 @@
 
 类似游戏中的控制台（Quake / Source engine console），打开后能：
 
-1. **连接到任意运行中的 mainboard 节点**
+1. **连接到任意运行中的 加载进程 节点**
 2. **查看节点对象状态**（reader/writer/state/lineage）
 3. **修改运行时参数**（SLA / queue_size / priority）
 4. **触发动作**（手动 replay / 注入测试消息 / dump lineage）
 5. **观测实时数据**（消息预览、延迟分布、SLA 健康度）
-6. **多 mainboard 同时连接**（一台车有多个 mainboard）
+6. **多加载进程同时连接**（一台车有多个 加载进程）
 
-控制台本身**是独立进程**，与 mainboard 解耦。
+控制台本身**是独立进程**，与 加载进程 解耦。
 
 ## 2. 典型使用场景
 
@@ -35,7 +35,7 @@
 
 ### 方案 A：纯 RPC 风格
 
-控制台通过 RPC（自研 / gRPC / Cap'n Proto RPC）连接 mainboard，每节点暴露 RPC 接口。
+控制台通过 RPC（自研 / gRPC / Cap'n Proto RPC）连接 加载进程，每节点暴露 RPC 接口。
 
 ```
 Console Process                  Mainboard Process
@@ -54,17 +54,17 @@ Console Process                  Mainboard Process
 
 ### 方案 B：纯 SHM mirror
 
-控制台启动时加入 mainboard 的 SHM 区域，直接读 mainboard 的 lineage / state buffer。
+控制台启动时加入 加载进程的 SHM 区域，直接读 加载进程的 lineage / state buffer。
 
 **优点**：零拷贝，高性能；大数据预览无开销。
-**缺点**：仅同机；多 mainboard 需要 SHM 联邦；写入难（SHM mirror 通常是单向）。
+**缺点**：仅同机；多加载进程 需要 SHM 联邦；写入难（SHM mirror 通常是单向）。
 
 ### 方案 C：嵌入式调试器风格（gdb attach / ptrace）
 
-控制台 attach 到 mainboard，用 ptrace 读对象。
+控制台 attach 到 加载进程，用 ptrace 读对象。
 
 **优点**：完全通用（任何对象都可读）。
-**缺点**：严重侵入（mainboard 暂停）；性能影响大；不可在生产用。
+**缺点**：严重侵入（加载进程暂停）；性能影响大；不可在生产用。
 
 ### 方案 D：观测性 API（OpenTelemetry / Prometheus 风格）⭐
 
@@ -79,8 +79,8 @@ Console Process                  Mainboard Process
 |---|---|
 | 控制命令（list / set param / inject） | RPC（自研轻量协议，基于 Protobuf over unix socket） |
 | 大数据预览（消息内容） | SHM mirror（控制台订阅 channel 的 SHM 旁路） |
-| 实时指标（延迟 / SLA） | Observability（mainboard 发布 metrics） |
-| 对象深查（reader 内部状态） | RPC + debug API（mainboard 主动暴露） |
+| 实时指标（延迟 / SLA） | Observability（加载进程发布 metrics） |
+| 对象深查（reader 内部状态） | RPC + debug API（加载进程主动暴露） |
 
 ## 4. 推荐方案详解（方案 E）
 
@@ -186,8 +186,8 @@ Console：从 SHM 旁路读消息，零拷贝预览
 | ID | 描述 | 优先级 | 估算 | Phase |
 |---|---|---|---|---|
 | L4-CONSOLE-1 | ConsoleService Protobuf 定义 + 协议文档 | P2 | 2 | 3 |
-| L4-CONSOLE-2 | mainboard 端 ConsoleServer（RPC + Pub/Sub） | P2 | 6 | 3 |
-| L4-CONSOLE-3 | mainboard 端 Inspect/Query API（暴露 Node/Reader/Writer 状态） | P2 | 5 | 3 |
+| L4-CONSOLE-2 | 加载进程端 ConsoleServer（RPC + Pub/Sub） | P2 | 6 | 3 |
+| L4-CONSOLE-3 | 加载进程端 Inspect/Query API（暴露 Node/Reader/Writer 状态） | P2 | 5 | 3 |
 | L4-CONSOLE-4 | SHM mirror 旁路（按需开启） | P2 | 4 | 3 |
 | L4-CONSOLE-5 | Console Client SDK（C ABI + C++） | P2 | 4 | 3 |
 | L4-CONSOLE-6 | TUI（ftxui，命令行交互） | P2 | 6 | 3 |
@@ -216,7 +216,7 @@ Console：从 SHM 旁路读消息，零拷贝预览
 2. **大数据预览走 SHM mirror**（按需开启）：零拷贝
 3. **指标走 Observability**（标准化）：未来可与 Prometheus/Grafana 集成
 4. **TUI 优先，Web UI 可选**：车端现场用 TUI，开发桌面可加 Web UI
-5. **多 mainboard 同时连接**：每 mainboard 独立 ConsoleService，控制台聚合视图
+5. **多加载进程同时连接**：每加载进程 独立 ConsoleService，控制台聚合视图
 
 ## 8. 待用户拍板的 fork
 

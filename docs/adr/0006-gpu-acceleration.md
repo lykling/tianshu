@@ -40,7 +40,7 @@
 天枢不管 GPU，用户在算子里直接调 CUDA / TensorRT。框架只在 transport 层支持 GPU pointer。
 
 **优点**：实现简单；与 ROS 2 / Cyber 现状一致。
-**缺点**：跨算子无法 GPU 内存复用；显存预算无人协调；GPU SLA 无法保证；OOM 直接 crash 整个 mainboard。
+**缺点**：跨算子无法 GPU 内存复用；显存预算无人协调；GPU SLA 无法保证；OOM 直接 crash 整个加载进程。
 
 ### 方案 2：GPU 完全托管（强制走天枢 GPU 抽象）
 
@@ -226,7 +226,7 @@ Pass 5 codegen 时：
 
 - 在算子函数前后注入 GPU stream 绑定 / 同步代码
 - GPU 张量自动从内存池分配，发布时通过 IPC handle 传递（跨进程零拷贝）
-- 显存预算编译期校验失败时，整个 mainboard 加载期 abort
+- 显存预算编译期校验失败时，整个加载进程加载期 abort
 
 ## 血缘扩展
 

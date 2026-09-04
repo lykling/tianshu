@@ -14,7 +14,7 @@
 
 // Launcher: assembles a component DAG from config and runs it.
 //
-// Design (per L4-MAIN-1, ADR-0002 terminology: tianshu-launch, not mainboard):
+// Design (per L4-MAIN-1):
 //   - DagConfig: INI-style [component <name>] sections with type / inputs /
 //     interval_ms. The real parser arrives with ADR-0025 (TOML); this
 //     grammar is a deliberate Phase 1 subset parsed in ~100 dependency-free
