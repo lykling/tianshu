@@ -4,41 +4,41 @@ package(default_visibility = ["//visibility:public"])
 
 cc_test(
     name = "intra_backend_test",
+    size = "small",
     srcs = ["intra_backend_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "transport_registry_test",
+    size = "small",
     srcs = ["transport_backend_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "hybrid_transport_test",
+    size = "small",
     srcs = ["hybrid_transport_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 # Cross-process test: exercises shm_open/mmap and fork(2).
 cc_test(
     name = "shm_backend_test",
+    size = "small",
     srcs = ["shm_backend_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )

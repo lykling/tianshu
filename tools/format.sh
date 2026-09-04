@@ -19,42 +19,42 @@ cd "${REPO_ROOT}"
 
 CHECK_ONLY=0
 if [[ "${1:-}" == "--check" ]]; then
-    CHECK_ONLY=1
+	CHECK_ONLY=1
 fi
 
 # Files to format
 FILES=$(find tianshu tests examples \
-    -type f \( -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) 2>/dev/null || true)
+	-type f \( -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) 2>/dev/null || true)
 
 if [[ -z "${FILES}" ]]; then
-    echo "[format] no source files found"
-    exit 0
+	echo "[format] no source files found"
+	exit 0
 fi
 
 if [[ ${CHECK_ONLY} -eq 1 ]]; then
-    echo "[format] checking (no modification)"
-    if ! clang-format --version >/dev/null 2>&1; then
-        echo "[format] clang-format not installed; skipping"
-        exit 0
-    fi
-    FAILED=0
-    while IFS= read -r f; do
-        if ! diff -q <(clang-format "${f}") "${f}" >/dev/null 2>&1; then
-            echo "[format] needs formatting: ${f}"
-            FAILED=1
-        fi
-    done <<< "${FILES}"
-    if [[ ${FAILED} -ne 0 ]]; then
-        echo "[format] FAIL: files above need formatting; run 'tools/format.sh' to fix"
-        exit 1
-    fi
-    echo "[format] PASS"
+	echo "[format] checking (no modification)"
+	if ! clang-format --version >/dev/null 2>&1; then
+		echo "[format] clang-format not installed; skipping"
+		exit 0
+	fi
+	FAILED=0
+	while IFS= read -r f; do
+		if ! diff -q <(clang-format "${f}") "${f}" >/dev/null 2>&1; then
+			echo "[format] needs formatting: ${f}"
+			FAILED=1
+		fi
+	done <<<"${FILES}"
+	if [[ ${FAILED} -ne 0 ]]; then
+		echo "[format] FAIL: files above need formatting; run 'tools/format.sh' to fix"
+		exit 1
+	fi
+	echo "[format] PASS"
 else
-    echo "[format] formatting in-place"
-    if ! clang-format --version >/dev/null 2>&1; then
-        echo "[format] clang-format not installed; aborting"
-        exit 1
-    fi
-    echo "${FILES}" | xargs clang-format -i --verbose
-    echo "[format] done"
+	echo "[format] formatting in-place"
+	if ! clang-format --version >/dev/null 2>&1; then
+		echo "[format] clang-format not installed; aborting"
+		exit 1
+	fi
+	echo "${FILES}" | xargs clang-format -i --verbose
+	echo "[format] done"
 fi

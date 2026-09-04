@@ -4,70 +4,70 @@ package(default_visibility = ["//visibility:public"])
 
 cc_test(
     name = "node_test",
+    size = "small",
     srcs = ["node_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "typed_message_test",
+    size = "small",
     srcs = ["typed_message_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "data_visitor_test",
+    size = "small",
     srcs = ["data_visitor_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "component_test",
+    size = "small",
     srcs = ["component_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "launcher_test",
+    size = "small",
     srcs = ["launcher_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "monitor_test",
+    size = "small",
     srcs = ["monitor_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "field_table_test",
+    size = "small",
     srcs = ["field_table_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )

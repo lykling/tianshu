@@ -14,10 +14,6 @@
 
 """Simple INTRA transport example: writer and reader in the same process."""
 
-import struct
-import sys
-import threading
-import time
 
 # This is a conceptual example. In Python SDK (Phase 2), it would be:
 # import tianshu
@@ -26,6 +22,7 @@ import time
 # reader = node.create_reader("/test", callback=on_msg)
 # writer.write(b"hello")
 # For now, this demonstrates the pattern with a simple in-process queue.
+
 
 class IntraExample:
     """Demonstrates INTRA transport: same-process zero-copy communication."""

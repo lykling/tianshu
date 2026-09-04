@@ -4,40 +4,40 @@ package(default_visibility = ["//visibility:public"])
 
 cc_test(
     name = "dsl_test",
+    size = "small",
     srcs = ["dsl_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "sla_test",
+    size = "small",
     srcs = ["sla_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "slice_state_test",
+    size = "small",
     srcs = ["slice_state_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "record_v2_test",
+    size = "small",
     srcs = ["record_v2_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )

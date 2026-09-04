@@ -4,10 +4,10 @@ package(default_visibility = ["//visibility:public"])
 
 cc_test(
     name = "shm_primitives_test",
+    size = "small",
     srcs = ["shm_primitives_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )

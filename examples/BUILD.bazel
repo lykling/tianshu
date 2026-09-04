@@ -6,38 +6,38 @@ cc_binary(
     name = "hello_world",
     srcs = ["hello_world.cc"],
     copts = ["-Werror"],
-    deps = ["//tianshu:tianshu"],
+    deps = ["//tianshu"],
 )
 
 cc_binary(
     name = "intra_example",
     srcs = ["intra_example.cc"],
-    deps = ["//tianshu:tianshu"],
+    deps = ["//tianshu"],
 )
 
 cc_binary(
     name = "shm_talker",
     srcs = ["shm_talker.cc"],
-    deps = ["//tianshu:tianshu"],
+    deps = ["//tianshu"],
 )
 
 cc_binary(
     name = "shm_listener",
     srcs = ["shm_listener.cc"],
-    deps = ["//tianshu:tianshu"],
+    deps = ["//tianshu"],
 )
 
 cc_binary(
     name = "hello_dag",
     srcs = ["hello_dag.cc"],
     data = ["hello.flow"],
-    deps = ["//tianshu:tianshu"],
+    deps = ["//tianshu"],
 )
 
 cc_binary(
     name = "dsl_demo",
     srcs = ["dsl_demo.cc"],
-    deps = ["//tianshu:tianshu"],
+    deps = ["//tianshu"],
 )
 
 cc_binary(
@@ -47,23 +47,23 @@ cc_binary(
         "avp_types.h",
         "full_chain_demo.cc",
     ],
-    deps = ["//tianshu:tianshu"],
+    deps = ["//tianshu"],
 )
 
 cc_binary(
     name = "state_recovery_demo",
     srcs = ["state_recovery_demo.cc"],
-    deps = ["//tianshu:tianshu"],
+    deps = ["//tianshu"],
 )
 
 cc_binary(
     name = "lidar_imu_demo",
     srcs = ["lidar_imu_demo.cc"],
-    deps = ["//tianshu:tianshu"],
+    deps = ["//tianshu"],
 )
 
 cc_binary(
     name = "record_replay_demo",
     srcs = ["record_replay_demo.cc"],
-    deps = ["//tianshu:tianshu"],
+    deps = ["//tianshu"],
 )

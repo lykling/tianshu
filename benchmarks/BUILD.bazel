@@ -10,7 +10,7 @@ cc_binary(
     name = "version_benchmark",
     srcs = ["version_benchmark.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@google_benchmark//:benchmark",
     ],
 )
@@ -19,7 +19,7 @@ cc_binary(
     name = "object_pool_benchmark",
     srcs = ["object_pool_benchmark.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@google_benchmark//:benchmark",
     ],
 )
@@ -28,7 +28,7 @@ cc_binary(
     name = "lineage_benchmark",
     srcs = ["lineage_benchmark.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@google_benchmark//:benchmark",
     ],
 )

@@ -84,3 +84,44 @@ repos:
         entry: ./tools/check-commit-msg.sh
         language: system
         stages: [commit-msg]
+
+  # ---------------------------------------------------------------------------
+  # Non-C++ style: each ecosystem's own linter/formatter (ADR-0018 scope)
+  # ---------------------------------------------------------------------------
+  # ruff (python lint + format): astral's official hooks
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.5
+    hooks:
+      - id: ruff
+      - id: ruff-format
+
+  # shellcheck / cmake-format / buildifier / shfmt: local hooks pulling
+  # the tool from its native distribution (pip env or system binary)
+  - repo: local
+    hooks:
+      - id: shellcheck
+        name: shellcheck
+        entry: shellcheck
+        language: python
+        additional_dependencies: [shellcheck-py==0.10.0.1]
+        types: [shell]
+
+      - id: cmake-format
+        name: cmake-format
+        entry: cmake-format
+        language: python
+        additional_dependencies: [cmakelang==0.6.13]
+        files: '(CMakeLists\.txt|.*\.cmake(\.in)?)$'
+
+      # buildifier / shfmt: bare binaries, no wrapper scripts
+      - id: buildifier
+        name: buildifier (bazel format + lint)
+        entry: buildifier
+        language: system
+        files: '(BUILD\.bazel|.*\.bzl|WORKSPACE.*|MODULE\.bazel)$'
+
+      - id: shfmt
+        name: shfmt (shell format)
+        entry: shfmt -w
+        language: system
+        types: [shell]

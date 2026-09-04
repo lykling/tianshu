@@ -144,6 +144,15 @@ jobs:
           # tools/*.sh invoke the bare names
           sudo ln -sf /usr/bin/clang-format-22 /usr/local/bin/clang-format
           sudo ln -sf /usr/bin/clang-tidy-22 /usr/local/bin/clang-tidy
+      - name: Install pre-commit + system binaries for local hooks
+        run: |
+          pip install pre-commit
+          sudo curl -L -o /usr/local/bin/buildifier \
+            https://github.com/bazelbuild/buildtools/releases/download/v8.0.3/buildifier-linux-amd64
+          sudo chmod +x /usr/local/bin/buildifier
+          sudo curl -L -o /usr/local/bin/shfmt \
+            https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64
+          sudo chmod +x /usr/local/bin/shfmt
       - name: Configure (generate compile_commands.json for clang-tidy)
         run: |
           sudo apt-get install -y ninja-build
@@ -155,7 +164,12 @@ jobs:
       - name: Run clang-format check
         run: ./tools/format.sh --check
       - name: Run clang-tidy check
-        run: ./tools/tidy.sh --format-check
+        run: ./tools/tidy.sh
+      - name: Non-C++ style gates (cmake/bazel/shell/python, each tool's own linter)
+        run: |
+          for hook in ruff ruff-format shellcheck cmake-format buildifier shfmt; do
+            pre-commit run "$hook" --all-files
+          done --format-check
 
   # ---------------------------------------------------------------------------
   # Build system equivalence guard (per ADR-0003, ensure CMake ~= Bazel)

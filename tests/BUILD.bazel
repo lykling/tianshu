@@ -8,12 +8,12 @@ package(default_visibility = ["//visibility:public"])
 
 cc_test(
     name = "hello_test",
+    size = "small",
     srcs = ["hello_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 # Subdirectories have their own BUILD.bazel files.

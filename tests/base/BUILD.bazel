@@ -8,60 +8,60 @@ package(default_visibility = ["//visibility:public"])
 
 cc_test(
     name = "object_pool_test",
+    size = "small",
     srcs = ["object_pool_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "cache_buffer_test",
+    size = "small",
     srcs = ["cache_buffer_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "spin_lock_test",
+    size = "small",
     srcs = ["spin_lock_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "rw_lock_test",
+    size = "small",
     srcs = ["rw_lock_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "sync_test",
+    size = "small",
     srcs = ["sync_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )
 
 cc_test(
     name = "atomic_hash_map_test",
+    size = "small",
     srcs = ["atomic_hash_map_test.cc"],
     deps = [
-        "//tianshu:tianshu",
+        "//tianshu",
         "@googletest//:gtest_main",
     ],
-    size = "small",
 )

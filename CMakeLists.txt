@@ -4,29 +4,29 @@
 #
 # Per ADR-0003, TIANSHU supports both CMake and Bazel. This is the CMake side.
 # Per ADR-0004, build entry must use native `cmake` commands; scenario overrides
-# go through CMakePresets.json.
-# Per ADR-0005, lightweight multi-platform via 5 profiles.
-# Per ADR-0008, message format feature flags.
-# Per ADR-0009, code comments in English.
-# Per ADR-0017, Apache-2.0 license headers required on all source files.
+# go through CMakePresets.json. Per ADR-0005, lightweight multi-platform via 5
+# profiles. Per ADR-0008, message format feature flags. Per ADR-0009, code
+# comments in English. Per ADR-0017, Apache-2.0 license headers required on all
+# source files.
 
 cmake_minimum_required(VERSION 3.25)
 
-# Read version from VERSION file (single source of truth).
-# VERSION file contains a single line with semantic version, e.g. "0.1.0".
+# Read version from VERSION file (single source of truth). VERSION file contains
+# a single line with semantic version, e.g. "0.1.0".
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" _version_raw)
 string(STRIP "${_version_raw}" TIANSHU_VERSION)
 if(NOT TIANSHU_VERSION)
-    message(WARNING "VERSION file empty or missing; falling back to 0.0.0")
-    set(TIANSHU_VERSION "0.0.0")
+  message(WARNING "VERSION file empty or missing; falling back to 0.0.0")
+  set(TIANSHU_VERSION "0.0.0")
 endif()
 
-project(tianshu
-    VERSION ${TIANSHU_VERSION}
-    DESCRIPTION "TIANSHU - SLA-constrained declarative real-time dataflow compilation framework"
-    HOMEPAGE_URL "https://github.com/lykling/tianshu"
-    LANGUAGES CXX
-)
+project(
+  tianshu
+  VERSION ${TIANSHU_VERSION}
+  DESCRIPTION
+    "TIANSHU - SLA-constrained declarative real-time dataflow compilation framework"
+  HOMEPAGE_URL "https://github.com/lykling/tianshu"
+  LANGUAGES CXX)
 
 # -----------------------------------------------------------------------------
 # C++ standard (per ADR-0003)
@@ -35,29 +35,30 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Cache FetchContent source outside build/ so rm -rf build/ doesn't re-clone.
-# Build artifacts stay in build/ (cleaned with rm -rf).
-# Only -src/ dirs persist in .cache/; -build/ and -subbuild/ go to build/.
+# Build artifacts stay in build/ (cleaned with rm -rf). Only -src/ dirs persist
+# in .cache/; -build/ and -subbuild/ go to build/.
 set(_fc_src_cache "${CMAKE_SOURCE_DIR}/.cache/fetchcontent")
 
 function(tianshu_fetchcontent_declare name url tag)
-  fetchcontent_declare(
+  FetchContent_Declare(
     ${name}
     GIT_REPOSITORY ${url}
     GIT_TAG ${tag}
-    SOURCE_DIR "${_fc_src_cache}/${name}-src"
-    BINARY_DIR "${CMAKE_BINARY_DIR}/_deps/${name}-build"
-  )
+    SOURCE_DIR "${_fc_src_cache}/${name}-src" BINARY_DIR
+    "${CMAKE_BINARY_DIR}/_deps/${name}-build")
 endfunction()
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_SCAN_FOR_MODULES OFF)  # Disable C++ modules (phase 0 simplicity)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF) # Disable C++ modules (phase 0 simplicity)
 
 # -----------------------------------------------------------------------------
 # Default build type
 # -----------------------------------------------------------------------------
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
-    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
-        Debug Release RelWithDebInfo MinSizeRel)
+  set(CMAKE_BUILD_TYPE
+      "Debug"
+      CACHE STRING "Build type" FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release
+                                               RelWithDebInfo MinSizeRel)
 endif()
 
 # -----------------------------------------------------------------------------
@@ -77,47 +78,48 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # -----------------------------------------------------------------------------
 option(TIANSHU_ENABLE_COVERAGE "Enable code coverage instrumentation" OFF)
 if(TIANSHU_ENABLE_COVERAGE)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR
-       CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-        add_compile_options(-fprofile-instr-generate -fcoverage-mapping -O0 -g)
-        add_link_options(-fprofile-instr-generate)
-        # Forked test children flush profiles before _exit(); weak refs never
-        # pull the profile runtime's archive member.
-        add_compile_definitions(TIANSHU_HAVE_LLVM_PROFILE_WRITE)
-        message(STATUS "Coverage: Clang source-based (llvm-cov)")
-    else()
-        add_compile_options(--coverage -O0 -g)
-        add_link_options(--coverage)
-        # Forked test children dump gcov manually: __gcov_dump must be a
-        # strong reference or the linker skips the libgcov member (weak
-        # undefined symbols never pull archive members).
-        add_compile_definitions(TIANSHU_HAVE_GCOV_DUMP)
-        message(STATUS "Coverage: GCC gcov-based")
-    endif()
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL
+                                               "AppleClang")
+    add_compile_options(-fprofile-instr-generate -fcoverage-mapping -O0 -g)
+    add_link_options(-fprofile-instr-generate)
+    # Forked test children flush profiles before _exit(); weak refs never pull
+    # the profile runtime's archive member.
+    add_compile_definitions(TIANSHU_HAVE_LLVM_PROFILE_WRITE)
+    message(STATUS "Coverage: Clang source-based (llvm-cov)")
+  else()
+    add_compile_options(--coverage -O0 -g)
+    add_link_options(--coverage)
+    # Forked test children dump gcov manually: __gcov_dump must be a strong
+    # reference or the linker skips the libgcov member (weak undefined symbols
+    # never pull archive members).
+    add_compile_definitions(TIANSHU_HAVE_GCOV_DUMP)
+    message(STATUS "Coverage: GCC gcov-based")
+  endif()
 endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Convenience symlink at repo root so clangd finds it without per-preset config.
-# Writes to compile_commands.json in build dir; symlink at root points to
-# the most recently configured preset.
+# Writes to compile_commands.json in build dir; symlink at root points to the
+# most recently configured preset.
 if(CMAKE_EXPORT_COMPILE_COMMANDS)
-    set(_root_cc_json "${CMAKE_SOURCE_DIR}/compile_commands.json")
-    set(_build_cc_json "${CMAKE_BINARY_DIR}/compile_commands.json")
-    if(EXISTS "${_build_cc_json}")
-        if(NOT EXISTS "${_root_cc_json}" OR
-           NOT IS_SYMLINK "${_root_cc_json}")
-            file(CREATE_LINK "${_build_cc_json}" "${_root_cc_json}" SYMBOLIC)
-            message(STATUS "Symlinked ${_root_cc_json} -> ${_build_cc_json}")
-        endif()
+  set(_root_cc_json "${CMAKE_SOURCE_DIR}/compile_commands.json")
+  set(_build_cc_json "${CMAKE_BINARY_DIR}/compile_commands.json")
+  if(EXISTS "${_build_cc_json}")
+    if(NOT EXISTS "${_root_cc_json}" OR NOT IS_SYMLINK "${_root_cc_json}")
+      file(CREATE_LINK "${_build_cc_json}" "${_root_cc_json}" SYMBOLIC)
+      message(STATUS "Symlinked ${_root_cc_json} -> ${_build_cc_json}")
     endif()
+  endif()
 endif()
 
 # -----------------------------------------------------------------------------
 # Profile selection (per ADR-0005)
 # -----------------------------------------------------------------------------
-set(TIANSHU_PROFILE "desktop" CACHE STRING "Target platform profile")
-set_property(CACHE TIANSHU_PROFILE PROPERTY STRINGS
-    desktop server vehicle embedded mcu)
+set(TIANSHU_PROFILE
+    "desktop"
+    CACHE STRING "Target platform profile")
+set_property(CACHE TIANSHU_PROFILE PROPERTY STRINGS desktop server vehicle
+                                            embedded mcu)
 
 add_compile_definitions(TIANSHU_PROFILE_${TIANSHU_PROFILE})
 message(STATUS "TIANSHU profile: ${TIANSHU_PROFILE}")
@@ -135,47 +137,65 @@ option(TIANSHU_WITH_JSON "Enable JSON config parser" ON)
 
 # MCu profile forces some flags OFF
 if(TIANSHU_PROFILE STREQUAL "mcu")
-    set(TIANSHU_WITH_PROTOBUF OFF CACHE BOOL "MCU: Protobuf disabled" FORCE)
-    set(TIANSHU_WITH_FLATBUFFERS OFF CACHE BOOL "MCU: FlatBuffers disabled" FORCE)
-    set(TIANSHU_WITH_ZENOH OFF CACHE BOOL "MCU: full Zenoh disabled (use pico)" FORCE)
-    set(TIANSHU_WITH_TOML OFF CACHE BOOL "MCU: no filesystem" FORCE)
-    set(TIANSHU_WITH_YAML OFF CACHE BOOL "MCU: no filesystem" FORCE)
-    set(TIANSHU_WITH_JSON OFF CACHE BOOL "MCU: no filesystem" FORCE)
+  set(TIANSHU_WITH_PROTOBUF
+      OFF
+      CACHE BOOL "MCU: Protobuf disabled" FORCE)
+  set(TIANSHU_WITH_FLATBUFFERS
+      OFF
+      CACHE BOOL "MCU: FlatBuffers disabled" FORCE)
+  set(TIANSHU_WITH_ZENOH
+      OFF
+      CACHE BOOL "MCU: full Zenoh disabled (use pico)" FORCE)
+  set(TIANSHU_WITH_TOML
+      OFF
+      CACHE BOOL "MCU: no filesystem" FORCE)
+  set(TIANSHU_WITH_YAML
+      OFF
+      CACHE BOOL "MCU: no filesystem" FORCE)
+  set(TIANSHU_WITH_JSON
+      OFF
+      CACHE BOOL "MCU: no filesystem" FORCE)
 endif()
 
 # Propagate as compile definitions
-foreach(_flag
-        PROTOBUF FLATBUFFERS POD ZENOH TOML YAML JSON)
-    if(TIANSHU_WITH_${_flag})
-        add_compile_definitions(TIANSHU_WITH_${_flag}=1)
-    else()
-        add_compile_definitions(TIANSHU_WITH_${_flag}=0)
-    endif()
+foreach(
+  _flag
+  PROTOBUF
+  FLATBUFFERS
+  POD
+  ZENOH
+  TOML
+  YAML
+  JSON)
+  if(TIANSHU_WITH_${_flag})
+    add_compile_definitions(TIANSHU_WITH_${_flag}=1)
+  else()
+    add_compile_definitions(TIANSHU_WITH_${_flag}=0)
+  endif()
 endforeach()
 
 # -----------------------------------------------------------------------------
 # Warning level (per ADR-0005 lightweight + strict)
 # -----------------------------------------------------------------------------
 add_compile_options(
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Werror
-    -Wno-unused-parameter
-    -Wno-deprecated-declarations
-    -Wshadow
-    -Wnon-virtual-dtor
-    -Woverloaded-virtual
-    -Wconversion
-    -Wsign-conversion
-    -Wold-style-cast
-)
+  -Wall
+  -Wextra
+  -Wpedantic
+  -Werror
+  -Wno-unused-parameter
+  -Wno-deprecated-declarations
+  -Wshadow
+  -Wnon-virtual-dtor
+  -Woverloaded-virtual
+  -Wconversion
+  -Wsign-conversion
+  -Wold-style-cast)
 
 # GCC < 14 emits a known false-positive -Wnull-dereference inside libstdc++
 # streambuf headers under -O3 (seen on ubuntu-24.04 GCC 13 CI runners).
-if(NOT (CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
-        AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14))
-    add_compile_options(-Wnull-dereference)
+if(NOT (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION
+                                                 VERSION_LESS 14))
+  add_compile_options(-Wnull-dereference)
 endif()
 
 # -----------------------------------------------------------------------------
@@ -186,27 +206,22 @@ option(TIANSHU_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
 option(TIANSHU_ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 
 if(TIANSHU_ENABLE_ASAN)
-    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
-    add_link_options(-fsanitize=address)
+  add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address)
 endif()
 if(TIANSHU_ENABLE_UBSAN)
-    add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer)
-    add_link_options(-fsanitize=undefined)
+  add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=undefined)
 endif()
 if(TIANSHU_ENABLE_TSAN)
-    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
-    add_link_options(-fsanitize=thread)
+  add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=thread)
 endif()
 
 # MCU profile: -ffreestanding -fno-exceptions -fno-rtti
 if(TIANSHU_PROFILE STREQUAL "mcu")
-    add_compile_options(
-        -ffreestanding
-        -fno-exceptions
-        -fno-rtti
-        -fno-threadsafe-statics
-        -Os
-    )
+  add_compile_options(-ffreestanding -fno-exceptions -fno-rtti
+                      -fno-threadsafe-statics -Os)
 endif()
 
 # -----------------------------------------------------------------------------
@@ -216,51 +231,56 @@ enable_testing()
 
 option(TIANSHU_BUILD_TESTS "Build unit tests (requires GoogleTest)" ON)
 if(TIANSHU_BUILD_TESTS)
-    include(FetchContent)
-    tianshu_fetchcontent_declare(
-        googletest
-        https://github.com/google/googletest.git
-        v1.17.0
-    )
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest)
-    include(GoogleTest)
+  include(FetchContent)
+  tianshu_fetchcontent_declare(googletest
+                               https://github.com/google/googletest.git v1.17.0)
+  set(gtest_force_shared_crt
+      ON
+      CACHE BOOL "" FORCE)
+  set(INSTALL_GTEST
+      OFF
+      CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+  include(GoogleTest)
 endif()
 
-option(TIANSHU_BUILD_BENCHMARKS "Build benchmarks (requires GoogleBenchmark)" ON)
+option(TIANSHU_BUILD_BENCHMARKS "Build benchmarks (requires GoogleBenchmark)"
+       ON)
 if(TIANSHU_BUILD_BENCHMARKS)
-    if(NOT googletest_SOURCE_DIR)
-        include(FetchContent)
-    endif()
-    tianshu_fetchcontent_declare(
-        googlebenchmark
-        https://github.com/google/benchmark.git
-        v1.9.0
-    )
-    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-    set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googlebenchmark)
+  if(NOT googletest_SOURCE_DIR)
+    include(FetchContent)
+  endif()
+  tianshu_fetchcontent_declare(googlebenchmark
+                               https://github.com/google/benchmark.git v1.9.0)
+  set(BENCHMARK_ENABLE_TESTING
+      OFF
+      CACHE BOOL "" FORCE)
+  set(BENCHMARK_ENABLE_INSTALL
+      OFF
+      CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googlebenchmark)
 endif()
 
-# Third-party libraries should not be held to our -Werror standard.
-# Clang >= 22 flags __COUNTER__ as a C2y extension; GoogleBenchmark's own
-# -pedantic-errors turns that into an error before -Wno-error applies.
-# The suppression flags are compiler-version specific: -Wno-c2y-extensions
-# exists only since GCC 15 / Clang 22, -Wno-character-conversion since
-# Clang 15. Older toolchains reject unknown -Wno-* with their own warning.
+# Third-party libraries should not be held to our -Werror standard. Clang >= 22
+# flags __COUNTER__ as a C2y extension; GoogleBenchmark's own -pedantic-errors
+# turns that into an error before -Wno-error applies. The suppression flags are
+# compiler-version specific: -Wno-c2y-extensions exists only since GCC 15 /
+# Clang 22, -Wno-character-conversion since Clang 15. Older toolchains reject
+# unknown -Wno-* with their own warning.
 foreach(_target benchmark benchmark_main gtest gtest_main gmock gmock_main)
-    if(TARGET ${_target})
-        target_compile_options(${_target} PRIVATE
-            # -w: third-party code is outside our zero-warning scope; our
-            # directory-level -Wconversion/-Wsign-conversion would otherwise
-            # leak into their sources on colder/newer toolchains.
-            -w
-            -Wno-error
-            $<$<OR:$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,15>>,$<AND:$<CXX_COMPILER_ID:Clang>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,22>>>:-Wno-c2y-extensions>
-            $<$<AND:$<CXX_COMPILER_ID:Clang>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,15>>:-Wno-character-conversion>
-        )
-    endif()
+  if(TARGET ${_target})
+    target_compile_options(
+      ${_target}
+      PRIVATE
+        # -w: third-party code is outside our zero-warning scope; our
+        # directory-level -Wconversion/-Wsign-conversion would otherwise leak
+        # into their sources on colder/newer toolchains.
+        -w
+        -Wno-error
+        $<$<OR:$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,15>>,$<AND:$<CXX_COMPILER_ID:Clang>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,22>>>:-Wno-c2y-extensions>
+        $<$<AND:$<CXX_COMPILER_ID:Clang>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,15>>:-Wno-character-conversion>
+    )
+  endif()
 endforeach()
 
 # -----------------------------------------------------------------------------
@@ -271,7 +291,7 @@ add_subdirectory(tianshu/cli)
 add_subdirectory(examples)
 add_subdirectory(tests)
 if(TIANSHU_BUILD_BENCHMARKS)
-    add_subdirectory(benchmarks)
+  add_subdirectory(benchmarks)
 endif()
 
 # -----------------------------------------------------------------------------
