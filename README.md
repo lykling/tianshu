@@ -1,7 +1,5 @@
 # 天枢 · TIANSHU
 
-> **语言 / Languages**: 中文 | [English](./README.en.md)
-
 <p align="center">
   <img src="branding/assets/tianshu-geometric-color.svg" alt="TIANSHU" width="160"/>
 </p>
@@ -9,7 +7,7 @@
 > 一种 SLA 约束的声明式实时数据流编译框架。
 > **MapReduce → Spark 的范式跃迁，迁移到自动驾驶车端 ECU。**
 
-[![status](https://img.shields.io/badge/status-Phase%200%20奠基期-yellow)](docs/01-roadmap.md)
+[![status](https://img.shields.io/badge/status-Phase%201%20PoC-yellow)](docs/01-roadmap.md)
 [![language](https://img.shields.io/badge/language-C%2B%2B20-blue)]()
 [![build](https://img.shields.io/badge/build-CMake%20%2B%20Bazel-blue)](docs/adr/0003-build-system.md)
 [![profiles](https://img.shields.io/badge/profiles-5%20%28desktop%20%7C%20server%20%7C%20vehicle%20%7C%20embedded%20%7C%20mcu%29-green)](docs/adr/0005-lightweight-multiplatform.md)
@@ -25,7 +23,11 @@
 
 天枢把开发范式升级为**声明式数据流 + 加载期编译**：开发者写 flow 函数描述数据依赖与算子语义，框架在加载期 trace + 静态 C++ codegen，生成与手写代码二进制不可区分的原生 DAG。**运行时零开销**。
 
-## 一句话
+## 一句话（目标 API 形态，Phase 1 逐步兑现）
+
+> 以下是框架的终态 API 蓝图。当前已落地：DSL 链式声明（source/map/join/op/stateful/span/from）、
+> `with_sla`（已实现，见下）、血缘与记录回放；`on_input`/`with_fallback`/
+> `with_fault_tolerance`/`REGISTER_TRACEABLE_FLOW` 与六阶段 codegen 属 Phase 1/2 交付。
 
 ```cpp
 void perception_flow(Node& node) {
@@ -36,7 +38,7 @@ void perception_flow(Node& node) {
     auto det = detect_op(AllLatest::fuse(c, l));
     predict_out.write(predict_op(det));
   })
-  .with_sla(SLA{.deadline_ms = 50})
+  .with_sla(Sla{.deadline = 50ms})
   .with_fallback("perception_flow_lite")
   .with_fault_tolerance({.strategy = SYNC_REPLAY, .replay_window_ms = 50});
 }
@@ -49,19 +51,19 @@ mainboard 启动时 dry-run 一次 → trace 出全局数据流图 → 六阶段
 
 | 特性 | 描述 |
 |---|---|
-| **声明式 DSL** | C++ fluent builder + auto trace，JAX / torch.compile 路线 |
-| **加载期编译** | trace → 分析 → 优化 → SLA 规划 → C++ codegen → `.so` |
-| **零运行时开销** | 生成的代码与手写二进制不可区分（专利核心承诺） |
-| **SLA 硬约束** | 端到端 deadline 编译期验证（RTA），不可满足加载期报错 |
+| **声明式 DSL** | C++ fluent builder + 声明图捕获（JAX / torch.compile 路线）；已落地 v0（[adr/0021](./docs/adr/0021-dsl-v0.md)） |
+| **加载期编译** | trace → 分析 → 优化 → SLA 规划 → C++ codegen → `.so`；当前为解释执行，codegen 属 Phase 1 主战场（[adr/0001](./docs/adr/0001-dsl-form.md)，L1 编译器 ADR-0030 设计中） |
+| **零运行时开销** | 生成的代码与手写二进制不可区分——Phase 1 H2 假设的验收目标（P99 差异 <1%） |
+| **SLA 硬约束** | 端到端 deadline **加载期验证已落地**（[adr/0029](./docs/adr/0029-sla-compilation.md)）：链路预算 + 饱和度准入 + 预算分配，不可满足拒载；固定优先级 RTA 属 Phase 2 |
 | **GPU 加速与调度**（设计就绪） | GPU 资源管理 + GPU SLA 调度 + 显存预算编译期校验 + OOM 自动降级；接口契约 Phase 0 锁定，实现按 Phase 2/3 渐进（[adr/0006](./docs/adr/0006-gpu-acceleration.md)） |
 | **多语言 SDK**（设计就绪） | C++ 核心 + C ABI 边界 + Python/Rust/Go/Node SDK；接口契约 Phase 0 锁定，按 profile 渐进实现（[adr/0007](./docs/adr/0007-api-spec-multi-language.md)） |
-| **零拷贝血缘** | ~50ns/消息记录元数据，丢帧自动重放/降级 |
-| **三层确定性** | 构建确定性 + 执行确定性 + 血缘可追溯（ISO 26262 ASIL-D） |
-| **API 兼容 cyber** | 从 Cyber RT 迁移改动最小（改 include + namespace） |
+| **零拷贝血缘** | 逐消息元数据血缘（实测 desktop-release：建根 21ns、单跳链 51ns/消息、逐跳 +23ns、移动 0.2ns，[benchmarks/lineage_benchmark](./benchmarks/lineage_benchmark.cc)）；丢帧自动重放/降级 |
+| **三层确定性** | 构建确定性 ✅（双构建零警告）+ 血缘可追溯 ✅ + 执行确定性（Phase 2 静态调度）（ISO 26262 ASIL-D 目标） |
+| **API 兼容 cyber** | 从 Cyber RT 迁移改动最小（改 include + namespace）；L4 Component/Node/Reader/Writer 形态已对齐 |
 | **完全独立实现** | 不引用 cyber 任何代码，零 Apollo 许可证风险 |
 | **双构建系统** | CMake（开源友好）+ Bazel（团队熟悉、增量快、远程缓存），同一份源代码两套都能跑通 |
 | **构建入口标准化** | 必须用原生 `bazel` / `cmake`，禁止 wrap 脚本；场景化覆盖走 `.bazelrc --config=<name>` / `CMakePresets.json` / `build.env` |
-| **轻架构 + 5 profile** | 最小依赖（每个依赖走 ADR 审批）；5 个 profile（desktop/server/vehicle/embedded/mcu）覆盖从云端到 MCU |
+| **轻架构 + 5 profile** | 最小依赖（每个依赖走 ADR 审批）；5 个 profile（desktop/server/vehicle/embedded/mcu）——当前仅 desktop 经 CI 验证，其余按 profile 渐进 |
 
 ## 与同类系统的关系
 
@@ -78,8 +80,8 @@ mainboard 启动时 dry-run 一次 → trace 出全局数据流图 → 六阶段
 
 | 阶段 | 状态 |
 |---|---|
-| Phase 0：奠基期（仓库 / 文档 / CI） | 🟡 进行中 |
-| Phase 1：PoC（验证三个核心假设） | ⏳ 待启动 |
+| Phase 0：奠基期（仓库 / 文档 / CI） | ✅ 完成（2026-08） |
+| Phase 1：PoC（验证三个核心假设） | 🟡 进行中——DSL v0 / 血缘 / 记录回放 / SLA v0 已落地；L1 codegen（H2）为主战场 |
 | Phase 2：MVP（替换 Apollo perception mainboard） | ⏳ |
 | Phase 3：认证就绪（ISO 26262 ASIL-D） | ⏳ |
 
@@ -115,6 +117,17 @@ mainboard 启动时 dry-run 一次 → trace 出全局数据流图 → 六阶段
 - [docs/adr/0018-cpp-style-guide.md](./docs/adr/0018-cpp-style-guide.md) — C++ 风格指南（Google 基础 + clang-format/tidy 强制）
 - [docs/adr/0019-coroutine-strategy.md](./docs/adr/0019-coroutine-strategy.md) — 协程策略（Phase 1 回调调度 / Phase 2 C++20 stackless）
 - [docs/evaluation/0003-console.md](./docs/evaluation/0003-console.md) — 控制台方案评估（独立进程访问任意节点对象，**待用户拍板**，Phase 3）
+- [docs/adr/0020-message-reflection-monitor.md](./docs/adr/0020-message-reflection-monitor.md) — 消息反射与 ti-monitor（schema sidecar v1）
+- [docs/adr/0021-dsl-v0.md](./docs/adr/0021-dsl-v0.md) — DSL v0：链式声明 + 单线程级联语义
+- [docs/adr/0022-lineage-v0.md](./docs/adr/0022-lineage-v0.md) — 血缘 v0：逐消息元数据溯源
+- [docs/adr/0023-kauto-transport-v0.md](./docs/adr/0023-kauto-transport-v0.md) — kAuto 双发传输 v0
+- [docs/adr/0024-dsl-op-primitive.md](./docs/adr/0024-dsl-op-primitive.md) — box/op 原语（读写下结点的 DSL 投影）
+- [docs/adr/0025-from-component-reference.md](./docs/adr/0025-from-component-reference.md) — from() 组件引用
+- [docs/adr/0026-slice-input-model.md](./docs/adr/0026-slice-input-model.md) — 切片输入模型（触发对齐的区间血缘）
+- [docs/adr/0027-state-as-data-channel-taxonomy.md](./docs/adr/0027-state-as-data-channel-taxonomy.md) — 状态即通道 + 通道分类法 + 恢复协议
+- [docs/adr/0028-record-format-v1.md](./docs/adr/0028-record-format-v1.md) — Record 格式 v2（血缘入库 + 分块压缩）
+- [docs/adr/0029-sla-compilation.md](./docs/adr/0029-sla-compilation.md) — SLA 编译 v0（加载期 deadline 验证 + 预算分配）
+- [docs/adr/0030-l1-compiler.md](./docs/adr/0030-l1-compiler.md) — L1 编译器（六阶段管线 + 零开销 codegen 设计）
 
 ## 命名与品牌
 

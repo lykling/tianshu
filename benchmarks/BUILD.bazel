@@ -23,3 +23,12 @@ cc_binary(
         "@google_benchmark//:benchmark",
     ],
 )
+
+cc_binary(
+    name = "lineage_benchmark",
+    srcs = ["lineage_benchmark.cc"],
+    deps = [
+        "//tianshu:tianshu",
+        "@google_benchmark//:benchmark",
+    ],
+)

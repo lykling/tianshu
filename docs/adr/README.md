@@ -41,12 +41,13 @@
 | [0027](./0027-state-as-data-channel-taxonomy.md) | 状态即数据 + 通道分类学 | dsl | ✅ | 状态通道（版本/血缘/恢复）；有名=契约边界、匿名=可融合边界；算子是面 |
 | [0028](./0028-record-format-v1.md) | Tianshu Record Format v2 | dsl | ✅ | 血缘入库+分块压缩+分片合并+消息索引+统计摘要+LZ4/ZSTD+POD/proto/fbs schema |
 | [0029](./0029-sla-compilation.md) | SLA 编译 v0：加载期 deadline 验证与预算分配 | dsl | ✅ | 类型化 Sla+WCET 声明、链路确定性预算+饱和度准入两层分析、预算下行分摊、fail-fast |
+| [0030](./0030-l1-compiler.md) | L1 编译器：六阶段管线与零开销 codegen | dsl | ✅ | 声明图即 IR、源码 codegen+系统编译器成 .so、缓存键=规范化哈希、H2 三方对比装置、M-A~M-D 里程碑 |
 
 ## 域视图
 
 - **build**：0003 · 0004 · 0018
 - **infra**：0002 · 0005 · 0007 · 0009 · 0011 · 0012 · 0016 · 0017
 - **runtime**（transport/message/sched/lineage）：0008 · 0010 · 0013 · 0015 · 0019 · 0022 · 0023
-- **dsl/compiler**：0001 · 0021 · 0024 · 0025 · 0026 · 0027 · 0028 · 0029
+- **dsl/compiler**：0001 · 0021 · 0024 · 0025 · 0026 · 0027 · 0028 · 0029 · 0030
 - **gpu**：0006
 - **tooling**（ti 家族/console/monitor）：0014 · 0020
