@@ -410,6 +410,16 @@ class FlowRuntime {
   // `duration` elapses. Each source runs on its own thread.
   void run_for(const Flow& flow, std::chrono::milliseconds duration);
 
+  // Wiring half of run_for: installs every stage's closures and arms the
+  // SLA collector. Public so a compiled artifact (ADR-0030) can install
+  // its own specialized wiring, then drive the same run loop.
+  void wire(const Flow& flow);
+
+  // Run half: fires bootstrap hooks (ADR-0024), drives sources for
+  // `duration`, quiesces referenced timer components. Call after some
+  // form of wiring (wire() or a compiled install).
+  void run_sources(const Flow& flow, std::chrono::milliseconds duration);
+
  private:
   // Creates a mailbox owned by the runtime and registers it for
   // `channel` so publish_bytes fans lineage copies to it.

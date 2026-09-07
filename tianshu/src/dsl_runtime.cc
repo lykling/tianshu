@@ -286,6 +286,11 @@ void drive_source(const Flow::SourceDecl& source, std::chrono::milliseconds dura
 }  // namespace
 
 void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) {
+  wire(flow);
+  run_sources(flow, duration);
+}
+
+void FlowRuntime::wire(const Flow& flow) {
   if (!flow.sla_endpoints().empty() && sla_stats_ == nullptr) {
     sla_stats_ = std::make_unique<sla::SlaStatsCollector>();
     for (const auto& endpoint : flow.sla_endpoints()) {
@@ -313,6 +318,9 @@ void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) 
   for (const auto& sink_decl : flow.sinks()) {
     sink_decl.wire(*this);
   }
+}
+
+void FlowRuntime::run_sources(const Flow& flow, std::chrono::milliseconds duration) {
   // Bootstrap publications LAST: every consumer mailbox of a box output
   // channel is registered by the time on_init fires (ADR-0024).
   for (const auto& hook : init_hooks_) {

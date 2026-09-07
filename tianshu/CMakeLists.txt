@@ -65,11 +65,15 @@ install(TARGETS tianshu
 target_link_libraries(tianshu PRIVATE PkgConfig::LZ4 PkgConfig::ZSTD)
 
 # Compiler library (ADR-0030): IR, passes, codegen. Grows through M-B/C.
-add_library(tianshu_compiler STATIC src/ir.cc)
+add_library(tianshu_compiler STATIC src/ir.cc src/codegen.cc src/pipeline.cc)
 target_include_directories(tianshu_compiler PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
-target_link_libraries(tianshu_compiler PRIVATE PkgConfig::LZ4 PkgConfig::ZSTD)
+target_link_libraries(tianshu_compiler PRIVATE PkgConfig::LZ4 PkgConfig::ZSTD ${CMAKE_DL_LIBS})
+# Absolute header path for the system-compiler invocation in the
+# pipeline (ADR-0030 D5); Bazel falls back to the runfiles-relative one.
+target_compile_definitions(tianshu_compiler PRIVATE
+    TIANSHU_GEN_INCLUDE_DIR="${CMAKE_SOURCE_DIR}/tianshu/include")
 
 install(DIRECTORY include/
     DESTINATION include

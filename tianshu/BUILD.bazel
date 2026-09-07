@@ -93,9 +93,26 @@ cc_library(
 # Compiler library (ADR-0030): IR, passes, codegen. Grows through M-B/C.
 cc_library(
     name = "tianshu_compiler",
-    srcs = ["src/ir.cc"],
-    hdrs = ["include/tianshu/compiler/ir.h"],
+    srcs = [
+        "src/codegen.cc",
+        "src/ir.cc",
+        "src/pipeline.cc",
+    ],
+    hdrs = [
+        "include/tianshu/compiler/codegen.h",
+        "include/tianshu/compiler/ir.h",
+        "include/tianshu/compiler/pipeline.h",
+    ],
     includes = ["include"],
+    linkopts = ["-ldl"],
     visibility = ["//visibility:public"],
     deps = ["//tianshu"],
+)
+
+# Header tree materialized into consuming tests' runfiles: the compile
+# pipeline (ADR-0030) invokes the system compiler with -I on this path.
+filegroup(
+    name = "headers",
+    srcs = glob(["include/**"]),
+    visibility = ["//visibility:public"],
 )

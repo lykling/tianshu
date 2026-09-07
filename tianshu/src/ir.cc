@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <functional>
 #include <ios>
+#include <map>
 #include <queue>
 #include <set>
 #include <sstream>
@@ -29,6 +30,7 @@
 #include <vector>
 
 #include "tianshu/dsl/flow.h"
+#include "tianshu/version.h"
 
 namespace tianshu::compiler {
 namespace {
@@ -78,6 +80,36 @@ void feed(std::string& sink, const std::string& a, const std::string& b) {
 
 }  // namespace
 
+// Froms need their own lowering: the same kind is either a source-like
+// driver (empty input) or a transform node, picked per declaration.
+namespace {
+void lower_froms(const dsl::Flow& flow, std::vector<IrNode>& nodes,
+                 const std::map<std::string, std::chrono::microseconds>& wcets) {
+  const auto wcet_of = [&wcets](const std::string& out) {
+    const auto it = wcets.find(out);
+    return it != wcets.end() ? it->second : std::chrono::microseconds{0};
+  };
+  for (std::size_t i = 0; i < flow.froms().size(); ++i) {
+    const auto& f = flow.froms()[i];
+    if (f.in_channel.empty()) {
+      nodes.push_back(IrNode{.kind = "source",
+                             .inputs = {},
+                             .output = f.out_channel,
+                             .type_name = f.out_type_name,
+                             .wcet = std::chrono::microseconds{0},
+                             .decl_index = i});
+    } else {
+      nodes.push_back(IrNode{.kind = "from",
+                             .inputs = {f.in_channel},
+                             .output = f.out_channel,
+                             .type_name = f.out_type_name,
+                             .wcet = wcet_of(f.out_channel),
+                             .decl_index = i});
+    }
+  }
+}
+}  // namespace
+
 IrGraph IrGraph::from_flow(const dsl::Flow& flow) {
   IrGraph graph;
   graph.flow_name_ = flow.name();
@@ -92,69 +124,69 @@ IrGraph IrGraph::from_flow(const dsl::Flow& flow) {
   graph.nodes_.reserve(flow.sources().size() + flow.maps().size() + flow.joins().size() +
                        flow.ops().size() + flow.statefuls().size() + flow.spans().size() +
                        flow.froms().size() + flow.sinks().size());
-  for (const auto& s : flow.sources()) {
+  for (std::size_t i = 0; i < flow.sources().size(); ++i) {
+    const auto& s = flow.sources()[i];
     graph.nodes_.push_back(IrNode{.kind = "source",
                                   .inputs = {},
                                   .output = s.channel,
                                   .type_name = s.type_name,
-                                  .wcet = std::chrono::microseconds{0}});
+                                  .wcet = std::chrono::microseconds{0},
+                                  .decl_index = i});
   }
-  for (const auto& m : flow.maps()) {
+  for (std::size_t i = 0; i < flow.maps().size(); ++i) {
+    const auto& m = flow.maps()[i];
     graph.nodes_.push_back(IrNode{.kind = "map",
                                   .inputs = {m.in_channel},
                                   .output = m.out_channel,
                                   .type_name = m.out_type_name,
-                                  .wcet = wcet_of(m.out_channel)});
+                                  .wcet = wcet_of(m.out_channel),
+                                  .decl_index = i});
   }
-  for (const auto& j : flow.joins()) {
+  for (std::size_t i = 0; i < flow.joins().size(); ++i) {
+    const auto& j = flow.joins()[i];
     graph.nodes_.push_back(IrNode{.kind = "join",
                                   .inputs = {j.in_channel_a, j.in_channel_b},
                                   .output = j.out_channel,
                                   .type_name = j.out_type_name,
-                                  .wcet = wcet_of(j.out_channel)});
+                                  .wcet = wcet_of(j.out_channel),
+                                  .decl_index = i});
   }
-  for (const auto& b : flow.ops()) {
+  for (std::size_t i = 0; i < flow.ops().size(); ++i) {
+    const auto& b = flow.ops()[i];
     graph.nodes_.push_back(IrNode{.kind = "op",
                                   .inputs = {b.in_channel},
                                   .output = b.out_channel,
                                   .type_name = b.out_type_name,
-                                  .wcet = wcet_of(b.out_channel)});
+                                  .wcet = wcet_of(b.out_channel),
+                                  .decl_index = i});
   }
-  for (const auto& s : flow.statefuls()) {
+  for (std::size_t i = 0; i < flow.statefuls().size(); ++i) {
+    const auto& s = flow.statefuls()[i];
     graph.nodes_.push_back(IrNode{.kind = "stateful",
                                   .inputs = {s.in_channel},
                                   .output = s.out_channel,
                                   .type_name = s.out_type_name,
-                                  .wcet = wcet_of(s.out_channel)});
+                                  .wcet = wcet_of(s.out_channel),
+                                  .decl_index = i});
   }
-  for (const auto& sp : flow.spans()) {
+  for (std::size_t i = 0; i < flow.spans().size(); ++i) {
+    const auto& sp = flow.spans()[i];
     graph.nodes_.push_back(IrNode{.kind = "span",
                                   .inputs = {sp.trig_channel, sp.data_channel},
                                   .output = sp.out_channel,
                                   .type_name = sp.out_type_name,
-                                  .wcet = wcet_of(sp.out_channel)});
+                                  .wcet = wcet_of(sp.out_channel),
+                                  .decl_index = i});
   }
-  for (const auto& f : flow.froms()) {
-    if (f.in_channel.empty()) {
-      graph.nodes_.push_back(IrNode{.kind = "source",
-                                    .inputs = {},
-                                    .output = f.out_channel,
-                                    .type_name = f.out_type_name,
-                                    .wcet = std::chrono::microseconds{0}});
-    } else {
-      graph.nodes_.push_back(IrNode{.kind = "from",
-                                    .inputs = {f.in_channel},
-                                    .output = f.out_channel,
-                                    .type_name = f.out_type_name,
-                                    .wcet = wcet_of(f.out_channel)});
-    }
-  }
-  for (const auto& s : flow.sinks()) {
+  lower_froms(flow, graph.nodes_, wcets);
+  for (std::size_t i = 0; i < flow.sinks().size(); ++i) {
+    const auto& s = flow.sinks()[i];
     graph.nodes_.push_back(IrNode{.kind = "sink",
                                   .inputs = {s.channel},
                                   .output = std::string(),
                                   .type_name = s.type_name,
-                                  .wcet = std::chrono::microseconds{0}});
+                                  .wcet = std::chrono::microseconds{0},
+                                  .decl_index = i});
   }
 
   graph.compute_topo();
@@ -268,6 +300,9 @@ void IrGraph::normalize() {
 std::string IrGraph::stable_hash() const {
   std::string data;
   feed(data, "flow", flow_name_);
+  // Runtime ABI in the cache key (ADR-0030 risk): a library upgrade
+  // must invalidate artifacts compiled against the old headers.
+  feed(data, "ver", tianshu_version_string());
   for (const auto& n : nodes_) {
     feed(data, "n", n.kind);
     for (const auto& in : n.inputs) {

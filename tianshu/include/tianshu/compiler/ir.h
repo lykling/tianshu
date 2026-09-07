@@ -38,6 +38,9 @@ struct IrNode {
   std::string type_name;              // payload type, best effort
   std::chrono::microseconds wcet{0};  // declared; 0 = undeclared
   std::size_t topo_order{0};
+  // Index into the Flow's per-kind declaration vector (maps(), joins(),
+  // ...). Codegen (ADR-0030 D4) replays the stage closures through it.
+  std::size_t decl_index{0};
 };
 
 class IrGraph {
