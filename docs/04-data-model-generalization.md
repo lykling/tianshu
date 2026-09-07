@@ -172,7 +172,7 @@ lineage: mm/lidar#1 -> mm/~1#1 | mm/imu#21..#39 -> mm/~0#1
 修正后的链路：
 
 ```
-ComponentBase::set_input_lineage_provider    ← from() 桥装邮箱（FIFO 1:1 配对）
+ComponentBase::set_input_lineage_provider    ← from() 桥装血缘队列（FIFO 1:1 配对）
   ↓
 run_proc: refresh_input_lineage() → proc(msg) → publish 携带父血缘
   ↓

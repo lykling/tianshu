@@ -79,7 +79,7 @@ auto chassis_port = builder.tap<ChassisState>("chassis");
 ### 5. 执行模型约束（承袭 ADR-0021/0022）
 
 - `handle` 在 dispatch 线程内联执行（同步级联），与 map/join 同约束；op 状态无需锁
-- 输出通道的发布走每消费者邮箱扇出——op 输出天然多消费者
+- 输出通道的发布走每消费者血缘队列扇出——op 输出天然多消费者
 
 ## 影响范围
 

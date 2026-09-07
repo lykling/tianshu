@@ -75,8 +75,8 @@ void FlowRuntime::publish_bytes(const std::string& channel, const void* data, st
     const std::scoped_lock lock(mutex_);
     const auto it = channel_queues_.find(channel);
     if (it != channel_queues_.end()) {
-      for (detail::LineageMailbox* mailbox : it->second) {
-        mailbox->push(lineage);
+      for (detail::LineageQueue* lineage_queue : it->second) {
+        lineage_queue->push(lineage);
       }
     }
     histories_.try_emplace(channel, kHistoryDepth);
@@ -166,12 +166,13 @@ void FlowRuntime::replay_from(const std::vector<RecordedMessage>& records) {
   }
 }
 
-std::shared_ptr<detail::LineageMailbox> FlowRuntime::register_mailbox(const std::string& channel) {
-  auto mailbox = std::make_shared<detail::LineageMailbox>(kQueueDepth * 2);
+std::shared_ptr<detail::LineageQueue> FlowRuntime::register_lineage_queue(
+    const std::string& channel) {
+  auto lineage_queue = std::make_shared<detail::LineageQueue>(kQueueDepth * 2);
   const std::scoped_lock lock(mutex_);
-  channel_queues_[channel].push_back(mailbox.get());
-  mailboxes_.push_back(mailbox);
-  return mailbox;
+  channel_queues_[channel].push_back(lineage_queue.get());
+  lineage_queues_.push_back(lineage_queue);
+  return lineage_queue;
 }
 
 FlowRuntime::~FlowRuntime() {
@@ -214,12 +215,12 @@ void FlowRuntime::attach_referenced_component(const std::string& registry_name,
   if (!comp->launch(*bridge_node_, {in_channel}, {})) {
     return;
   }
-  // Lineage pairing (ADR-0025 correction): the mailbox pops 1:1 with the
+  // Lineage pairing (ADR-0025 correction): the lineage_queue pops 1:1 with the
   // component's FIFO consumption, so every publish inside proc carries
   // its triggering input's lineage as parent — the loop unrolls across
   // the component boundary.
-  const auto mailbox = register_mailbox(in_channel);
-  comp->set_input_lineage_provider([mailbox] { return mailbox->pop(); });
+  const auto lineage_queue = register_lineage_queue(in_channel);
+  comp->set_input_lineage_provider([lineage_queue] { return lineage_queue->pop(); });
   attach_bridge_reader(out_channel);
   components_.emplace_back(std::move(comp));
   const auto held = components_.back();
@@ -321,7 +322,7 @@ void FlowRuntime::wire(const Flow& flow) {
 }
 
 void FlowRuntime::run_sources(const Flow& flow, std::chrono::milliseconds duration) {
-  // Bootstrap publications LAST: every consumer mailbox of a box output
+  // Bootstrap publications LAST: every consumer lineage_queue of a box output
   // channel is registered by the time on_init fires (ADR-0024).
   for (const auto& hook : init_hooks_) {
     hook();

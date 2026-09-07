@@ -28,14 +28,14 @@ ADR-0024 留下的最后一块：`from<T...>(name, [输入链])` —— 按注�
 | Flow 阶段 | 组件动作 |
 |---|---|
 | `from()` 装配 | factory 实例化 → `launch(node, 输入通道, interval)`（建 Writer/Visitor/输入桥，与 DAG Launcher 同路径）→ 挂输出泵回 reader |
-| 全部节点装配完成（`init_hooks_` 阶段）| `init()` —— 与 op 的 `on_init` 同期执行：此时**所有下游消费者邮箱已注册**，组件在 init 里发布初始状态（底盘上电报文）不丢 |
+| 全部节点装配完成（`init_hooks_` 阶段）| `init()` —— 与 op 的 `on_init` 同期执行：此时**所有下游消费者血缘队列已注册**，组件在 init 里发布初始状态（底盘上电报文）不丢 |
 | `run_for` 返回 / FlowRuntime 析构 | `shutdown()`，随后销毁（TimerComponent 析构自停线程） |
 
 **Bootstrap 由此自然解决**：底盘组件在 `init()` 里 `publish` 初始状态（writer 在 launch 阶段已就绪），经泵回桥点燃反馈环——无需 seed 源、无需幽灵心跳，且组件代码不用为 flow 做任何改动。
 
 ### Q3 输出泵回：intra reader → 带根血缘的 publish_bytes
 
-组件 `publish()` → transport Writer（INTRA，进程内零拷贝）→ **泵回 reader**（`node.create_reader(out_channel)`，callback 调 `FlowRuntime::publish_bytes(out_channel, data, size, Lineage::rooted(out_channel, seq))`）→ dispatcher + 每消费者邮箱扇出 → DSL 图的 join/sink 照常消费。
+组件 `publish()` → transport Writer（INTRA，进程内零拷贝）→ **泵回 reader**（`node.create_reader(out_channel)`，callback 调 `FlowRuntime::publish_bytes(out_channel, data, size, Lineage::rooted(out_channel, seq))`）→ dispatcher + 每消费者血缘队列扇出 → DSL 图的 join/sink 照常消费。
 
 **血缘边界决策**：组件输出的血缘 = `rooted(输出通道)`——v1 的实现现状。
 

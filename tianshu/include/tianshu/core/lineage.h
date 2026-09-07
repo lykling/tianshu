@@ -23,7 +23,7 @@
 //   - A join merges both parents' branch sets (DAG provenance); a linear
 //     chain is the single-branch special case and renders exactly like
 //     v0 ("a#1 -> b#2")
-//   - Travels through per-consumer mailboxes in the DSL runtime (v0.5);
+//   - Travels through per-consumer lineage queues in the DSL runtime (v0.5);
 //     L4-TRANS Message.lineage_ptr carries it in-band in a later phase
 
 #pragma once

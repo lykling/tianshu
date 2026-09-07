@@ -238,7 +238,7 @@ TEST(DslRuntimeTest, TwoSinksOnOneChannelBothSeeEverything) {
   tianshu::dsl::FlowRuntime runtime;
   runtime.run_for(flow, std::chrono::milliseconds(120));
 
-  // Per-consumer mailboxes: both sinks see EVERY message with its full
+  // Per-consumer lineage queues: both sinks see EVERY message with its full
   // lineage (the v0 side FIFO would have interleaved steals here).
   ASSERT_FALSE(sink_a.empty());
   ASSERT_EQ(sink_a.size(), sink_b.size());
@@ -573,7 +573,7 @@ TEST(FromReferenceTest, ComponentClosesLoopViaInitBootstrap) {
 }
 
 // ADR-0025 correction, live: a referenced component's proc publishes
-// CARRY the input lineage (mailbox-paired), so the feedback loop unrolls
+// CARRY the input lineage (lineage_queue-paired), so the feedback loop unrolls
 // across the component boundary — no rooted truncation.
 TEST(FromReferenceTest, ComponentOutputDerivesLineageAndUnrollsLoop) {
   std::vector<std::string> states;

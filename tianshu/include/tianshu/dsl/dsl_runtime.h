@@ -23,7 +23,7 @@
 //   - Each map is a DataVisitor on its input channel; each join is a
 //     two-input DataVisitor with AllLatest fusion (fires when both
 //     inputs are non-empty, consumes one of each)
-//   - Lineage travels through PER-CONSUMER mailboxes (ADR-0022
+//   - Lineage travels through per-consumer lineage queues (ADR-0022
 //     amendment): publish fans a copy out to every stage registered on
 //     the channel, so multiple consumers never steal from each other
 
@@ -120,12 +120,12 @@ class HistoryRing {
   std::deque<HistoryEntry> entries_;
 };
 
-// Bounded lineage mailbox: one per (stage, input channel). The publisher
-// pushes a copy to every mailbox registered on the channel; the owning
+// Bounded lineage lineage_queue: one per (stage, input channel). The publisher
+// pushes a copy to every lineage_queue registered on the channel; the owning
 // stage pops in its own consumption order.
-class LineageMailbox {
+class LineageQueue {
  public:
-  explicit LineageMailbox(std::size_t depth) : depth_(depth) {}
+  explicit LineageQueue(std::size_t depth) : depth_(depth) {}
 
   void push(const core::Lineage& lineage) {
     const std::scoped_lock lock(mutex_);
@@ -164,7 +164,7 @@ class FlowRuntime {
   template <typename U>
   friend class OpPub;
 
-  // Copies `lineage` to every consumer mailbox on `channel`, captures
+  // Copies `lineage` to every consumer lineage_queue on `channel`, captures
   // the message into the channel's bounded history, then cascades the
   // payload through the DataDispatcher (synchronous chain).
   void publish_bytes(const std::string& channel, const void* data, std::size_t size,
@@ -204,16 +204,16 @@ class FlowRuntime {
   template <typename TIn, typename TOut>
   void attach_map(const std::string& in_channel, const std::string& out_channel,
                   std::function<TOut(const TIn&)> fn) {
-    const auto mailbox = register_mailbox(in_channel);
+    const auto lineage_queue = register_lineage_queue(in_channel);
     const auto box = std::make_shared<core::DataVisitor<TIn>*>(nullptr);
     auto visitor = std::make_unique<core::DataVisitor<TIn>>(
-        in_channel, kQueueDepth, [this, box, mailbox, out_channel, fn = std::move(fn)] {
+        in_channel, kQueueDepth, [this, box, lineage_queue, out_channel, fn = std::move(fn)] {
           auto* visitor_ptr = *box;
           if (visitor_ptr == nullptr) {
             return;
           }
           while (TIn* msg = visitor_ptr->try_fetch_0()) {
-            const core::Lineage parent = mailbox->pop();
+            const core::Lineage parent = lineage_queue->pop();
             TOut out = fn(*msg);
             publish_derived(parent, out_channel, &out, sizeof(TOut));
           }
@@ -227,12 +227,12 @@ class FlowRuntime {
   template <typename TA, typename TB, typename TC>
   void attach_join(const std::string& in_a, const std::string& in_b, const std::string& out_channel,
                    std::function<TC(const TA&, const TB&)> fn) {
-    const auto mailbox_a = register_mailbox(in_a);
-    const auto mailbox_b = register_mailbox(in_b);
+    const auto lineage_queue_a = register_lineage_queue(in_a);
+    const auto lineage_queue_b = register_lineage_queue(in_b);
     const auto box = std::make_shared<core::DataVisitor<TA, TB>*>(nullptr);
     auto visitor = std::make_unique<core::DataVisitor<TA, TB>>(
         in_a, in_b, kQueueDepth,
-        [this, box, mailbox_a, mailbox_b, out_channel, fn = std::move(fn)] {
+        [this, box, lineage_queue_a, lineage_queue_b, out_channel, fn = std::move(fn)] {
           auto* visitor_ptr = *box;
           if (visitor_ptr == nullptr) {
             return;
@@ -242,8 +242,8 @@ class FlowRuntime {
           if (a == nullptr || b == nullptr) {
             return;
           }
-          core::Lineage merged = mailbox_a->pop();
-          merged.merge(mailbox_b->pop());
+          core::Lineage merged = lineage_queue_a->pop();
+          merged.merge(lineage_queue_b->pop());
           TC out = fn(*a, *b);
           publish_derived(merged, out_channel, &out, sizeof(TC));
         });
@@ -257,17 +257,17 @@ class FlowRuntime {
   template <typename TIn, typename TOut, typename TOp>
   void attach_op(const std::string& in_channel, const std::string& out_channel, TOp impl) {
     const std::shared_ptr<OpPub<TOut>> pub(new OpPub<TOut>(this, out_channel));
-    const auto mailbox = register_mailbox(in_channel);
+    const auto lineage_queue = register_lineage_queue(in_channel);
     const auto op_impl = std::make_shared<TOp>(std::move(impl));
     const auto stage = std::make_shared<core::DataVisitor<TIn>*>(nullptr);
     auto visitor = std::make_unique<core::DataVisitor<TIn>>(
-        in_channel, kQueueDepth, [stage, op_impl, pub, mailbox] {
+        in_channel, kQueueDepth, [stage, op_impl, pub, lineage_queue] {
           auto* visitor_ptr = *stage;
           if (visitor_ptr == nullptr) {
             return;
           }
           while (TIn* msg = visitor_ptr->try_fetch_0()) {
-            pub->parent_ = mailbox->pop();
+            pub->parent_ = lineage_queue->pop();
             op_impl->handle(*msg, *pub);
             pub->parent_ = {};
           }
@@ -295,20 +295,20 @@ class FlowRuntime {
             typename TImpl>
   void attach_span(const std::string& trig_channel, const std::string& data_channel,
                    const std::string& out_channel, TSpanFn span_fn, TTimeFn time_fn, TImpl impl) {
-    const auto mailbox = register_mailbox(trig_channel);
+    const auto lineage_queue = register_lineage_queue(trig_channel);
     const auto op_impl = std::make_shared<TImpl>(std::move(impl));
     const auto span = std::make_shared<TSpanFn>(std::move(span_fn));
     const auto time_of = std::make_shared<TTimeFn>(std::move(time_fn));
     const auto stage = std::make_shared<core::DataVisitor<TTrig>*>(nullptr);
     auto visitor = std::make_unique<core::DataVisitor<TTrig>>(
         trig_channel, kQueueDepth,
-        [this, stage, mailbox, op_impl, span, time_of, data_channel, out_channel] {
+        [this, stage, lineage_queue, op_impl, span, time_of, data_channel, out_channel] {
           auto* visitor_ptr = *stage;
           if (visitor_ptr == nullptr) {
             return;
           }
           while (TTrig* trig = visitor_ptr->try_fetch_0()) {
-            const core::Lineage parent = mailbox->pop();
+            const core::Lineage parent = lineage_queue->pop();
             const auto range = (*span)(*trig);
 
             Slice<TData> slice;
@@ -361,17 +361,17 @@ class FlowRuntime {
                        const std::string& state_channel, TImpl impl) {
     const std::shared_ptr<OpPub<TOut>> out_pub(new OpPub<TOut>(this, out_channel));
     const std::shared_ptr<OpPub<TState>> state_pub(new OpPub<TState>(this, state_channel));
-    const auto mailbox = register_mailbox(in_channel);
+    const auto lineage_queue = register_lineage_queue(in_channel);
     const auto op_impl = std::make_shared<TImpl>(std::move(impl));
     const auto stage = std::make_shared<core::DataVisitor<TIn>*>(nullptr);
     auto visitor = std::make_unique<core::DataVisitor<TIn>>(
-        in_channel, kQueueDepth, [stage, op_impl, out_pub, state_pub, mailbox] {
+        in_channel, kQueueDepth, [stage, op_impl, out_pub, state_pub, lineage_queue] {
           auto* visitor_ptr = *stage;
           if (visitor_ptr == nullptr) {
             return;
           }
           while (TIn* msg = visitor_ptr->try_fetch_0()) {
-            const core::Lineage parent = mailbox->pop();
+            const core::Lineage parent = lineage_queue->pop();
             out_pub->parent_ = parent;
             state_pub->parent_ = parent;
             op_impl->handle(*msg, *out_pub, *state_pub);
@@ -389,16 +389,16 @@ class FlowRuntime {
   template <typename T>
   void attach_sink(const std::string& channel,
                    std::function<void(const T&, const core::Lineage&)> fn) {
-    const auto mailbox = register_mailbox(channel);
+    const auto lineage_queue = register_lineage_queue(channel);
     const auto box = std::make_shared<core::DataVisitor<T>*>(nullptr);
     auto visitor = std::make_unique<core::DataVisitor<T>>(
-        channel, kQueueDepth, [box, mailbox, fn = std::move(fn)] {
+        channel, kQueueDepth, [box, lineage_queue, fn = std::move(fn)] {
           auto* visitor_ptr = *box;
           if (visitor_ptr == nullptr) {
             return;
           }
           while (T* msg = visitor_ptr->try_fetch_0()) {
-            fn(*msg, mailbox->pop());
+            fn(*msg, lineage_queue->pop());
           }
         });
     *box = visitor.get();
@@ -421,9 +421,9 @@ class FlowRuntime {
   void run_sources(const Flow& flow, std::chrono::milliseconds duration);
 
  private:
-  // Creates a mailbox owned by the runtime and registers it for
+  // Creates a lineage_queue owned by the runtime and registers it for
   // `channel` so publish_bytes fans lineage copies to it.
-  std::shared_ptr<detail::LineageMailbox> register_mailbox(const std::string& channel);
+  std::shared_ptr<detail::LineageQueue> register_lineage_queue(const std::string& channel);
 
   // Publishes with a lineage derived from `parent` (parent chain + this
   // channel's hop with a fresh per-channel seq).
@@ -445,7 +445,7 @@ class FlowRuntime {
   static constexpr std::size_t kHistoryDepth = 64;
 
   std::vector<std::unique_ptr<detail::StageHolder>> stages_;
-  std::vector<std::shared_ptr<detail::LineageMailbox>> mailboxes_;
+  std::vector<std::shared_ptr<detail::LineageQueue>> lineage_queues_;
   std::vector<std::function<void()>> init_hooks_;
 
   // Referenced-component plumbing (ADR-0025). Declaration order matters:
@@ -455,7 +455,7 @@ class FlowRuntime {
   std::vector<std::shared_ptr<core::ComponentBase>> components_;
 
   mutable std::mutex mutex_;
-  std::unordered_map<std::string, std::vector<detail::LineageMailbox*>> channel_queues_;
+  std::unordered_map<std::string, std::vector<detail::LineageQueue*>> channel_queues_;
   std::unordered_map<std::string, std::uint64_t> seq_counters_;
   std::unordered_map<std::string, detail::HistoryRing> histories_;
 
