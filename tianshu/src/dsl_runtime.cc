@@ -71,34 +71,48 @@ void FlowRuntime::publish_bytes(const std::string& channel, const void* data, st
     }
   }
 
+  // Single-lookup publish context (ADR-0030 D8 L1): one hash instead of
+  // queues/history/recorder/dispatcher-id lookups per message. Built
+  // lazily under the mutex; invalidated whenever wire() adds consumers.
+  core::ChannelId dispatch_id = 0;
   {
     const std::scoped_lock lock(mutex_);
-    const auto it = channel_queues_.find(channel);
-    if (it != channel_queues_.end()) {
-      for (detail::LineageQueue* lineage_queue : it->second) {
-        lineage_queue->push(lineage);
+    PublishCtx& ctx = pub_ctx_[channel];
+    if (!ctx.resolved) {
+      ctx.id = core::channel_id_for(channel);
+      const auto queues_it = channel_queues_.find(channel);
+      if (queues_it != channel_queues_.end()) {
+        ctx.queues = queues_it->second;
       }
+      ctx.history = &histories_.try_emplace(channel, kHistoryDepth).first->second;
+      if (recorder_ != nullptr) {
+        const auto id_it = recorder_channel_ids_.find(channel);
+        ctx.rec_ch = id_it != recorder_channel_ids_.end() ? id_it->second
+                                                          : recorder_->add_channel(channel, 0, "");
+        if (id_it == recorder_channel_ids_.end()) {
+          recorder_channel_ids_[channel] = ctx.rec_ch;
+        }
+        ctx.recorded = true;
+      }
+      ctx.resolved = true;
     }
-    histories_.try_emplace(channel, kHistoryDepth);
-    histories_.at(channel).push(own_seq_of(lineage), data, size, lineage);
+    dispatch_id = ctx.id;
+
+    for (detail::LineageQueue* lineage_queue : ctx.queues) {
+      lineage_queue->push(lineage);
+    }
+    ctx.history->push(own_seq_of(lineage), data, size, lineage);
 
     // Live recording (ADR-0028 v2): capture in-flight with timestamp.
-    if (recorder_ != nullptr) {
-      const auto id_it = recorder_channel_ids_.find(channel);
-      const std::uint16_t ch_id = id_it != recorder_channel_ids_.end()
-                                      ? id_it->second
-                                      : recorder_->add_channel(channel, 0, "");
-      if (id_it == recorder_channel_ids_.end()) {
-        recorder_channel_ids_[channel] = ch_id;
-      }
+    if (ctx.recorded) {
       const auto now_ns =
           static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
                                          std::chrono::steady_clock::now().time_since_epoch())
                                          .count());
-      recorder_->append(ch_id, own_seq_of(lineage), now_ns, data, size, &lineage);
+      recorder_->append(ctx.rec_ch, own_seq_of(lineage), now_ns, data, size, &lineage);
     }
   }
-  core::DataDispatcher::instance().dispatch(core::channel_id_for(channel), data, size);
+  core::DataDispatcher::instance().dispatch(dispatch_id, data, size);
 
   if (sla_stats_ != nullptr) {
     sla_stats_->record_if_endpoint(channel, std::chrono::nanoseconds{sla_now_ns - sla_born_ns});
@@ -292,6 +306,10 @@ void FlowRuntime::run_for(const Flow& flow, std::chrono::milliseconds duration) 
 }
 
 void FlowRuntime::wire(const Flow& flow) {
+  {
+    const std::scoped_lock lock(mutex_);
+    pub_ctx_.clear();
+  }
   if (!flow.sla_endpoints().empty() && sla_stats_ == nullptr) {
     sla_stats_ = std::make_unique<sla::SlaStatsCollector>();
     for (const auto& endpoint : flow.sla_endpoints()) {

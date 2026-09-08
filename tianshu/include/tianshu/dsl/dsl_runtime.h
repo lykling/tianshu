@@ -44,6 +44,7 @@
 #include <vector>
 
 #include "tianshu/core/component.h"
+#include "tianshu/core/data_dispatcher.h"
 #include "tianshu/core/data_visitor.h"
 #include "tianshu/core/lineage.h"
 #include "tianshu/core/node.h"
@@ -458,6 +459,19 @@ class FlowRuntime {
   std::unordered_map<std::string, std::vector<detail::LineageQueue*>> channel_queues_;
   std::unordered_map<std::string, std::uint64_t> seq_counters_;
   std::unordered_map<std::string, detail::HistoryRing> histories_;
+
+  // Single-lookup publish context per channel (ADR-0030 D8 L1):
+  // resolved lazily on first publish, cleared at the top of wire()
+  // because new wiring can add consumers to existing channels.
+  struct PublishCtx {
+    core::ChannelId id{0};
+    std::vector<detail::LineageQueue*> queues;
+    detail::HistoryRing* history{nullptr};
+    std::uint16_t rec_ch{0};
+    bool recorded{false};
+    bool resolved{false};
+  };
+  std::unordered_map<std::string, PublishCtx> pub_ctx_;
 
   // Arms on the first run_for of a flow with SLA endpoints (ADR-0029 D6).
   std::unique_ptr<sla::SlaStatsCollector> sla_stats_;

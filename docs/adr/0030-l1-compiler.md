@@ -109,6 +109,44 @@ benchmarks/codegen_vs_handwritten.cc                   # M-C: H2 装置
 
 M-B 是最小可演示闭环，M-C 是 Phase 1 的 H2 判决日。
 
+### D8：M-C 专项化设计（2026-09-08 增补，H2 首轮实测后锁定）
+
+**实测基线**（desktop-release，1M 条/组，`benchmarks/codegen_vs_handwritten`）：
+
+| 链形（p50） | 手写 | 解释执行 | 差距 |
+|---|---|---|---|
+| 1 跳 | 50 ns | 221 ns | 4.4× |
+| 4 跳 | 260 ns | 1182 ns | 4.5× |
+| 9 跳 | 361 ns | 2224 ns | 6.2× |
+
+M-B 产物复放解释执行的接线，与解释执行同路（within-noise）。**差距全部来自运行时通用路径的每跳开销**，逐项分解（手写路径只付：1 次自旋锁 + 1 次哈希查找 + 1 次缓冲填充）：
+
+| # | 开销源 | 位置 | 性质 |
+|---|---|---|---|
+| 1 | runtime 互斥锁 | `publish_bytes` 的 `scoped_lock` | 每发布 1 次 |
+| 2 | 字符串哈希 ×3-4 | `channel_queues_` 查找、`histories_` try_emplace+at、`channel_id_for` | 每发布 3-4 次 |
+| 3 | 血缘拷贝 ×N | LineageQueue push（每消费者一份拷贝）+ 历史环 push | 每发布 2+N 次 |
+| 4 | 分支向量堆分配 | `publish_derived` 构造 Lineage（branches_ vector） | 每跳 ≥1 次 malloc |
+| 5 | dispatcher 自旋锁 ×2 | dispatch 填充+通知 | 与手写相同（非差距项） |
+
+**分层修复计划**（每层跑 H2 装置验证，目标 <1%）：
+
+**L1 通道写字柄（ChannelWriter）——消灭 #1 #2 #3 的查找与锁**
+- 两阶段装配：wire 阶段注册意图；全部接线完成后 `finalize()` 冻结每通道快照（消费者队列指针表、历史环指针、ChannelId、录制标记），经 shared_ptr box（同 visitor 的 box 模式）注入各 visitor 闭包
+- 新发布入口 `publish_on(writer, data, size, lineage)`：无互斥（快照不可变）、无字符串查找（ID 预解析）、直接遍历队列表；`publish_bytes` 保留为通用回退路径（源驱动等外部调用方）
+- 正确性约束：快照在 wiring 完成后不可变 → 无锁读安全；同通道多生产者仍串行于各自线程（v0 级联语义）
+
+**L2 血缘小缓冲（SmallBuffer）——消灭 #4**
+- `Lineage::branches_` 从 `std::vector` 改为内联容量 2 的小缓冲（1-2 分支占绝对多数：线性链=1，join=2），超出才堆分配
+- 触及 Lineage 核心，需全量回归（describe/record/monitor 序列化路径）
+
+**L3 产物侧常量折叠**
+- 生成代码在 install 时构建快照（-O2 常量传播通道名/拓扑）；L1 落地后此项为自然收益
+
+**验证闭环**：每层落地后重跑 H2 装置（`--benchmark_min_time=1s`，对比手写 p99），差距数字写进 commit。L1 预期收回 #1-#3（约 60-70% 差距），L2 预期收回 #4（剩余大头）。
+
+**回退**：`publish_bytes` 通用路径永久保留；快照路径出问题可经 runtime 标志退回。
+
 ## 被否决的备选
 
 | 备选 | 否决理由 |
