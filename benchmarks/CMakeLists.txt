@@ -16,3 +16,7 @@ target_link_libraries(shm_transport_benchmark PRIVATE tianshu pthread)
 add_executable(lineage_benchmark lineage_benchmark.cc)
 target_link_libraries(lineage_benchmark PRIVATE tianshu benchmark::benchmark)
 target_compile_options(lineage_benchmark PRIVATE -Wno-c2y-extensions)
+
+add_executable(codegen_vs_handwritten codegen_vs_handwritten.cc)
+target_link_libraries(codegen_vs_handwritten PRIVATE tianshu tianshu_compiler benchmark::benchmark)
+target_compile_options(codegen_vs_handwritten PRIVATE -Wno-c2y-extensions)

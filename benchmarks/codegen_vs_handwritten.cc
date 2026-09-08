@@ -35,6 +35,7 @@
 #include "tianshu/base/cache_buffer.h"
 #include "tianshu/compiler/pipeline.h"
 #include "tianshu/core/data_dispatcher.h"
+#include "tianshu/core/data_visitor.h"
 #include "tianshu/core/lineage.h"
 #include "tianshu/core/message_traits.h"
 #include "tianshu/dsl/dsl_runtime.h"
@@ -54,11 +55,7 @@ struct BenchMsg {
 
 }  // namespace
 
-// NOLINTNEXTLINE(misc-use-internal-linkage)  // traits must precede template use
-template <>
-struct tianshu::core::MessageTraits<BenchMsg> {
-  static constexpr std::string_view name() { return "bench.BenchMsg"; }
-};
+TIANSHU_TRAITS_POD(BenchMsg, "bench.BenchMsg");
 
 namespace {
 
@@ -77,7 +74,8 @@ void report_percentiles(benchmark::State& state, const std::vector<std::uint64_t
   std::vector<std::uint64_t> sorted(latencies);
   std::ranges::sort(sorted);
   const auto pick = [&sorted](double f) {
-    return sorted[std::min(sorted.size() - 1, static_cast<std::size_t>(f * sorted.size()))];
+    const auto rank = static_cast<std::size_t>(f * static_cast<double>(sorted.size()));
+    return sorted[std::min(sorted.size() - 1, rank)];
   };
   state.counters["hops"] = hops;
   state.counters["p50_ns"] = static_cast<double>(pick(0.50));
@@ -101,16 +99,17 @@ class HandChain {
             std::vector<std::uint64_t>* sink_latencies)
       : sink_latencies_(*sink_latencies), owner_(this) {
     auto& dispatcher = DataDispatcher::instance();
-    for (int i = 0; i < hops; ++i) {
+    const auto hop_count = static_cast<std::size_t>(hops);
+    for (std::size_t i = 0; i < hop_count; ++i) {
       channels_.push_back(prefix + "/hop" + std::to_string(i));
     }
     channels_.push_back(prefix + "/out");
-    for (int i = 0; i < hops; ++i) {
+    for (std::size_t i = 0; i < hop_count; ++i) {
       hops_.push_back(std::make_unique<HandHop>());
     }
     sink_ = std::make_unique<HandHop>();
 
-    for (int i = 0; i < hops; ++i) {
+    for (std::size_t i = 0; i < hop_count; ++i) {
       const std::uint64_t next = tianshu::core::channel_id_for(channels_[i + 1]);
       hops_[i]->notify = [this, i, next] {
         while (BenchMsg* msg = hops_[i]->buf.try_fetch()) {
@@ -132,9 +131,9 @@ class HandChain {
 
   ~HandChain() { DataDispatcher::instance().remove_owner(owner_); }
 
-  void drive(int messages) {
+  void drive(std::size_t messages) {
     const std::uint64_t first = tianshu::core::channel_id_for(channels_.front());
-    for (int i = 0; i < messages; ++i) {
+    for (std::size_t i = 0; i < messages; ++i) {
       const BenchMsg msg{.born_ns = now_ns(), .seq = static_cast<std::uint64_t>(i)};
       DataDispatcher::instance().dispatch(first, &msg, sizeof(msg));
     }
@@ -161,6 +160,7 @@ tianshu::dsl::Flow make_flow(const std::string& name, int hops,
   for (int i = 0; i < hops; ++i) {
     chain = chain.map<BenchMsg>([](const BenchMsg& in) { return transform(in); });
   }
+  static_cast<void>(hops);
   chain.sink([sink_latencies](const BenchMsg& msg, const Lineage&) {
     sink_latencies->push_back(now_ns() - msg.born_ns);
   });
@@ -172,9 +172,12 @@ void drive_runtime(tianshu::dsl::FlowRuntime& rt, const tianshu::dsl::Flow& flow
   rt.wire(flow);
   for (int i = 0; i < messages; ++i) {
     const BenchMsg msg{.born_ns = now_ns(), .seq = static_cast<std::uint64_t>(i)};
-    rt.publish_bytes(channel, &msg, sizeof(msg), Lineage::rooted(channel, i));
+    rt.publish_bytes(channel, &msg, sizeof(msg),
+                      Lineage::rooted(channel, static_cast<std::uint64_t>(i)));
   }
 }
+
+}  // namespace
 
 // ---------------------------------------------------------------------------
 // Benchmarks: shape x implementation.
@@ -182,48 +185,42 @@ void drive_runtime(tianshu::dsl::FlowRuntime& rt, const tianshu::dsl::Flow& flow
 
 void run_handwritten(benchmark::State& state, int hops) {
   for (auto _ : state) {
-    state.PauseTiming();
     std::vector<std::uint64_t> latencies;
     latencies.reserve(kMessages);
     HandChain chain("hw" + std::to_string(hops), hops, &latencies);
-    state.ResumeTiming();
     chain.drive(kMessages);
-    state.PauseTiming();
     report_percentiles(state, latencies, hops);
-    state.ResumeTiming();
   }
 }
 
 void run_interpreted(benchmark::State& state, int hops) {
   for (auto _ : state) {
-    state.PauseTiming();
     std::vector<std::uint64_t> latencies;
     latencies.reserve(kMessages);
     auto flow = make_flow("itp" + std::to_string(hops), hops, &latencies);
     tianshu::dsl::FlowRuntime rt;
-    state.ResumeTiming();
     drive_runtime(rt, flow, kMessages);
-    state.PauseTiming();
     report_percentiles(state, latencies, hops);
-    state.ResumeTiming();
   }
 }
 
 void run_compiled(benchmark::State& state, int hops) {
   for (auto _ : state) {
-    state.PauseTiming();
     std::vector<std::uint64_t> latencies;
     latencies.reserve(kMessages);
     auto flow = make_flow("cmp" + std::to_string(hops), hops, &latencies);
-    auto compiled = Pipeline::compile(flow, {.cache_dir = "/tmp/tianshu-h2-cache"});
+    tianshu::compiler::CompileOptions opts;
+    opts.cache_dir = "/tmp/tianshu-h2-cache";
+    auto compiled = tianshu::compiler::Pipeline::compile(flow, opts);
     tianshu::dsl::FlowRuntime rt;
-    compiled.run(rt, flow, std::chrono::milliseconds(1));
-    // run() drives the timer source for 1ms only; measure with manual publishes
-    // through the artifact-installed wiring.
+    // 0ms: install the artifact's wiring without driving the timer
+    // source (its emit stamps born_ns=0, which would poison percentiles).
+    compiled.run(rt, flow, std::chrono::milliseconds(0));
     const std::string& channel = flow.sources().front().channel;
     for (int i = 0; i < kMessages; ++i) {
       const BenchMsg msg{.born_ns = now_ns(), .seq = static_cast<std::uint64_t>(i)};
-      rt.publish_bytes(channel, &msg, sizeof(msg), Lineage::rooted(channel, i));
+      rt.publish_bytes(channel, &msg, sizeof(msg),
+                      Lineage::rooted(channel, static_cast<std::uint64_t>(i)));
     }
     report_percentiles(state, latencies, hops);
   }
