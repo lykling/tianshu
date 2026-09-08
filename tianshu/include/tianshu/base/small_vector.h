@@ -32,7 +32,13 @@ class SmallVec {
   using iterator = T*;
   using const_iterator = const T*;
 
-  SmallVec() = default;
+  // Deliberately not '= default': a defaulted ctor leaves the raw
+  // inline buffer uninitialized, which makes 'const SmallVec EMPTY;'
+  // (Lineage::hops) ill-formed; this user-provided empty body makes
+  // const objects valid while keeping the buffer raw (members keep
+  // their NSDMIs).
+  // NOLINTNEXTLINE(modernize-use-equals-default)
+  SmallVec() {}
 
   SmallVec(const SmallVec& other) { copy_from(other); }
 
@@ -167,7 +173,11 @@ class SmallVec {
   std::size_t size_{0};
   std::size_t capacity_{N};
   T* heap_{nullptr};
-  alignas(T) unsigned char inline_[N * sizeof(T)]{};
+  // Raw uninitialized storage: elements are placement-new'd on push and
+  // destroyed on erase/copy; zero-initializing this buffer would memset
+  // ~500 bytes on every Lineage construction for nothing (H2 regression).
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
+  alignas(T) unsigned char inline_[N * sizeof(T)];
 };
 
 }  // namespace tianshu::base
