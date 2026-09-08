@@ -516,6 +516,10 @@ class FlowRuntime {
   // Arms on the first run_for of a flow with SLA endpoints (ADR-0029 D6).
   std::unique_ptr<sla::SlaStatsCollector> sla_stats_;
 
+  // Recorder appends moved off the runtime mutex (ADR-0030 D8 L1b):
+  // RecordWriter is not internally synchronized.
+  std::mutex recorder_mutex_;
+
   // Live recording (ADR-0028 v2): writer hooks into publish_bytes.
   std::unique_ptr<record::RecordWriter> recorder_;
   std::unordered_map<std::string, std::uint16_t> recorder_channel_ids_;

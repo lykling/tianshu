@@ -84,59 +84,67 @@ void FlowRuntime::publish_impl(const std::string& channel, const void* data, std
   // Single-lookup publish context (ADR-0030 D8 L1): one hash instead of
   // queues/history/recorder/dispatcher-id lookups per message. Built
   // lazily under the mutex; invalidated whenever wire() adds consumers.
-  core::ChannelId dispatch_id = 0;
+  // Steady-state lock-free publish (ADR-0030 D8 L1b): the context is
+  // resolved under the runtime mutex once (unordered_map nodes are
+  // stable, pointers to queues/history outlive the wiring round), then
+  // every push happens outside it. Per-channel single-writer holds by
+  // the v0 synchronous cascade: one channel, one producing stage, one
+  // thread per message. The recorder keeps its own lock below.
+  const PublishCtx* ctx = nullptr;
   {
     const std::scoped_lock lock(mutex_);
-    PublishCtx& ctx = pub_ctx_[channel];
-    if (!ctx.resolved) {
-      ctx.id = core::channel_id_for(channel);
+    PublishCtx& resolved = pub_ctx_[channel];
+    if (!resolved.resolved) {
+      resolved.id = core::channel_id_for(channel);
       const auto queues_it = channel_queues_.find(channel);
       if (queues_it != channel_queues_.end()) {
-        ctx.queues = queues_it->second;
+        resolved.queues = queues_it->second;
       }
-      ctx.history = &histories_.try_emplace(channel, kHistoryDepth).first->second;
+      resolved.history = &histories_.try_emplace(channel, kHistoryDepth).first->second;
       if (recorder_ != nullptr) {
         const auto id_it = recorder_channel_ids_.find(channel);
-        ctx.rec_ch = id_it != recorder_channel_ids_.end() ? id_it->second
-                                                          : recorder_->add_channel(channel, 0, "");
+        resolved.rec_ch = id_it != recorder_channel_ids_.end()
+                              ? id_it->second
+                              : recorder_->add_channel(channel, 0, "");
         if (id_it == recorder_channel_ids_.end()) {
-          recorder_channel_ids_[channel] = ctx.rec_ch;
+          recorder_channel_ids_[channel] = resolved.rec_ch;
         }
-        ctx.recorded = true;
+        resolved.recorded = true;
       }
-      ctx.resolved = true;
+      resolved.resolved = true;
     }
-    dispatch_id = ctx.id;
+    ctx = &resolved;
+  }
 
-    // Live recording (ADR-0028 v2) reads the lineage; it runs BEFORE the
-    // final destination moves from it (ADR-0030 D8 L2).
-    if (ctx.recorded) {
-      const auto now_ns =
-          static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                         std::chrono::steady_clock::now().time_since_epoch())
-                                         .count());
-      recorder_->append(ctx.rec_ch, own_seq_of(lineage), now_ns, data, size, &lineage);
-    }
+  // Live recording (ADR-0028 v2) reads the lineage; it runs BEFORE the
+  // final destination moves from it (ADR-0030 D8 L2).
+  if (ctx->recorded) {
+    const auto now_ns =
+        static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                       std::chrono::steady_clock::now().time_since_epoch())
+                                       .count());
+    const std::scoped_lock recorder_lock(recorder_mutex_);
+    recorder_->append(ctx->rec_ch, own_seq_of(lineage), now_ns, data, size, &lineage);
+  }
 
-    // History first: it copies while the lineage is still intact; the
-    // last consumer queue then receives the move. With no consumers the
-    // history itself takes the move.
-    if (lineage_move != nullptr && ctx.queues.empty()) {
-      ctx.history->push(own_seq_of(lineage), data, size, std::move(*lineage_move));
+  // History first: it copies while the lineage is still intact; the
+  // last consumer queue then receives the move. With no consumers the
+  // history itself takes the move.
+  if (lineage_move != nullptr && ctx->queues.empty()) {
+    ctx->history->push(own_seq_of(lineage), data, size, std::move(*lineage_move));
+  } else {
+    ctx->history->push(own_seq_of(lineage), data, size, lineage);
+  }
+
+  for (std::size_t i = 0; i < ctx->queues.size(); ++i) {
+    const bool last = i + 1 == ctx->queues.size();
+    if (last && lineage_move != nullptr) {
+      ctx->queues[i]->push(std::move(*lineage_move));
     } else {
-      ctx.history->push(own_seq_of(lineage), data, size, lineage);
-    }
-
-    for (std::size_t i = 0; i < ctx.queues.size(); ++i) {
-      const bool last = i + 1 == ctx.queues.size();
-      if (last && lineage_move != nullptr) {
-        ctx.queues[i]->push(std::move(*lineage_move));
-      } else {
-        ctx.queues[i]->push(lineage);
-      }
+      ctx->queues[i]->push(lineage);
     }
   }
-  core::DataDispatcher::instance().dispatch(dispatch_id, data, size);
+  core::DataDispatcher::instance().dispatch(ctx->id, data, size);
 
   if (sla_stats_ != nullptr) {
     sla_stats_->record_if_endpoint(channel, std::chrono::nanoseconds{sla_now_ns - sla_born_ns});
@@ -207,6 +215,13 @@ void FlowRuntime::replay_from(const std::vector<RecordedMessage>& records) {
 
 std::shared_ptr<detail::LineageQueue> FlowRuntime::register_lineage_queue(
     const std::string& channel) {
+  {
+    // Consumer registration invalidates publish snapshots: the compiled
+    // install path replays stage closures without entering wire(), so
+    // the snapshot invalidation must live HERE, not only in wire().
+    const std::scoped_lock lock(mutex_);
+    pub_ctx_.clear();
+  }
   auto lineage_queue = std::make_shared<detail::LineageQueue>(kQueueDepth * 2);
   const std::scoped_lock lock(mutex_);
   channel_queues_[channel].push_back(lineage_queue.get());
