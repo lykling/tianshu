@@ -129,19 +129,23 @@ void FlowRuntime::publish_impl(const std::string& channel, const void* data, std
 
   // History first: it copies while the lineage is still intact; the
   // last consumer queue then receives the move. With no consumers the
-  // history itself takes the move.
-  if (lineage_move != nullptr && ctx->queues.empty()) {
-    ctx->history->push(own_seq_of(lineage), data, size, std::move(*lineage_move));
-  } else {
-    ctx->history->push(own_seq_of(lineage), data, size, lineage);
-  }
-
-  for (std::size_t i = 0; i < ctx->queues.size(); ++i) {
-    const bool last = i + 1 == ctx->queues.size();
-    if (last && lineage_move != nullptr) {
-      ctx->queues[i]->push(std::move(*lineage_move));
+  // history itself takes the move. The per-channel lock covers feedback
+  // channels' second writer; uncontended elsewhere.
+  {
+    const std::scoped_lock push_guard(ctx->push_lock);
+    if (lineage_move != nullptr && ctx->queues.empty()) {
+      ctx->history->push(own_seq_of(lineage), data, size, std::move(*lineage_move));
     } else {
-      ctx->queues[i]->push(lineage);
+      ctx->history->push(own_seq_of(lineage), data, size, lineage);
+    }
+
+    for (std::size_t i = 0; i < ctx->queues.size(); ++i) {
+      const bool last = i + 1 == ctx->queues.size();
+      if (last && lineage_move != nullptr) {
+        ctx->queues[i]->push(std::move(*lineage_move));
+      } else {
+        ctx->queues[i]->push(lineage);
+      }
     }
   }
   core::DataDispatcher::instance().dispatch(ctx->id, data, size);

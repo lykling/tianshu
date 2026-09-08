@@ -44,6 +44,7 @@
 #include <vector>
 
 #include "tianshu/base/small_vector.h"
+#include "tianshu/base/spin_lock.h"
 #include "tianshu/core/component.h"
 #include "tianshu/core/data_dispatcher.h"
 #include "tianshu/core/data_visitor.h"
@@ -510,6 +511,11 @@ class FlowRuntime {
     std::uint16_t rec_ch{0};
     bool recorded{false};
     bool resolved{false};
+    // Feedback channels (map_to write-back) have two concurrent writers:
+    // the seed source thread and the loop-carrying cascade thread. The
+    // per-channel push section runs under this lock (ADR-0030 D8 L1b);
+    // single-writer channels pay one uncontended acquire.
+    mutable base::SpinLock push_lock;
   };
   std::unordered_map<std::string, PublishCtx> pub_ctx_;
 
