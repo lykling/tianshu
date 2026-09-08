@@ -52,9 +52,18 @@ std::uint64_t own_seq_of(const core::Lineage& lin) {
 }
 
 }  // namespace
-
 void FlowRuntime::publish_bytes(const std::string& channel, const void* data, std::size_t size,
                                 const core::Lineage& lineage) {
+  publish_impl(channel, data, size, &lineage, nullptr);
+}
+
+void FlowRuntime::publish_bytes(const std::string& channel, const void* data, std::size_t size,
+                                core::Lineage&& lineage) {
+  publish_impl(channel, data, size, nullptr, &lineage);
+}
+
+void FlowRuntime::publish_impl(const std::string& channel, const void* data, std::size_t size,
+                               const core::Lineage* lineage_copy, core::Lineage* lineage_move) {
   // SLA runtime defense (ADR-0029 D6): the v0 cascade is synchronous
   // within one source tick, so a thread-local birth timestamp carries
   // the e2e origin exactly. Flows without SLA endpoints pay one null
@@ -70,6 +79,7 @@ void FlowRuntime::publish_bytes(const std::string& channel, const void* data, st
       sla_born_ns = sla_now_ns;
     }
   }
+  const core::Lineage& lineage = lineage_copy != nullptr ? *lineage_copy : *lineage_move;
 
   // Single-lookup publish context (ADR-0030 D8 L1): one hash instead of
   // queues/history/recorder/dispatcher-id lookups per message. Built
@@ -98,18 +108,32 @@ void FlowRuntime::publish_bytes(const std::string& channel, const void* data, st
     }
     dispatch_id = ctx.id;
 
-    for (detail::LineageQueue* lineage_queue : ctx.queues) {
-      lineage_queue->push(lineage);
-    }
-    ctx.history->push(own_seq_of(lineage), data, size, lineage);
-
-    // Live recording (ADR-0028 v2): capture in-flight with timestamp.
+    // Live recording (ADR-0028 v2) reads the lineage; it runs BEFORE the
+    // final destination moves from it (ADR-0030 D8 L2).
     if (ctx.recorded) {
       const auto now_ns =
           static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
                                          std::chrono::steady_clock::now().time_since_epoch())
                                          .count());
       recorder_->append(ctx.rec_ch, own_seq_of(lineage), now_ns, data, size, &lineage);
+    }
+
+    // History first: it copies while the lineage is still intact; the
+    // last consumer queue then receives the move. With no consumers the
+    // history itself takes the move.
+    if (lineage_move != nullptr && ctx.queues.empty()) {
+      ctx.history->push(own_seq_of(lineage), data, size, std::move(*lineage_move));
+    } else {
+      ctx.history->push(own_seq_of(lineage), data, size, lineage);
+    }
+
+    for (std::size_t i = 0; i < ctx.queues.size(); ++i) {
+      const bool last = i + 1 == ctx.queues.size();
+      if (last && lineage_move != nullptr) {
+        ctx.queues[i]->push(std::move(*lineage_move));
+      } else {
+        ctx.queues[i]->push(lineage);
+      }
     }
   }
   core::DataDispatcher::instance().dispatch(dispatch_id, data, size);
@@ -245,7 +269,7 @@ void FlowRuntime::publish_derived(const core::Lineage& parent, const std::string
                                   const void* data, std::size_t size) {
   core::Lineage lin = parent;
   lin.add_hop({.channel = channel, .seq = next_seq(channel)});
-  publish_bytes(channel, data, size, lin);
+  publish_bytes(channel, data, size, std::move(lin));
 }
 
 void FlowRuntime::attach_bridge_reader(const std::string& out_channel) {

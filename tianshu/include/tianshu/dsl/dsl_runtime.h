@@ -114,6 +114,17 @@ class HistoryRing {
     }
   }
 
+  void push(std::uint64_t seq, const void* data, std::size_t size, core::Lineage&& lin) {
+    const auto* b = static_cast<const std::uint8_t*>(data);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    std::vector<std::uint8_t> bytes(b, b + size);
+    entries_.push_back(
+        HistoryEntry{.seq = seq, .bytes = std::move(bytes), .lineage = std::move(lin)});
+    if (entries_.size() > depth_) {
+      entries_.pop_front();
+    }
+  }
+
   [[nodiscard]] const std::deque<HistoryEntry>& entries() const { return entries_; }
 
  private:
@@ -131,6 +142,14 @@ class LineageQueue {
   void push(const core::Lineage& lineage) {
     const std::scoped_lock lock(mutex_);
     queue_.push_back(lineage);
+    if (queue_.size() > depth_) {
+      queue_.pop_front();
+    }
+  }
+
+  void push(core::Lineage&& lineage) {
+    const std::scoped_lock lock(mutex_);
+    queue_.push_back(std::move(lineage));
     if (queue_.size() > depth_) {
       queue_.pop_front();
     }
@@ -167,9 +186,13 @@ class FlowRuntime {
 
   // Copies `lineage` to every consumer lineage_queue on `channel`, captures
   // the message into the channel's bounded history, then cascades the
-  // payload through the DataDispatcher (synchronous chain).
+  // payload through the DataDispatcher (synchronous chain). The rvalue
+  // overload moves the lineage into the last destination, saving one
+  // deep copy per publish on the hot cascade path (ADR-0030 D8 L2).
   void publish_bytes(const std::string& channel, const void* data, std::size_t size,
                      const core::Lineage& lineage);
+  void publish_bytes(const std::string& channel, const void* data, std::size_t size,
+                     core::Lineage&& lineage);
 
   // Bounded history of a published channel (nullptr when never
   // published): (seq, bytes, lineage) entries, oldest first. Recovery
@@ -430,6 +453,11 @@ class FlowRuntime {
   // channel's hop with a fresh per-channel seq).
   void publish_derived(const core::Lineage& parent, const std::string& channel, const void* data,
                        std::size_t size);
+
+  // Shared body of the two publish_bytes overloads; exactly one of
+  // lineage_copy / lineage_move is non-null (ADR-0030 D8 L2).
+  void publish_impl(const std::string& channel, const void* data, std::size_t size,
+                    const core::Lineage* lineage_copy, core::Lineage* lineage_move);
 
   // Op publication: `parent` empty (on_init) roots at the channel;
   // otherwise derives from it (handle).
