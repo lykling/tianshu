@@ -185,10 +185,11 @@ bool FlowRuntime::record_to(const std::string& path) const {
   const std::scoped_lock lock(mutex_);
   for (const auto& [channel, ring] : histories_) {
     for (const auto& entry : ring.entries()) {
-      const RecordedMessage rec{.channel = channel,
-                                .seq = entry.seq,
-                                .bytes = entry.bytes,
-                                .lineage_text = entry.lineage.describe()};
+      const RecordedMessage rec{
+          .channel = channel,
+          .seq = entry.seq,
+          .bytes = std::vector<std::uint8_t>(entry.bytes.begin(), entry.bytes.end()),
+          .lineage_text = entry.lineage.describe()};
       file.append(rec);
     }
   }

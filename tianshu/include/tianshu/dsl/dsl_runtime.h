@@ -43,6 +43,7 @@
 #include <utility>
 #include <vector>
 
+#include "tianshu/base/small_vector.h"
 #include "tianshu/core/component.h"
 #include "tianshu/core/data_dispatcher.h"
 #include "tianshu/core/data_visitor.h"
@@ -92,9 +93,12 @@ class VisitorStage : public StageHolder {
 
 // One retained entry of a channel's bounded history (ADR-0026/0027):
 // the bytes, the channel-local seq, and the message's lineage.
+// Payload bytes live in an inline-capacity buffer (ADR-0030 D8 L2c):
+// the hot publish path used to heap-allocate a fresh vector per
+// message just to retain the copy.
 struct HistoryEntry {
   std::uint64_t seq{0};
-  std::vector<std::uint8_t> bytes;
+  base::SmallVec<std::uint8_t, 32> bytes;
   core::Lineage lineage;
 };
 
@@ -106,8 +110,12 @@ class HistoryRing {
 
   void push(std::uint64_t seq, const void* data, std::size_t size, const core::Lineage& lin) {
     const auto* b = static_cast<const std::uint8_t*>(data);
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    std::vector<std::uint8_t> bytes(b, b + size);
+    base::SmallVec<std::uint8_t, 32> bytes;
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    for (std::size_t i = 0; i < size; ++i) {
+      bytes.push_back(b[i]);
+    }
+    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     entries_.push_back(HistoryEntry{.seq = seq, .bytes = std::move(bytes), .lineage = lin});
     if (entries_.size() > depth_) {
       entries_.pop_front();
@@ -116,8 +124,12 @@ class HistoryRing {
 
   void push(std::uint64_t seq, const void* data, std::size_t size, core::Lineage&& lin) {
     const auto* b = static_cast<const std::uint8_t*>(data);
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    std::vector<std::uint8_t> bytes(b, b + size);
+    base::SmallVec<std::uint8_t, 32> bytes;
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    for (std::size_t i = 0; i < size; ++i) {
+      bytes.push_back(b[i]);
+    }
+    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     entries_.push_back(
         HistoryEntry{.seq = seq, .bytes = std::move(bytes), .lineage = std::move(lin)});
     if (entries_.size() > depth_) {

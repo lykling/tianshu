@@ -90,6 +90,13 @@ class SmallVec {
   [[nodiscard]] T& operator[](std::size_t i) { return data()[i]; }
   [[nodiscard]] const T& operator[](std::size_t i) const { return data()[i]; }
 
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  [[nodiscard]] T* data() { return heap_ != nullptr ? heap_ : reinterpret_cast<T*>(inline_); }
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  [[nodiscard]] const T* data() const {
+    return heap_ != nullptr ? heap_ : reinterpret_cast<const T*>(inline_);
+  }
+
   [[nodiscard]] T& front() { return data()[0]; }
   [[nodiscard]] const T& front() const { return data()[0]; }
   [[nodiscard]] T& back() { return data()[size_ - 1]; }
@@ -106,15 +113,6 @@ class SmallVec {
   [[nodiscard]] const_iterator end() const { return data() + size_; }
 
  private:
-  [[nodiscard]] T* data() {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    return heap_ != nullptr ? heap_ : reinterpret_cast<T*>(inline_);
-  }
-  [[nodiscard]] const T* data() const {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    return heap_ != nullptr ? heap_ : reinterpret_cast<const T*>(inline_);
-  }
-
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast,cppcoreguidelines-pro-bounds-pointer-arithmetic)
   [[nodiscard]] void* slot(std::size_t i) { return data() + i; }
 
