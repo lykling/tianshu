@@ -65,7 +65,7 @@ struct MessageTraits<T> {
   namespace tianshu::core {                                                                      \
   template <>                                                                                    \
   struct MessageTraits<TypeName> {                                                               \
-    static constexpr bool kIsZeroCopy = true;                                                    \
+    [[maybe_unused]] static constexpr bool kIsZeroCopy = true;                                   \
     static constexpr std::string_view name() { return TypeNameStr; }                             \
     static constexpr std::size_t max_serialized_size() { return sizeof(TypeName); }              \
     static std::size_t serialize(const TypeName& msg, std::uint8_t* buf, std::size_t buf_size) { \
