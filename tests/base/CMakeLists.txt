@@ -25,3 +25,7 @@ gtest_discover_tests(sync_test)
 add_executable(atomic_hash_map_test atomic_hash_map_test.cc)
 target_link_libraries(atomic_hash_map_test PRIVATE tianshu GTest::gtest_main)
 gtest_discover_tests(atomic_hash_map_test)
+
+add_executable(small_vector_test small_vector_test.cc)
+target_link_libraries(small_vector_test PRIVATE tianshu GTest::gtest_main)
+gtest_discover_tests(small_vector_test)

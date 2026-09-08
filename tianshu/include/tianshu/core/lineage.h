@@ -32,7 +32,8 @@
 #include <cstdint>
 #include <string>
 #include <utility>
-#include <vector>
+
+#include "tianshu/base/small_vector.h"
 
 namespace tianshu::core {
 
@@ -52,7 +53,9 @@ class Lineage {
  public:
   struct Branch {
     LineageHop root;
-    std::vector<LineageHop> hops;
+    // Inline capacity 4 (ADR-0030 D8 L2b): common chains carry few hops
+    // per branch; longer chains overflow to the heap transparently.
+    base::SmallVec<LineageHop, 4> hops;
   };
 
   Lineage() = default;
@@ -83,6 +86,10 @@ class Lineage {
   }
 
   void add_hop(LineageHop&& hop) {
+    if (branches_.size() == 1) {
+      branches_.front().hops.push_back(std::move(hop));
+      return;
+    }
     for (Branch& b : branches_) {
       b.hops.push_back(hop);
     }
@@ -107,12 +114,12 @@ class Lineage {
     return branches_.empty() ? EMPTY : branches_.front().root;
   }
 
-  [[nodiscard]] const std::vector<LineageHop>& hops() const {
-    static const std::vector<LineageHop> EMPTY;
+  [[nodiscard]] const base::SmallVec<LineageHop, 4>& hops() const {
+    static const base::SmallVec<LineageHop, 4> EMPTY;
     return branches_.empty() ? EMPTY : branches_.front().hops;
   }
 
-  [[nodiscard]] const std::vector<Branch>& branches() const { return branches_; }
+  [[nodiscard]] const base::SmallVec<Branch, 2>& branches() const { return branches_; }
 
   static constexpr std::size_t kMaxBranches = 8;
 
@@ -121,7 +128,9 @@ class Lineage {
   [[nodiscard]] std::string describe() const;
 
  private:
-  std::vector<Branch> branches_;
+  // Inline capacity 2 (ADR-0030 D8 L2b): linear chains (1 branch) and
+  // joins (2 branches) copy allocation-free on the hot cascade path.
+  base::SmallVec<Branch, 2> branches_;
 };
 
 }  // namespace tianshu::core

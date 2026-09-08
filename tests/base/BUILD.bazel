@@ -65,3 +65,13 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "small_vector_test",
+    size = "small",
+    srcs = ["small_vector_test.cc"],
+    deps = [
+        "//tianshu",
+        "@googletest//:gtest_main",
+    ],
+)
