@@ -25,3 +25,15 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "pipeline_validation_test",
+    size = "small",
+    srcs = ["pipeline_validation_test.cc"],
+    data = ["//tianshu:headers"],
+    deps = [
+        "//tianshu",
+        "//tianshu:tianshu_compiler",
+        "@googletest//:gtest_main",
+    ],
+)

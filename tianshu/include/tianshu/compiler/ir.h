@@ -77,6 +77,9 @@ class IrGraph {
 
  private:
   friend class IrGraphBuilder;
+  // Structural-fault injection for pipeline validation tests
+  // (ADR-0030 D6): the public IR surface is immutable by design.
+  friend class IrGraphTestPeer;
   std::string flow_name_;
   std::vector<IrNode> nodes_;
   std::vector<sla::SlaEndpoint> endpoints_;
