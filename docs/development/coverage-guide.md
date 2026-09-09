@@ -28,7 +28,27 @@ genhtml /tmp/tianshu_filtered.info -o /tmp/tianshu_cov     # HTML
 
 参数缺一不可：`--rc geninfo_auto_base=1`（路径解析）、`--ignore-errors mismatch,inconsistent,negative`（GCC 15 数据 quirk，缺失直接报错退出）、`--filter function --demangle-cpp`（合并 D0/D1/D2 析构变体，抽象类 D0 是 ABI 死代码，见 Itanium ABI issue #10）、`--extract`（滤掉 GoogleTest/标准库）。
 
-当前基线：**97.6% line / 100% function**。未覆盖行均为 TOCTOU 竞态窗/资源耗尽路径，清单见 [shm-transport-notes](shm-transport-notes.md)。
+当前基线：**97.6% line / 100% function**（SHM 传输子集）。未覆盖行均为 TOCTOU 竞态窗/资源耗尽路径，清单见 [shm-transport-notes](shm-transport-notes.md)。
+
+## 全库基线（2026-09-09 复测，Phase 1 M-D 后）
+
+`gcovr -r . --filter tianshu/src --filter tianshu/include -s --gcov-ignore-parse-errors negative_hits.warn_once_per_file`
+
+| 指标 | 值 |
+|---|---|
+| 行覆盖 | **71%**（5213/7347，src） |
+| 函数覆盖 | 70.7% |
+| 分支覆盖 | 36% |
+
+主要空白与处置：
+
+| 模块 | 覆盖 | 处置 |
+|---|---|---|
+| `record.cc`（v0 遗留格式） | 0% | 已被 v2 取代——候选：删除或 ADR 标记 deprecated |
+| `dsl_runtime.cc` | 77% | 空白在 replay/桥接/容错路径——M-C 后补 |
+| `pipeline.cc` | 71% | 降级分支 + 编译失败路径——补异常注入测试 |
+| `cache_buffer.h` | 58% | 多模板实例化行——按实例补 |
+| `monitor.cc` | 82% | TUI 交互路径——按 ADR-0020 渐进 |
 
 ## Clang source-based（参考）
 
