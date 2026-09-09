@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -187,6 +188,9 @@ class LineageQueue {
 }  // namespace detail
 
 class FlowRuntime {
+ private:
+  struct PublishCtx;
+
  public:
   FlowRuntime() = default;
   ~FlowRuntime();
@@ -473,6 +477,10 @@ class FlowRuntime {
   void publish_derived(core::Lineage parent, const std::string& channel, const void* data,
                        std::size_t size);
 
+  // Snapshot resolution for publish_impl (D8 L1c): steady state is
+  // lock-free; a first publish builds the entry under the mutex.
+  const PublishCtx& resolve_publish_ctx(const std::string& channel);
+
   // Shared body of the two publish_bytes overloads; exactly one of
   // lineage_copy / lineage_move is non-null (ADR-0030 D8 L2).
   void publish_impl(const std::string& channel, const void* data, std::size_t size,
@@ -523,7 +531,14 @@ class FlowRuntime {
     // single-writer channels pay one uncontended acquire.
     mutable base::SpinLock push_lock;
   };
-  std::unordered_map<std::string, PublishCtx> pub_ctx_;
+  // Copy-on-write snapshot: wiring/first-publish rebuild the map and
+  // atomically swap it in; publishes load the snapshot (refcount) with
+  // no lock — the runtime mutex leaves the steady-state path (D8 L1c).
+  // Entries are shared_ptr so copies keep each channel's SpinLock
+  // identity stable across snapshots.
+  std::atomic<std::shared_ptr<const std::unordered_map<std::string, std::shared_ptr<PublishCtx>>>>
+      pub_ctx_{
+          std::make_shared<const std::unordered_map<std::string, std::shared_ptr<PublishCtx>>>()};
 
   // Arms on the first run_for of a flow with SLA endpoints (ADR-0029 D6).
   std::unique_ptr<sla::SlaStatsCollector> sla_stats_;
