@@ -29,3 +29,7 @@ gtest_discover_tests(atomic_hash_map_test)
 add_executable(small_vector_test small_vector_test.cc)
 target_link_libraries(small_vector_test PRIVATE tianshu GTest::gtest_main)
 gtest_discover_tests(small_vector_test)
+
+add_executable(cache_buffer_instantiation_test cache_buffer_instantiation_test.cc)
+target_link_libraries(cache_buffer_instantiation_test PRIVATE tianshu GTest::gtest_main)
+gtest_discover_tests(cache_buffer_instantiation_test)

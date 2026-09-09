@@ -75,3 +75,13 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "cache_buffer_instantiation_test",
+    size = "small",
+    srcs = ["cache_buffer_instantiation_test.cc"],
+    deps = [
+        "//tianshu",
+        "@googletest//:gtest_main",
+    ],
+)
