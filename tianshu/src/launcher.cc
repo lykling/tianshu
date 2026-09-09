@@ -14,9 +14,11 @@
 
 #include "tianshu/core/launcher.h"
 
-#include <unistd.h>
-
 #include <csignal>
+// NOLINTNEXTLINE(modernize-deprecated-headers)  // POSIX sigset_t/timespec
+#include <signal.h>
+#include <time.h>  // NOLINT(modernize-deprecated-headers)
+
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -209,10 +211,26 @@ bool Launcher::start(const DagParseResult& dag, std::string* error) {
 }
 
 void Launcher::run_until_signal() {
+  // Directed wait, not bare pause(): in a multi-threaded process the
+  // asynchronous handler may run on any thread and this thread's pause()
+  // would sleep forever (reproduced by the SIGTERM test). sigwait alone
+  // is also wrong — the block mask is per-thread, so a signal delivered
+  // to an unblocked thread kills the process before sigwait sees it.
+  // Synchronous handler + sigtimedwait loop: the handler only flips the
+  // flag, and this thread wakes from its timed wait to observe it.
   static_cast<void>(std::signal(SIGINT, launch_signal_handler));   // NOLINT(misc-include-cleaner)
   static_cast<void>(std::signal(SIGTERM, launch_signal_handler));  // NOLINT(misc-include-cleaner)
+  // POSIX sigset_t/timespec live in <signal.h>/<time.h> which the C++
+  // deprecation check rejects; the C++ headers do not guarantee them.
+  // NOLINTBEGIN(modernize-deprecated-headers)
+  // NOLINTNEXTLINE(modernize-deprecated-headers,misc-include-cleaner)  // POSIX sigset_t
+  sigset_t empty;
+  static_cast<void>(sigemptyset(&empty));
+  // NOLINTNEXTLINE(modernize-deprecated-headers,misc-const-correctness,readability-magic-numbers)
+  timespec nap{.tv_sec = 0, .tv_nsec = 50'000'000};
+  // NOLINTEND(modernize-deprecated-headers)
   while (g_launch_stop == 0) {
-    pause();
+    static_cast<void>(sigtimedwait(&empty, nullptr, &nap));
   }
   stop();
 }
