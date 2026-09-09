@@ -105,7 +105,11 @@ struct HistoryEntry {
 };
 
 // Bounded per-channel history ring: slice queries and state recovery
-// read from here; publish_bytes captures every message.
+// read from here; publish_bytes captures every message. Pushes and
+// traversal are internally locked: a span visitor iterates entries on
+// its trigger thread while the data channel's source thread pushes
+// concurrently — an unlocked deque traversal was a map-realloc
+// use-after-free (caught by asan on CI).
 class HistoryRing {
  public:
   explicit HistoryRing(std::size_t depth) : depth_(depth) {}
@@ -118,6 +122,7 @@ class HistoryRing {
       bytes.push_back(b[i]);
     }
     // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    const std::scoped_lock lock(entries_mutex_);
     entries_.push_back(HistoryEntry{.seq = seq, .bytes = std::move(bytes), .lineage = lin});
     if (entries_.size() > depth_) {
       entries_.pop_front();
@@ -132,6 +137,7 @@ class HistoryRing {
       bytes.push_back(b[i]);
     }
     // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    const std::scoped_lock lock(entries_mutex_);
     entries_.push_back(
         HistoryEntry{.seq = seq, .bytes = std::move(bytes), .lineage = std::move(lin)});
     if (entries_.size() > depth_) {
@@ -139,10 +145,21 @@ class HistoryRing {
     }
   }
 
+  // Lock-held traversal for cross-thread readers (span joins, dumps);
+  // the raw entries() accessor stays for single-threaded tests.
+  template <typename Fn>
+  void for_each_entry(Fn&& fn) const {
+    const std::scoped_lock lock(entries_mutex_);
+    for (const auto& entry : entries_) {
+      fn(entry);
+    }
+  }
+
   [[nodiscard]] const std::deque<HistoryEntry>& entries() const { return entries_; }
 
  private:
   std::size_t depth_;
+  mutable std::mutex entries_mutex_;
   std::deque<HistoryEntry> entries_;
 };
 
@@ -356,22 +373,22 @@ class FlowRuntime {
             slice.seq_lo = 1;  // empty marker: lo > hi
             const auto* hist = history(data_channel);
             if (hist != nullptr) {
-              for (const auto& entry : hist->entries()) {
+              hist->for_each_entry([&](const detail::HistoryEntry& entry) {
                 TData msg{};
                 if (entry.bytes.size() != sizeof(TData)) {
-                  continue;
+                  return;
                 }
                 std::memcpy(&msg, entry.bytes.data(), sizeof(msg));
                 const std::uint64_t t = (*time_of)(msg);
                 if (t < range.first || t > range.second) {
-                  continue;
+                  return;
                 }
                 if (slice.items.empty()) {
                   slice.seq_lo = entry.seq;
                 }
                 slice.seq_hi = entry.seq;
                 slice.items.push_back(msg);
-              }
+              });
               const auto& entries = hist->entries();
               if (!entries.empty() && entries.front().seq > 0) {
                 TData front_msg{};
