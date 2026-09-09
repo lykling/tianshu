@@ -14,10 +14,12 @@
 
 // Unit tests for DSL v0 declarations + runtime + lineage (ADR-0021/0022).
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -611,4 +613,40 @@ TEST(FromReferenceTest, ComponentOutputDerivesLineageAndUnrollsLoop) {
   const auto& last = states.back();
   EXPECT_NE(last.find("lu/state#"), std::string::npos);
   EXPECT_LT(last.size(), 8000U);  // bounded by root-dedup + kMaxBranches
+}
+
+// ---------------------------------------------------------------------------
+// Traceable-flow registry (ADR-0030 M-D)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+[[maybe_unused]]  // NOLINTNEXTLINE(bugprone-throwing-static-initialization)
+void declare_trace_demo(tianshu::dsl::FlowBuilder& b) {
+  b.source<TickMsg>("tt", std::chrono::milliseconds(5),
+                    [](std::uint64_t t) { return TickMsg{.tick = t}; })
+      .map<DoubledMsg>([](const TickMsg& in) { return DoubledMsg{.tick = in.tick, .value = 1.0}; })
+      .sink([](const DoubledMsg&, const tianshu::core::Lineage&) {});
+}
+
+REGISTER_TRACEABLE_FLOW("trace_unit_test", declare_trace_demo)
+
+}  // namespace
+
+TEST(TraceableFlowTest, BuildByNameMatchesDirectBuild) {
+  const auto by_name = tianshu::dsl::build_registered_flow("trace_unit_test");
+  tianshu::dsl::FlowBuilder b("trace_unit_test");
+  declare_trace_demo(b);
+  const auto direct = b.build();
+
+  EXPECT_EQ(by_name.describe(), direct.describe());
+  EXPECT_TRUE(by_name.sla_report().ok);
+
+  const auto names = tianshu::dsl::registered_flow_names();
+  EXPECT_NE(std::ranges::find(names, "trace_unit_test"), names.end());
+}
+
+TEST(TraceableFlowTest, UnknownNameThrows) {
+  EXPECT_THROW(static_cast<void>(tianshu::dsl::build_registered_flow("no_such_flow")),
+               std::invalid_argument);
 }

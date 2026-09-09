@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -620,6 +621,71 @@ inline Flow FlowBuilder::build() {
   flow.sinks_ = std::move(sinks_);
   return flow;
 }
+
+// ---------------------------------------------------------------------------
+// Traceable-flow registry (ADR-0030 M-D): flows register by name at static
+// init; launchers build them by name — the build IS the dry-run trace.
+// ---------------------------------------------------------------------------
+
+namespace detail {
+
+// Lock-free intrusive registration list: nodes are POD statics the macro
+// drops at static init (pointer compare-and-swap, nothing allocates or
+// throws).
+struct FlowRegistrationNode;
+
+inline std::atomic<FlowRegistrationNode*>& flow_registration_head() {
+  static std::atomic<FlowRegistrationNode*> head{nullptr};
+  return head;
+}
+
+struct FlowRegistrationNode {
+  const char* name;
+  void (*declare)(FlowBuilder&);
+  std::atomic<FlowRegistrationNode*> next{nullptr};
+
+  FlowRegistrationNode(const char* n, void (*d)(FlowBuilder&)) noexcept : name(n), declare(d) {
+    FlowRegistrationNode* current = flow_registration_head().load(std::memory_order_relaxed);
+    do {
+      next.store(current, std::memory_order_relaxed);
+    } while (!flow_registration_head().compare_exchange_weak(
+        current, this, std::memory_order_release, std::memory_order_relaxed));
+  }
+};
+
+}  // namespace detail
+
+[[nodiscard]] inline std::vector<std::string> registered_flow_names() {
+  std::vector<std::string> names;
+  for (auto* node = detail::flow_registration_head().load(std::memory_order_acquire);
+       node != nullptr; node = node->next.load(std::memory_order_acquire)) {
+    names.emplace_back(node->name);
+  }
+  return names;
+}
+
+// Dry-run by name: builds (traces) the registered flow — SLA analysis runs
+// at build, the declaration graph is the traced result. Throws
+// std::invalid_argument for an unknown name, rethrows the declare
+// function's exceptions as-is.
+[[nodiscard]] inline Flow build_registered_flow(const std::string& name) {
+  for (auto* node = detail::flow_registration_head().load(std::memory_order_acquire);
+       node != nullptr; node = node->next.load(std::memory_order_acquire)) {
+    if (name == node->name) {
+      FlowBuilder builder(node->name);
+      node->declare(builder);
+      return builder.build();
+    }
+  }
+  throw std::invalid_argument("no flow registered under '" + name + "'");
+}
+
+// The macro drops a POD node (const char* + declare fn, lock-free
+// intrusive list) at static init; nothing allocates or throws.
+#define REGISTER_TRACEABLE_FLOW(name, fn)                                                      \
+  namespace tianshu_flow_registration_##fn {                                                   \
+    static const ::tianshu::dsl::detail::FlowRegistrationNode registration_node{(name), (fn)}; \
+  }  // namespace tianshu_flow_registration_##fn
 
 template <typename TIn, typename TOut>
 Stream<TOut> FlowBuilder::map_stream(const Stream<TIn>& in, std::function<TOut(const TIn&)> fn) {

@@ -27,3 +27,6 @@ target_link_libraries(lidar_imu_demo PRIVATE tianshu)
 
 add_executable(record_replay_demo record_replay_demo.cc)
 target_link_libraries(record_replay_demo PRIVATE tianshu)
+
+add_executable(traceable_flow_demo traceable_flow_demo.cc)
+target_link_libraries(traceable_flow_demo PRIVATE tianshu tianshu_compiler)

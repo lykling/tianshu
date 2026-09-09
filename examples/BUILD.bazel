@@ -67,3 +67,12 @@ cc_binary(
     srcs = ["record_replay_demo.cc"],
     deps = ["//tianshu"],
 )
+
+cc_binary(
+    name = "traceable_flow_demo",
+    srcs = ["traceable_flow_demo.cc"],
+    deps = [
+        "//tianshu",
+        "//tianshu:tianshu_compiler",
+    ],
+)
