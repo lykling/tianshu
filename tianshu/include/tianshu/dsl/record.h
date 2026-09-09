@@ -41,7 +41,10 @@ struct RecordedMessage {
   std::string lineage_text;
 };
 
-// Simple append-only record file (v0: single write at close).
+// DEPRECATED (ADR-0028): the v0 single-shot record format. The v2
+// streaming format (record_v2.h, .trec) supersedes it — live capture,
+// chunked compression, lineage in-file. Retained for the ADR-0026-C
+// acceptance history; no production path links this anymore.
 class RecordFile {
  public:
   explicit RecordFile(std::string path);
