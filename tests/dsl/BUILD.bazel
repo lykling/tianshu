@@ -41,3 +41,13 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "runtime_coverage_test",
+    size = "small",
+    srcs = ["runtime_coverage_test.cc"],
+    deps = [
+        "//tianshu",
+        "@googletest//:gtest_main",
+    ],
+)

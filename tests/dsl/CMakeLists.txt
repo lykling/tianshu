@@ -13,3 +13,7 @@ gtest_discover_tests(slice_state_test)
 add_executable(record_v2_test record_v2_test.cc)
 target_link_libraries(record_v2_test PRIVATE tianshu GTest::gtest_main)
 gtest_discover_tests(record_v2_test)
+
+add_executable(runtime_coverage_test runtime_coverage_test.cc)
+target_link_libraries(runtime_coverage_test PRIVATE tianshu GTest::gtest_main)
+gtest_discover_tests(runtime_coverage_test)
