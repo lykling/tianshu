@@ -250,9 +250,9 @@ class FlowRuntime {
             return;
           }
           while (TIn* msg = visitor_ptr->try_fetch_0()) {
-            const core::Lineage parent = lineage_queue->pop();
+            core::Lineage parent = lineage_queue->pop();
             TOut out = fn(*msg);
-            publish_derived(parent, out_channel, &out, sizeof(TOut));
+            publish_derived(std::move(parent), out_channel, &out, sizeof(TOut));
           }
         });
     *box = visitor.get();
@@ -345,7 +345,7 @@ class FlowRuntime {
             return;
           }
           while (TTrig* trig = visitor_ptr->try_fetch_0()) {
-            const core::Lineage parent = lineage_queue->pop();
+            core::Lineage parent = lineage_queue->pop();
             const auto range = (*span)(*trig);
 
             Slice<TData> slice;
@@ -377,11 +377,14 @@ class FlowRuntime {
             }
 
             TOut out = (*op_impl)(*trig, slice);
-            core::Lineage lin = parent;
+            // Span hops merge the data-range branch into the trigger's
+            // lineage; the queue-popped parent itself is not mutated
+            // beyond the merge, so it stays const here.
+            core::Lineage lin = std::move(parent);
             if (!slice.empty()) {
               lin.merge(core::Lineage::rooted_range(data_channel, slice.seq_lo, slice.seq_hi));
             }
-            publish_derived(lin, out_channel, &out, sizeof(TOut));
+            publish_derived(std::move(lin), out_channel, &out, sizeof(TOut));
           }
         });
     *stage = visitor.get();
@@ -408,7 +411,7 @@ class FlowRuntime {
             return;
           }
           while (TIn* msg = visitor_ptr->try_fetch_0()) {
-            const core::Lineage parent = lineage_queue->pop();
+            core::Lineage parent = lineage_queue->pop();
             out_pub->parent_ = parent;
             state_pub->parent_ = parent;
             op_impl->handle(*msg, *out_pub, *state_pub);
@@ -463,8 +466,11 @@ class FlowRuntime {
   std::shared_ptr<detail::LineageQueue> register_lineage_queue(const std::string& channel);
 
   // Publishes with a lineage derived from `parent` (parent chain + this
-  // channel's hop with a fresh per-channel seq).
-  void publish_derived(const core::Lineage& parent, const std::string& channel, const void* data,
+  // channel's hop with a fresh per-channel seq). Takes the parent BY
+  // VALUE: callers move the queue-popped lineage in, add_hop appends in
+  // place, and the terminal publish moves again — no full copy per hop
+  // (ADR-0030 D8; chains were O(hops^2) per message otherwise).
+  void publish_derived(core::Lineage parent, const std::string& channel, const void* data,
                        std::size_t size);
 
   // Shared body of the two publish_bytes overloads; exactly one of

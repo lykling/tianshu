@@ -1,8 +1,8 @@
 # 天枢 (TIANSHU) — 方案总览
 
-> **文档定位**：工程视角的项目方案。
+> **文档定位**：工程视角的项目方案（叙事文档）。
 > **维护者**：Pride Leong
-> **状态**：v0.1（奠基期，2026-08）
+> **状态**：v0.2（2026-09-09）· Phase 0 完成，Phase 1 进行中 · 现状细节见 [arch/](./arch/README.md)（活文档）
 
 ---
 
@@ -214,13 +214,13 @@ REGISTER_TRACEABLE_FLOW("perception_flow", perception_flow);
 
 ---
 
-## 8. 现状（2026-08-10）
+## 8. 现状（2026-09-09）
 
 | 项 | 状态 |
 |---|---|
 | DSL 选型（fluent builder + auto trace） | ✅ 定（ADR-0001） |
 | 与 Cyber RT 关系（独立实现） | ✅ 定（ADR-0002） |
-| 仓库骨架（目录、文档、CI） | ⏳ Phase 0 进行中 |
-| PoC 原型（验证 H1/H2/H3） | ⏳ Phase 1 待启动 |
+| 仓库骨架（目录、文档、CI） | ✅ 完成（2026-08，M0 通过） |
+| Phase 1 PoC | 🟡 进行中——L4 全栈（PRIM/SCHED/CORE/TRANS）、DSL v0 + 血缘、kAuto、record v2、SLA v0 已落地；L1 codegen（H2）为主战场（详见 [arch/](./arch/README.md) 状态表） |
 | MVP（替换 Apollo perception 链路） | ⏳ Phase 2 |
 | 认证就绪（ISO 26262 ASIL-D） | ⏳ Phase 3 |

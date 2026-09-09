@@ -285,11 +285,10 @@ void FlowRuntime::attach_referenced_component(const std::string& registry_name,
   init_hooks_.emplace_back([held] { held->init(); });
 }
 
-void FlowRuntime::publish_derived(const core::Lineage& parent, const std::string& channel,
+void FlowRuntime::publish_derived(core::Lineage parent, const std::string& channel,
                                   const void* data, std::size_t size) {
-  core::Lineage lin = parent;
-  lin.add_hop({.channel = channel, .seq = next_seq(channel)});
-  publish_bytes(channel, data, size, std::move(lin));
+  parent.add_hop({.channel = channel, .seq = next_seq(channel)});
+  publish_bytes(channel, data, size, std::move(parent));
 }
 
 void FlowRuntime::attach_bridge_reader(const std::string& out_channel) {

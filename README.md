@@ -88,8 +88,15 @@ const auto flow = b.build();  // 逐消息血缘自动携带；ADR-0030 落地�
 
 ### 入口
 
+- [docs/README.md](./docs/README.md) — 文档导览（三条阅读路径）
 - [docs/00-overview.md](./docs/00-overview.md) — 一句话说清楚 + 四层架构 + 三层确定性
 - [docs/01-roadmap.md](./docs/01-roadmap.md) — Phase 0/1/2/3 路线图 + 里程碑 + 风险登记
+
+### 活文档（as-built 架构与模块设计，每次迭代同步）
+
+- [docs/arch/README.md](./docs/arch/README.md) — 架构文档导航 + 模块状态表 + **维护契约**
+- [docs/arch/01-architecture.md](./docs/arch/01-architecture.md) — 总体架构：分层 / 模块地图 / 消息生命周期
+- [docs/arch/modules/](./docs/arch/modules/) — 每模块一页：职责 / API / 内部设计 / 决策史 / 测试入口
 
 ### 架构决策记录（ADR）
 

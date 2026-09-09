@@ -1,8 +1,8 @@
 # 天枢 (TIANSHU) — 实施计划
 
-> **文档定位**：4 阶段实施路线图，从奠基到认证就绪。
+> **文档定位**：4 阶段实施路线图，从奠基到认证就绪（叙事文档）。
 > **维护者**：Pride Leong
-> **状态**：v0.1（2026-08）
+> **状态**：v0.2（2026-09-09）· Phase 0 **完成** · Phase 1 **进行中**
 > **关联**：[00-overview.md](./00-overview.md) · [adr/0001-dsl-form.md](./adr/0001-dsl-form.md) · [adr/0002-cyber-relation.md](./adr/0002-cyber-relation.md)
 
 ---
@@ -273,11 +273,11 @@ M2 MVP 上车  →  M3 认证就绪
 
 ---
 
-## 当前进度（2026-08-10）
+## 当前进度（2026-09-09）
 
 | 项 | 状态 |
 |---|---|
-| Phase 0 任务 0.2（README + docs） | 🟡 进行中 |
-| Phase 0 任务 0.1（branding 迁移） | ⏳ 待启动 |
-| Phase 0 任务 0.3-0.6（骨架） | ⏳ 待启动 |
-| Phase 1 | ⏳ 待 M0 通过后启动 |
+| Phase 0 全部任务（0.1–0.6） | ✅ 完成（2026-08，M0 通过：双构建零警告 CI / 253 测试 / 覆盖率管线） |
+| Phase 1 · 1.1 最小可跑子集 | ✅ 超额完成——L4 全栈 + DSL v0 + 血缘 + kAuto + record v2 + SLA v0 均已落地（细节见 [arch/](./arch/README.md)） |
+| Phase 1 · H1/H2/H3 验证 | 🟡 H2 主战场：L1 codegen 推进中（ADR-0030 M-A~M-D） |
+| Phase 2 / Phase 3 | ⏳ |
