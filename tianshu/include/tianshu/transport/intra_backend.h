@@ -55,7 +55,8 @@ class IntraWriter : public WriterBase {
     msg.seq = seq_.fetch_add(1, std::memory_order_relaxed);
 
     const std::scoped_lock lock(callbacks_mutex_);
-    for (auto& cb : callbacks_) {
+    for (auto& [ticket, cb] : callbacks_) {
+      static_cast<void>(ticket);
       if (cb) {
         cb(msg);
       }
@@ -64,29 +65,46 @@ class IntraWriter : public WriterBase {
 
   std::string_view channel() const override { return channel_; }
 
-  void add_reader_callback(MessageCallback cb) {
+  // Registers a callback; the returned ticket removes it (readers call
+  // this from their destructor — a destroyed reader leaving its
+  // capturing-lambda behind was a dangling-this use-after-free across
+  // sequentially launched graphs on the same channel).
+  std::uint64_t add_reader_callback(MessageCallback cb) {
     const std::scoped_lock lock(callbacks_mutex_);
-    callbacks_.push_back(std::move(cb));
+    callbacks_.push_back({.ticket = next_ticket_++, .fn = std::move(cb)});
+    return callbacks_.back().ticket;
+  }
+
+  void remove_reader_callback(std::uint64_t ticket) {
+    const std::scoped_lock lock(callbacks_mutex_);
+    std::erase_if(callbacks_,
+                  [ticket](const TicketedCallback& entry) { return entry.ticket == ticket; });
   }
 
  private:
   std::string channel_;
   std::atomic<uint64_t> seq_{0};
+  struct TicketedCallback {
+    std::uint64_t ticket;
+    MessageCallback fn;
+  };
   std::mutex callbacks_mutex_;
-  std::vector<MessageCallback> callbacks_;
+  std::vector<TicketedCallback> callbacks_;
+  std::uint64_t next_ticket_{1};
 };
 
 class IntraReader : public ReaderBase {
  public:
   explicit IntraReader(std::string channel, std::shared_ptr<IntraWriter> writer)
       : channel_(std::move(channel)), writer_(std::move(writer)) {
-    // Register our callback with the writer.
-    writer_->add_reader_callback([this](const Message& msg) {
+    callback_ticket_ = writer_->add_reader_callback([this](const Message& msg) {
       if (callback_) {
         callback_(msg);
       }
     });
   }
+
+  ~IntraReader() override { writer_->remove_reader_callback(callback_ticket_); }
 
   void set_callback(MessageCallback cb) override { callback_ = std::move(cb); }
   std::string_view channel() const override { return channel_; }
@@ -95,6 +113,7 @@ class IntraReader : public ReaderBase {
   std::string channel_;
   std::shared_ptr<IntraWriter> writer_;
   MessageCallback callback_;
+  std::uint64_t callback_ticket_{0};
 };
 
 // Channel registry: maps channel name to writer (for reader creation).
