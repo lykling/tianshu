@@ -21,11 +21,13 @@
 
 #include <gtest/gtest.h>
 
+#include "tianshu/core/lineage.h"
 #include "tianshu/core/message_concept.h"
 #include "tianshu/core/message_traits.h"
 #include "tianshu/core/node.h"
 #include "tianshu/core/typed_reader.h"
 #include "tianshu/core/typed_writer.h"
+#include "tianshu/transport/transport_backend.h"
 
 namespace {
 
@@ -193,3 +195,23 @@ TEST(TypedWriterReaderTest, SeparateChannels) {
 }
 
 }  // namespace
+
+TEST(TypedWriterReaderTest, LineagePtrSurvivesTransportRoundTrip) {
+  tianshu::core::Node node;
+  auto writer = node.create_typed_writer<ImuData>("/typed/lineage");
+  std::string seen;
+  auto reader = node.create_reader("/typed/lineage");
+  reader->set_callback([&seen](const tianshu::transport::Message& msg) {
+    const auto* lin = static_cast<const tianshu::core::Lineage*>(msg.lineage_ptr);
+    if (lin != nullptr) {
+      seen = lin->describe();
+    }
+  });
+
+  const tianshu::core::Lineage lin = tianshu::core::Lineage::rooted("/typed/lineage", 7);
+  writer->write(
+      ImuData{.timestamp = 1.0, .ax = 0.0, .ay = 0.0, .az = 0.0, .gx = 0.0, .gy = 0.0, .gz = 0.0},
+      &lin);
+
+  EXPECT_EQ(seen, "/typed/lineage#7");
+}
