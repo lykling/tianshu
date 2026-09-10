@@ -61,12 +61,20 @@ namespace {
                                         lin.describe().c_str()));
         }
       })
-      .with_sla(tianshu::sla::Sla{.deadline = std::chrono::milliseconds(20)});
+      .with_sla(tianshu::sla::Sla{.deadline = std::chrono::milliseconds(20)})
+      .with_fallback("demo_traceable_lite");
+}
+
+[[maybe_unused]] void declare_demo_flow_lite(tianshu::dsl::FlowBuilder& b) {
+  b.source<DemoTick>("lite_ticks", std::chrono::milliseconds(50), [](std::uint64_t t) {
+     return DemoTick{.tick = t};
+   }).sink([](const DemoTick&, const tianshu::core::Lineage&) {});
 }
 
 }  // namespace
 
 REGISTER_TRACEABLE_FLOW("demo_traceable", declare_demo_flow)
+REGISTER_TRACEABLE_FLOW("demo_traceable_lite", declare_demo_flow_lite)
 
 int main() try {
   static_cast<void>(std::printf("== registered flows ==\n"));
@@ -82,6 +90,9 @@ int main() try {
   auto graph = tianshu::compiler::IrGraph::from_flow(flow);
   graph.normalize();
   static_cast<void>(std::printf("artifact hash: %s\n", graph.stable_hash().c_str()));
+  static_cast<void>(std::printf("fallback ladder: %s\n", flow.fallback_flow().empty()
+                                                             ? "(none)"
+                                                             : flow.fallback_flow().c_str()));
 
   // Compile and run the artifact.
   auto compiled = tianshu::compiler::Pipeline::compile(flow);
@@ -90,6 +101,9 @@ int main() try {
                                 compiled.from_cache() ? "cached" : "fresh"));
   tianshu::dsl::FlowRuntime runtime;
   compiled.run(runtime, flow, std::chrono::milliseconds(60));
+  const auto fallback = runtime.fallback_state();
+  static_cast<void>(
+      std::printf("degradation events: %llu\n", static_cast<unsigned long long>(fallback.events)));
   return 0;
 } catch (const std::exception& e) {
   static_cast<void>(std::fprintf(stderr, "error: %s\n", e.what()));
