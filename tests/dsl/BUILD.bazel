@@ -58,6 +58,7 @@ cc_test(
     srcs = ["flow_fallback_test.cc"],
     deps = [
         "//tianshu",
+        "//tianshu:tianshu_compiler",
         "@googletest//:gtest_main",
     ],
 )

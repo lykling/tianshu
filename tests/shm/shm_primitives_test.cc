@@ -149,6 +149,7 @@ TEST(ShmSegmentTest, CreateFailsOnMissingDirectory) {
 // Bare segment (no published magic): attachers poll until timeout.
 TEST(ShmSegmentTest, AttachTimesOutOnUnpublishedSegment) {
   const char* name = "/tianshu_test_bare";
+  shm_unlink(name);  // a crashed prior run may have left the segment behind
   const int fd = shm_open(name, O_CREAT | O_EXCL | O_RDWR, 0600);
   ASSERT_GE(fd, 0);
   ASSERT_EQ(ftruncate(fd, 8192), 0);

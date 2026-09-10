@@ -20,6 +20,7 @@
 
 #include <gtest/gtest.h>
 
+#include "tianshu/compiler/ir.h"
 #include "tianshu/core/lineage.h"
 #include "tianshu/core/message_traits.h"
 #include "tianshu/dsl/dsl_runtime.h"
@@ -129,6 +130,18 @@ TEST(FlowFallbackRuntimeTest, HealthyFlowFiresNoEvent) {
   const auto state = rt.fallback_state();
   EXPECT_EQ(state.declared, "fb_lite");
   EXPECT_EQ(state.events, 0U);
+}
+
+// IR round-trip (ADR-0031 D1.2): the fallback name survives lowering and
+// lands in the .conf export.
+TEST(FlowFallbackTest, IrCarriesFallbackIntoConfExport) {
+  FlowBuilder b("fb_ir");
+  auto chain = b.source<FbTick>("ticks", std::chrono::milliseconds(5),
+                                [](std::uint64_t t) { return FbTick{.tick = t}; });
+  chain.with_fallback("fb_lite");
+  const auto graph = tianshu::compiler::IrGraph::from_flow(chain.build());
+  EXPECT_EQ(graph.fallback_flow(), "fb_lite");
+  EXPECT_NE(graph.export_conf().find("fallback_flow = \"fb_lite\""), std::string::npos);
 }
 
 TEST(FlowFallbackRuntimeTest, NoFallbackDeclaredMeansNoWatching) {
