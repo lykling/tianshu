@@ -36,19 +36,19 @@ genhtml /tmp/tianshu_filtered.info -o /tmp/tianshu_cov     # HTML
 
 | 指标 | 值 |
 |---|---|
-| 行覆盖 | **71%**（5213/7347，src） |
-| 函数覆盖 | 70.7% |
-| 分支覆盖 | 36% |
+| 行覆盖 | **88%**（2291/2583，src；含头文件实例化 68%） |
+| 函数覆盖 | ~88%（src，随行覆盖同源） |
+| 分支覆盖 | 53%（src；模板分支密度高，按需补） |
 
 主要空白与处置：
 
 | 模块 | 覆盖 | 处置 |
 |---|---|---|
 | `record.cc`（v0 遗留格式） | 0% | 已被 v2 取代——候选：删除或 ADR 标记 deprecated |
-| `dsl_runtime.cc` | 77% | 空白在 replay/桥接/容错路径——M-C 后补 |
-| `pipeline.cc` | 71% | 降级分支 + 编译失败路径——补异常注入测试 |
-| `cache_buffer.h` | 58% | 多模板实例化行——按实例补 |
-| `monitor.cc` | 82% | TUI 交互路径——按 ADR-0020 渐进 |
+| `dsl_runtime.cc` | 90% | 剩余：v0 deprecated record 路径（不补）+ 桥接失败分支已覆盖 |
+| `pipeline.cc` | 93% | 降级分支 + 编译失败路径——补异常注入测试 |
+| `monitor.cc` | 92% | 剩余：TUI 独占交互（select/jump 已测）——按 ADR-0020 渐进 |
+| `component.h`/`data_visitor.h`/`cache_buffer.h` | 26-37% | 模板多实例化聚合值——按真实未测行为补，不追百分比 |
 
 ## Clang source-based（参考）
 
