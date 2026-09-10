@@ -22,9 +22,11 @@
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
 
+#include "tianshu/core/component.h"
 #include "tianshu/core/lineage.h"
 #include "tianshu/core/message_traits.h"
 #include "tianshu/sla/sla_analyzer.h"
@@ -49,6 +51,47 @@ struct FuseMsg {
 TIANSHU_TRAITS_POD(TickMsg, "ir.TickMsg");
 TIANSHU_TRAITS_POD(DetectMsg, "ir.DetectMsg");
 TIANSHU_TRAITS_POD(FuseMsg, "ir.FuseMsg");
+
+namespace {
+class IrDriver final : public tianshu::core::TimerSourceComponent<TickMsg> {
+ public:
+  explicit IrDriver(std::string name) : TimerSourceComponent(std::move(name)) {}
+
+ protected:
+  void proc() override { publish(TickMsg{.tick = tick_++}); }
+
+  [[nodiscard]] std::string_view out_channel() const override { return {}; }
+
+ private:
+  std::uint64_t tick_{0};
+};
+
+class IrPass final : public tianshu::core::Component<TickMsg, DetectMsg> {
+ public:
+  explicit IrPass(std::string name) : Component(std::move(name)) {}
+
+ protected:
+  void proc(const TickMsg& in) override { publish(DetectMsg{.tick = in.tick}); }
+
+  [[nodiscard]] std::string_view out_channel() const override { return {}; }
+};
+
+class IrFuse final : public tianshu::core::TwoInputComponent<TickMsg, DetectMsg, FuseMsg> {
+ public:
+  explicit IrFuse(std::string name) : TwoInputComponent(std::move(name)) {}
+
+ protected:
+  void proc(const TickMsg& in0, const DetectMsg& in1) override {
+    publish(FuseMsg{.tick = in0.tick + in1.tick});
+  }
+
+  [[nodiscard]] std::string_view out_channel() const override { return {}; }
+};
+}  // namespace
+
+TIANSHU_REGISTER_COMPONENT(IrDriver, "ir.from.driver")
+TIANSHU_REGISTER_COMPONENT(IrPass, "ir.from.pass")
+TIANSHU_REGISTER_COMPONENT(IrFuse, "ir.from.fuse")
 
 namespace {
 
@@ -253,4 +296,37 @@ TEST(IrTest, LowersEveryNodeKindAndSaturationConf) {
   graph.normalize();
   graph.normalize();
   EXPECT_EQ(graph.nodes().size(), 6U);
+}
+
+// from() references lower to IR: source-like (no inputs), one-input, and
+// two-input (both channels in inputs) forms.
+TEST(IrTest, LowersFromReferencesOfEveryArity) {
+  dsl::FlowBuilder b("ir_froms");
+  const auto ticks = b.from<TickMsg>("ir.from.driver", "drv", std::chrono::milliseconds(10));
+  const auto dets = b.from<TickMsg, DetectMsg>("ir.from.pass", ticks, "det");
+  b.from<FuseMsg>("ir.from.fuse", ticks, dets, "fused")
+      .sink([](const FuseMsg&, const tianshu::core::Lineage&) {});
+  const auto graph = compiler::IrGraph::from_flow(b.build());
+
+  const compiler::IrNode* src = nullptr;
+  const compiler::IrNode* pass = nullptr;
+  const compiler::IrNode* fuse = nullptr;
+  for (const auto& n : graph.nodes()) {
+    if (n.output == "ir_froms/drv") {
+      src = &n;
+    } else if (n.output == "ir_froms/det") {
+      pass = &n;
+    } else if (n.output == "ir_froms/fused") {
+      fuse = &n;
+    }
+  }
+  ASSERT_NE(src, nullptr);
+  ASSERT_NE(pass, nullptr);
+  ASSERT_NE(fuse, nullptr);
+  EXPECT_EQ(src->kind, "source");
+  EXPECT_TRUE(src->inputs.empty());
+  EXPECT_EQ(pass->kind, "from");
+  EXPECT_EQ(pass->inputs, (std::vector<std::string>{"ir_froms/drv"}));
+  EXPECT_EQ(fuse->kind, "from");
+  EXPECT_EQ(fuse->inputs, (std::vector<std::string>{"ir_froms/drv", "ir_froms/det"}));
 }
