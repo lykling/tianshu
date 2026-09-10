@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <utility>
 
 #include <gtest/gtest.h>
 
@@ -184,3 +185,72 @@ TEST(IrTest, NormalizeKeepsNodeCountAndAnonShape) {
 }
 
 }  // namespace
+
+TEST(IrTest, LowersEveryNodeKindAndSaturationConf) {
+  dsl::FlowBuilder b("ir_all");
+  // source + map + wcet
+  auto mapped = b.source<TickMsg>("t", std::chrono::milliseconds(10), [](std::uint64_t t) {
+                   return TickMsg{.tick = t};
+                 }).map<DetectMsg>([](const TickMsg& in) { return DetectMsg{.tick = in.tick}; });
+  mapped.with_wcet(std::chrono::milliseconds(8));
+  // op: box-style read-write node (handle/on_init impl struct per ADR-0024)
+  struct BoxOp {
+    static void on_init(dsl::OpPub<FuseMsg>& /*pub*/) {}
+    static void handle(const DetectMsg& in, dsl::OpPub<FuseMsg>& pub) {
+      pub.publish(FuseMsg{.tick = in.tick});
+    }
+  };
+  b.op<DetectMsg, FuseMsg>(mapped, "boxed", BoxOp{});
+  // stateful
+  struct NoFold {
+    static void on_init(dsl::OpPub<DetectMsg>& /*out*/, dsl::OpPub<TickMsg>& /*state*/) {}
+    static void handle(const DetectMsg& in, dsl::OpPub<DetectMsg>& out,
+                       dsl::OpPub<TickMsg>& /*state*/) {
+      out.publish(DetectMsg{.tick = in.tick});
+    }
+  };
+  b.stateful<DetectMsg, TickMsg>(mapped, "st_out", "st_acc", NoFold{});
+  // span over trigger+data (both TickMsg chains)
+  const auto trig = b.source<TickMsg>("g", std::chrono::milliseconds(20),
+                                      [](std::uint64_t t) { return TickMsg{.tick = t}; });
+  b.span_join<FuseMsg>(
+      trig, trig,
+      [](const TickMsg& trig_msg) {
+        return std::pair<std::uint64_t, std::uint64_t>(trig_msg.tick, trig_msg.tick + 5);
+      },
+      [](const TickMsg& msg) { return msg.tick; },
+      [](const TickMsg& trig_msg, const dsl::Slice<TickMsg>& slice) {
+        static_cast<void>(trig_msg);
+        return FuseMsg{.tick = slice.items.size()};
+      });
+
+  auto graph = compiler::IrGraph::from_flow(b.build());
+  std::size_t sources = 0;
+  std::size_t maps = 0;
+  std::size_t ops = 0;
+  std::size_t statefuls = 0;
+  std::size_t spans = 0;
+  for (const auto& n : graph.nodes()) {
+    if (n.kind == "source") {
+      ++sources;
+    } else if (n.kind == "map") {
+      ++maps;
+    } else if (n.kind == "op") {
+      ++ops;
+    } else if (n.kind == "stateful") {
+      ++statefuls;
+    } else if (n.kind == "span") {
+      ++spans;
+    }
+  }
+  EXPECT_EQ(sources, 2U);  // "t" + "g"
+  EXPECT_EQ(maps, 1U);
+  EXPECT_EQ(ops, 1U);
+  EXPECT_EQ(statefuls, 1U);
+  EXPECT_EQ(spans, 1U);
+
+  // Normalize keeps the node count and ordering is idempotent.
+  graph.normalize();
+  graph.normalize();
+  EXPECT_EQ(graph.nodes().size(), 6U);
+}
