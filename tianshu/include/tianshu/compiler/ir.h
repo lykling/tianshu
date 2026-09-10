@@ -74,6 +74,7 @@ class IrGraph {
   [[nodiscard]] const std::vector<IrNode>& nodes() const { return nodes_; }
   [[nodiscard]] const std::vector<sla::SlaEndpoint>& endpoints() const { return endpoints_; }
   [[nodiscard]] const sla::SlaReport& sla() const { return sla_; }
+  [[nodiscard]] const std::string& fallback_flow() const { return fallback_flow_; }
 
  private:
   friend class IrGraphBuilder;
@@ -84,6 +85,7 @@ class IrGraph {
   std::vector<IrNode> nodes_;
   std::vector<sla::SlaEndpoint> endpoints_;
   sla::SlaReport sla_;
+  std::string fallback_flow_;
 };
 
 }  // namespace tianshu::compiler

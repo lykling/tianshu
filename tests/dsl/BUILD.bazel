@@ -51,3 +51,13 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "flow_fallback_test",
+    size = "small",
+    srcs = ["flow_fallback_test.cc"],
+    deps = [
+        "//tianshu",
+        "@googletest//:gtest_main",
+    ],
+)

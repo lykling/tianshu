@@ -8,6 +8,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 Phase 1 PoC — in progress.
 
+### Fallback degradation ladder (ADR-0031, v0)
+
+- `with_fallback(name)` DSL verb (chain + builder): load-time fail-fast
+  validation against the traceable-flow registry (unknown name /
+  self-reference rejected at `build()`)
+- `Flow::fallback_flow()` + `IrGraph::fallback_flow()`; `.conf` export
+  carries `fallback_flow = "..."` (absent = none, backward compatible)
+- `FlowRuntime::fallback_state()`: runtime watcher samples SLA miss
+  counters every 20ms; each window with fresh misses on any endpoint
+  fires a degradation event (declared name, event count, last offender).
+  v0 signals only — hot-swap to the fallback flow is v1
+
 ### L4-PRIM — Data Structures (completed earlier in Phase 1)
 
 - L4-PRIM-1..6: ObjectPool / CacheBuffer / AtomicHashMap / RWLock /

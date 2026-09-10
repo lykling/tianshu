@@ -115,6 +115,7 @@ IrGraph IrGraph::from_flow(const dsl::Flow& flow) {
   graph.flow_name_ = flow.name();
   graph.endpoints_ = flow.sla_endpoints();
   graph.sla_ = flow.sla_report();
+  graph.fallback_flow_ = flow.fallback_flow();
   const auto& wcets = flow.wcet_by_out();
   const auto wcet_of = [&wcets](const std::string& out) {
     const auto it = wcets.find(out);
@@ -352,6 +353,9 @@ std::string IrGraph::export_conf() const {
   out << "flow = \"" << flow_name_ << "\"\n";
   out << "hash = \"" << stable_hash() << "\"\n";
   out << "sla_ok = " << (sla_.ok ? "true" : "false") << "\n";
+  if (!fallback_flow_.empty()) {
+    out << "fallback_flow = \"" << fallback_flow_ << "\"\n";
+  }
   if (!sla_.saturation_warning.empty()) {
     out << "saturation = \"" << sla_.saturation_warning << "\"\n";
   }

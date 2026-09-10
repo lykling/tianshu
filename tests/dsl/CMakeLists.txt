@@ -17,3 +17,7 @@ gtest_discover_tests(record_v2_test)
 add_executable(runtime_coverage_test runtime_coverage_test.cc)
 target_link_libraries(runtime_coverage_test PRIVATE tianshu GTest::gtest_main)
 gtest_discover_tests(runtime_coverage_test)
+
+add_executable(flow_fallback_test flow_fallback_test.cc)
+target_link_libraries(flow_fallback_test PRIVATE tianshu GTest::gtest_main)
+gtest_discover_tests(flow_fallback_test)

@@ -217,6 +217,11 @@ class Flow {
     return wcet_by_out_;
   }
 
+  // Declared degradation target (ADR-0031): name of the registered flow to
+  // fall back to when this flow persistently misses its SLA. Empty when no
+  // fallback was declared.
+  [[nodiscard]] const std::string& fallback_flow() const { return fallback_flow_; }
+
   // Wiring summary: "src -> map -> sink" with channels, for tests.
   [[nodiscard]] std::string describe() const {
     std::string out = "flow " + name_ + ":";
@@ -265,6 +270,7 @@ class Flow {
   std::vector<sla::SlaEndpoint> sla_endpoints_;
   std::map<std::string, std::chrono::microseconds> wcet_by_out_;
   sla::SlaReport sla_report_;
+  std::string fallback_flow_;
 };
 
 // ---------------------------------------------------------------------------
@@ -403,6 +409,12 @@ class FlowBuilder {
   // WCET, hop cost, machine cores, saturation margin/strictness.
   FlowBuilder& with_sla_config(sla::SlaConfig config);
 
+  // Declares the degradation target (ADR-0031): name of a flow registered
+  // via REGISTER_TRACEABLE_FLOW. build() fails fast when the name is
+  // unknown or self-referential — the fallback ladder is verified at load
+  // time, like every other cross-flow reference.
+  FlowBuilder& with_fallback(std::string_view flow_name);
+
   [[nodiscard]] Flow build();
 
  private:
@@ -451,6 +463,7 @@ class FlowBuilder {
   std::vector<sla::SlaEndpoint> sla_endpoints_;
   std::map<std::string, std::chrono::microseconds> wcet_by_out_;
   sla::SlaConfig sla_config_;
+  std::string fallback_flow_;
   std::uint64_t anon_{0};
 };
 
@@ -488,6 +501,11 @@ class FlowChain {
   // the configured default WCET and are named in the analysis output.
   FlowChain<T>& with_wcet(std::chrono::microseconds budget) {
     builder_->declare_wcet(stream_.channel(), budget);
+    return *this;
+  }
+
+  FlowChain<T>& with_fallback(std::string_view flow_name) {
+    builder_->with_fallback(flow_name);
     return *this;
   }
 
@@ -530,6 +548,11 @@ inline FlowBuilder& FlowBuilder::with_sla(std::string_view /*sla*/) { return *th
 
 inline FlowBuilder& FlowBuilder::with_sla_config(sla::SlaConfig config) {
   sla_config_ = config;
+  return *this;
+}
+
+inline FlowBuilder& FlowBuilder::with_fallback(std::string_view flow_name) {
+  fallback_flow_ = std::string(flow_name);
   return *this;
 }
 
@@ -607,10 +630,25 @@ inline void FlowBuilder::run_sla_analysis(Flow& flow) const {
   flow.sla_report_ = report;
 }
 
+namespace detail {
+// Registry probe, defined next to the traceable-flow registry below.
+bool is_registered_flow(const std::string& name);
+}  // namespace detail
+
 inline Flow FlowBuilder::build() {
+  if (!fallback_flow_.empty()) {
+    if (fallback_flow_ == name_) {
+      throw std::invalid_argument("flow '" + name_ + "' cannot fall back to itself");
+    }
+    if (!detail::is_registered_flow(fallback_flow_)) {
+      throw std::invalid_argument("flow '" + name_ + "' declares unknown fallback '" +
+                                  fallback_flow_ + "'");
+    }
+  }
   Flow flow(name_);
   run_sla_analysis(flow);            // reads the builder decls: must precede the moves
   flow.wcet_by_out_ = wcet_by_out_;  // compiler IR input regardless of SLA presence
+  flow.fallback_flow_ = fallback_flow_;
   flow.sources_ = std::move(sources_);
   flow.maps_ = std::move(maps_);
   flow.joins_ = std::move(joins_);
@@ -663,6 +701,17 @@ struct FlowRegistrationNode {
   }
   return names;
 }
+namespace detail {
+inline bool is_registered_flow(const std::string& name) {
+  for (auto* node = flow_registration_head().load(std::memory_order_acquire); node != nullptr;
+       node = node->next.load(std::memory_order_acquire)) {
+    if (name == node->name) {
+      return true;
+    }
+  }
+  return false;
+}
+}  // namespace detail
 
 // Dry-run by name: builds (traces) the registered flow — SLA analysis runs
 // at build, the declaration graph is the traced result. Throws

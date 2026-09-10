@@ -189,6 +189,11 @@ std::vector<sla::SlaEndpointStats> FlowRuntime::sla_snapshot() const {
   return sla_stats_ != nullptr ? sla_stats_->snapshot() : std::vector<sla::SlaEndpointStats>{};
 }
 
+FlowRuntime::FallbackState FlowRuntime::fallback_state() const {
+  const std::scoped_lock lock(fallback_mutex_);
+  return fallback_;
+}
+
 void FlowRuntime::start_recording(const std::string& path, record::Compression compression) {
   if (recorder_ != nullptr) {
     return;
@@ -418,8 +423,43 @@ void FlowRuntime::run_sources(const Flow& flow, std::chrono::milliseconds durati
   for (const auto& source : flow.sources()) {
     source_threads.emplace_back(drive_source, std::cref(source), duration, start, this);
   }
+
+  // Degradation watcher (ADR-0031 v0): while a fallback is declared and
+  // SLA endpoints are armed, sample the miss counters once per window and
+  // fire an event for every window with fresh misses.
+  constexpr auto kWindow = std::chrono::milliseconds(20);
+  constexpr std::uint64_t kWindowMisses = 1;
+  const bool watch_fallback = !flow.fallback_flow().empty() && sla_stats_ != nullptr;
+  std::thread fallback_thread;
+  std::unordered_map<std::string, std::uint64_t> last_misses;
+  if (watch_fallback) {
+    {
+      const std::scoped_lock lock(fallback_mutex_);
+      fallback_.declared = flow.fallback_flow();
+    }
+    fallback_thread = std::thread([this, duration, start, &last_misses, kWindow] {
+      for (auto now = std::chrono::steady_clock::now(); now - start < duration;
+           now = std::chrono::steady_clock::now()) {
+        std::this_thread::sleep_until(now + kWindow);
+        for (const auto& ep : sla_stats_->snapshot()) {
+          const std::uint64_t delta = ep.miss_count - last_misses[ep.endpoint];
+          last_misses[ep.endpoint] = ep.miss_count;
+          if (delta >= kWindowMisses) {
+            const std::scoped_lock lock(fallback_mutex_);
+            ++fallback_.events;
+            fallback_.last_endpoint = ep.endpoint;
+            fallback_.last_miss_count = ep.miss_count;
+          }
+        }
+      }
+    });
+  }
+
   for (auto& thread : source_threads) {
     thread.join();
+  }
+  if (fallback_thread.joinable()) {
+    fallback_thread.join();
   }
   // Referenced timer components drive themselves on their own threads;
   // the runtime stays alive for the full duration so they are not torn

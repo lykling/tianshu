@@ -238,6 +238,19 @@ class FlowRuntime {
   // flows without declarations (recording never arms).
   [[nodiscard]] std::vector<sla::SlaEndpointStats> sla_snapshot() const;
 
+  // Degradation ladder (ADR-0031 v0): populated when the flow declared a
+  // fallback. The watcher samples the SLA miss counters once per window;
+  // each window whose misses grew by >= kFallbackWindowMisses on any
+  // endpoint fires one degradation event (counter + last-offender
+  // tracking). v0 signals; hot-swapping to the fallback flow is v1.
+  struct FallbackState {
+    std::string declared;
+    std::uint64_t events{0};
+    std::string last_endpoint;
+    std::uint64_t last_miss_count{0};
+  };
+  [[nodiscard]] FallbackState fallback_state() const;
+
   // Record substrate (ADR-0026 Phase C): dump every captured channel
   // history into an append-only record file (messages in capture
   // order, oldest first per channel). Legacy v0 format.
@@ -559,6 +572,11 @@ class FlowRuntime {
 
   // Arms on the first run_for of a flow with SLA endpoints (ADR-0029 D6).
   std::unique_ptr<sla::SlaStatsCollector> sla_stats_;
+
+  // Degradation watcher (ADR-0031): guarded by fallback_mutex_; the
+  // counters are read by fallback_state() from other threads.
+  mutable std::mutex fallback_mutex_;
+  FallbackState fallback_{.declared = "", .events = 0, .last_endpoint = "", .last_miss_count = 0};
 
   // Recorder appends moved off the runtime mutex (ADR-0030 D8 L1b):
   // RecordWriter is not internally synchronized.
