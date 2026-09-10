@@ -23,6 +23,8 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
+#include <ios>
 #include <string>
 #include <thread>
 #include <utility>
@@ -78,10 +80,23 @@ class TestEcho : public tianshu::core::Component<TickMsg> {
   [[nodiscard]] std::string_view out_channel() const override { return "/t/echo"; }
 };
 
+class TestBrokenInit final : public tianshu::core::TimerSourceComponent<TickMsg> {
+ public:
+  explicit TestBrokenInit(std::string name) : TimerSourceComponent(std::move(name)) {}
+
+  bool init() override { return false; }
+
+ protected:
+  void proc() override {}
+
+  [[nodiscard]] std::string_view out_channel() const override { return "/t/broken"; }
+};
+
 }  // namespace
 
 TIANSHU_REGISTER_COMPONENT(TestSource, "test_source")
 TIANSHU_REGISTER_COMPONENT(TestEcho, "test_echo")
+TIANSHU_REGISTER_COMPONENT(TestBrokenInit, "test_broken_init")
 
 TEST(DagConfigTest, ParsesFullDag) {
   const auto dag = tianshu::core::DagConfig::parse(R"CFG(
@@ -264,4 +279,27 @@ TEST(TiDispatchTest, LaunchesTiLaunchFromPath) {
   // itself failed to dispatch.
   EXPECT_TRUE(WIFEXITED(status));     // NOLINT(misc-include-cleaner)  // glibc: bits/waitflags
   EXPECT_EQ(WEXITSTATUS(status), 1);  // NOLINT(misc-include-cleaner)  // glibc: bits/waitflags
+}
+
+TEST(DagConfigTest, ParseFileReadsAndParses) {
+  const std::string path =
+      std::string(std::getenv("TEST_TMPDIR") != nullptr ? std::getenv("TEST_TMPDIR") : "/tmp") +
+      "/tianshu_launcher_ok.flow";
+  std::ofstream out(path, std::ios::trunc);
+  out << "[component src]\ntype = test_source\ninterval_ms = 40\n";
+  out.close();
+  const auto dag = tianshu::core::DagConfig::parse_file(path);
+  ASSERT_TRUE(dag.ok()) << dag.error;
+  ASSERT_EQ(dag.components.size(), 1U);
+  EXPECT_EQ(dag.components[0].type, "test_source");
+}
+
+TEST(LauncherTest, InitFailureFailsWithCleanErrorAndStops) {
+  const auto dag = tianshu::core::DagConfig::parse(
+      "[component broken]\ntype = test_broken_init\ninterval_ms = 20\n");
+  ASSERT_TRUE(dag.ok()) << dag.error;
+  tianshu::core::Launcher launcher;
+  std::string error;
+  EXPECT_FALSE(launcher.start(dag, &error));
+  EXPECT_NE(error.find("init failed for 'broken'"), std::string::npos);
 }
