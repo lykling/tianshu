@@ -126,3 +126,17 @@ TEST(RuntimeCoverageTest, StatefulAndSpanStagesWireThroughRunFor) {
 }
 
 }  // namespace
+
+// from() with an unknown registration: the chain is invalid, and wiring
+// a flow containing it walks the attach failure branches (nullptr
+// component -> early return) without crashing.
+TEST(RuntimeCoverageTest, UnknownFromReferenceWiresToNoop) {
+  dsl::FlowBuilder b("rt_badfrom");
+  auto chain = b.from<RtTick>("no_such_component", "ghost/out", std::chrono::milliseconds(5));
+  ASSERT_FALSE(chain.valid());
+  chain.sink([](const RtTick&, const tianshu::core::Lineage&) {});
+  const auto flow = b.build();
+  dsl::FlowRuntime rt;
+  rt.run_for(flow, std::chrono::milliseconds(30));
+  SUCCEED();  // no crash, no hang
+}
