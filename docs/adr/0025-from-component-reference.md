@@ -76,3 +76,20 @@ auto chassis = builder.from<ControlCmd, ChassisState>(control_chain, "avp.chassi
 - `dsl_runtime.h/.cc`：`attach_referenced_source/attach_referenced_component` + `components_` 存活 + 析构 `shutdown()` + 泵回 reader
 - demo：`examples/avp_devices.cc`（设备注册库：双雷达 + GNSS + 底盘，四个 `TIANSHU_REGISTER_COMPONENT`）+ `full_chain_demo` 改为 `from()` 引用
 - 测试：驱动产流、组件闭环自举（init 发布）、注册缺失 → invalid、rooted 血缘
+
+---
+
+## 修订：双输入组件引用（2026-09-10）
+
+原 ADR 只覆盖 `Component<TIn, TOut>` 单输入形态；`TwoInputComponent<M0, M1, TOut>`
+注册后无法被 `from()` 引用（probe 只做单输入 dynamic_cast，attach 只传一个输入通道）。
+补充：
+
+- `FlowBuilder::from<TOut>(registry, in0_chain, in1_chain, out)`：双链喂入，
+  `FromDecl.in_channel_2` 携带第二输入；describe 渲染 `from[c0 + c1 via reg -> out]`。
+- `attach_referenced_component2`：`launch(node, {in0, in1}, {})`；
+  血缘配对从单队列改为**双队列各弹一条、branch merge**——与 DSL join 的
+  DAG provenance 规则一致（每条 publish 同时携带两路输入的分支）。
+- IR/SLA 降低：`inputs = {in0, in1}`，预算按双输入节点计。
+- 形状校验：`probe_component2_shape` dynamic_cast 到
+  `TwoInputComponent<TIn0, TIn1, TOut>`，不匹配 → invalid chain（fail-fast 同单输入）。

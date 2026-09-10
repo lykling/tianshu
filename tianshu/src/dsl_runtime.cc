@@ -312,6 +312,37 @@ void FlowRuntime::attach_referenced_component(const std::string& registry_name,
   init_hooks_.emplace_back([held] { held->init(); });
 }
 
+void FlowRuntime::attach_referenced_component2(const std::string& registry_name,
+                                               const std::string& in0, const std::string& in1,
+                                               const std::string& out_channel) {
+  auto comp = core::ComponentFactory::instance().create(registry_name, registry_name);
+  if (comp == nullptr) {
+    return;
+  }
+  if (bridge_node_ == nullptr) {
+    bridge_node_ = std::make_unique<core::Node>(transport::TransportMode::kIntra);
+  }
+  comp->set_out_channel_override(out_channel);
+  if (!comp->launch(*bridge_node_, {in0, in1}, {})) {
+    return;
+  }
+  // Lineage pairing for the fused pair (ADR-0025 correction applied to
+  // TwoInputComponent): one lineage pops from EACH input queue per
+  // consumed (msg0, msg1) pair and the branches merge — same DAG
+  // provenance rule as a DSL join.
+  const auto q0 = register_lineage_queue(in0);
+  const auto q1 = register_lineage_queue(in1);
+  comp->set_input_lineage_provider([q0, q1] {
+    core::Lineage lin = q0->pop();
+    lin.merge(q1->pop());
+    return lin;
+  });
+  attach_bridge_reader(out_channel);
+  components_.emplace_back(std::move(comp));
+  const auto held = components_.back();
+  init_hooks_.emplace_back([held] { held->init(); });
+}
+
 void FlowRuntime::publish_derived(core::Lineage parent, const std::string& channel,
                                   const void* data, std::size_t size) {
   parent.add_hop({.channel = channel, .seq = next_seq(channel)});

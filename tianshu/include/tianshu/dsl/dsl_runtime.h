@@ -357,6 +357,8 @@ class FlowRuntime {
                                 std::chrono::milliseconds interval);
   void attach_referenced_component(const std::string& registry_name, const std::string& in_channel,
                                    const std::string& out_channel);
+  void attach_referenced_component2(const std::string& registry_name, const std::string& in0,
+                                    const std::string& in1, const std::string& out_channel);
 
   // Span wiring (called by Flow::SpanDecl::wire, ADR-0026): visitor on
   // the TRIGGER channel; on each trigger, materialize the data channel's
@@ -676,6 +678,14 @@ bool probe_component_shape(std::string_view registry_name) {
   return comp != nullptr && dynamic_cast<core::Component<TIn, TOut>*>(comp.get()) != nullptr;
 }
 
+template <typename TIn0, typename TIn1, typename TOut>
+bool probe_component2_shape(std::string_view registry_name) {
+  const auto comp =
+      core::ComponentFactory::instance().create(registry_name, std::string(registry_name));
+  return comp != nullptr &&
+         dynamic_cast<core::TwoInputComponent<TIn0, TIn1, TOut>*>(comp.get()) != nullptr;
+}
+
 template <typename TOut>
 std::function<void(FlowRuntime&)> make_from_source_wire(std::string registry_name,
                                                         std::string out_channel,
@@ -693,6 +703,17 @@ std::function<void(FlowRuntime&)> make_from_component_wire(std::string registry_
   return [registry_name = std::move(registry_name), in_channel = std::move(in_channel),
           out_channel = std::move(out_channel)](FlowRuntime& rt) {
     rt.attach_referenced_component(registry_name, in_channel, out_channel);
+  };
+}
+
+template <typename TIn0, typename TIn1, typename TOut>
+std::function<void(FlowRuntime&)> make_from_component2_wire(std::string registry_name,
+                                                            std::string in_channel0,
+                                                            std::string in_channel1,
+                                                            std::string out_channel) {
+  return [registry_name = std::move(registry_name), in0 = std::move(in_channel0),
+          in1 = std::move(in_channel1), out_channel = std::move(out_channel)](FlowRuntime& rt) {
+    rt.attach_referenced_component2(registry_name, in0, in1, out_channel);
   };
 }
 

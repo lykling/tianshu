@@ -98,9 +98,16 @@ void lower_froms(const dsl::Flow& flow, std::vector<IrNode>& nodes,
                              .type_name = f.out_type_name,
                              .wcet = std::chrono::microseconds{0},
                              .decl_index = i});
-    } else {
+    } else if (f.in_channel_2.empty()) {
       nodes.push_back(IrNode{.kind = "from",
                              .inputs = {f.in_channel},
+                             .output = f.out_channel,
+                             .type_name = f.out_type_name,
+                             .wcet = wcet_of(f.out_channel),
+                             .decl_index = i});
+    } else {
+      nodes.push_back(IrNode{.kind = "from",
+                             .inputs = {f.in_channel, f.in_channel_2},
                              .output = f.out_channel,
                              .type_name = f.out_type_name,
                              .wcet = wcet_of(f.out_channel),

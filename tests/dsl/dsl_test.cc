@@ -650,3 +650,71 @@ TEST(TraceableFlowTest, UnknownNameThrows) {
   EXPECT_THROW(static_cast<void>(tianshu::dsl::build_registered_flow("no_such_flow")),
                std::invalid_argument);
 }
+
+namespace {
+class TFuseComp final : public tianshu::core::TwoInputComponent<FastMsg, SlowMsg, FusedMsg> {
+ public:
+  explicit TFuseComp(std::string name) : TwoInputComponent(std::move(name)) {}
+
+ protected:
+  void proc(const FastMsg& msg0, const SlowMsg& msg1) override {
+    publish(FusedMsg{.fast_t = msg0.t, .slow_t = msg1.t});
+  }
+
+  [[nodiscard]] std::string_view out_channel() const override { return {}; }
+};
+}  // namespace
+
+TIANSHU_REGISTER_COMPONENT(TFuseComp, "test.from.fuse")
+
+TEST(FromReferenceTest, TwoInputFuseComponentMergesStreamLineage) {
+  std::vector<std::string> lineage_desc;
+  std::vector<FusedMsg> got;
+  tianshu::dsl::FlowBuilder builder("f2");
+  const auto fast = builder.from<FastMsg>("test.from.driver", "fast", std::chrono::milliseconds(5));
+  const auto slow = fast.map<SlowMsg>([](const FastMsg& in) { return SlowMsg{.t = in.t * 10}; });
+  const auto flow = builder.from<FusedMsg>("test.from.fuse", fast, slow, "fused")
+                        .sink([&](const FusedMsg& msg, const tianshu::core::Lineage& lin) {
+                          if (got.size() < 32) {
+                            got.push_back(msg);
+                            lineage_desc.push_back(lin.describe());
+                          }
+                        })
+                        .build();
+  const auto* fuse_decl = static_cast<const tianshu::dsl::Flow::FromDecl*>(nullptr);
+  for (const auto& f : flow.froms()) {
+    if (f.registry_name == "test.from.fuse") {
+      fuse_decl = &f;
+      break;
+    }
+  }
+  ASSERT_NE(fuse_decl, nullptr);
+  EXPECT_FALSE(fuse_decl->in_channel.empty());
+  EXPECT_FALSE(fuse_decl->in_channel_2.empty());
+  EXPECT_NE(flow.describe().find("via test.from.fuse -> f2/fused"), std::string::npos);
+
+  tianshu::dsl::FlowRuntime runtime;
+  runtime.run_for(flow, std::chrono::milliseconds(300));
+
+  ASSERT_GE(got.size(), 2U);
+  // Fusion contract: every fused message pairs a fast tick with its x10 slow.
+  for (const auto& m : got) {
+    EXPECT_EQ(m.slow_t, m.fast_t * 10);
+  }
+  // Provenance contract: branches from BOTH input channels merge.
+  bool merged_branches = false;
+  for (const auto& d : lineage_desc) {
+    if (d.find("f2/fast#") != std::string::npos && d.find("f2/~") != std::string::npos) {
+      merged_branches = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(merged_branches);
+}
+
+TEST(FromReferenceTest, TwoInputShapeMismatchYieldsInvalidChain) {
+  tianshu::dsl::FlowBuilder builder("f2bad");
+  const auto fast = builder.from<FastMsg>("test.from.driver", "fast", std::chrono::milliseconds(5));
+  const auto chained = builder.from<FusedMsg>("test.from.fuse", fast, fast, "fused");
+  EXPECT_FALSE(chained.valid());
+}

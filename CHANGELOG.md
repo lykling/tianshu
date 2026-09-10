@@ -8,6 +8,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 Phase 1 PoC — in progress.
 
+### Two-input referenced components (ADR-0025 amendment)
+
+- `from<TOut>(registry, chain0, chain1, out)`: TwoInputComponent fusion
+  is now referenceable from flows — both input chains feed the
+  component's visitor, and every publish carries both inputs' lineage
+  (dual-queue pairing, branch merge — the DSL join provenance rule)
+- IR/SLA lowering carries both input channels; shape mismatch yields
+  an invalid chain at build
+
 ### Fallback degradation ladder (ADR-0031, v0)
 
 - `with_fallback(name)` DSL verb (chain + builder): load-time fail-fast

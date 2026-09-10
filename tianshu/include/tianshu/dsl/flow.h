@@ -79,6 +79,9 @@ bool probe_source_shape(std::string_view registry_name);
 template <typename TIn, typename TOut>
 bool probe_component_shape(std::string_view registry_name);
 
+template <typename TIn0, typename TIn1, typename TOut>
+bool probe_component2_shape(std::string_view registry_name);
+
 template <typename TOut>
 std::function<void(FlowRuntime&)> make_from_source_wire(std::string registry_name,
                                                         std::string out_channel,
@@ -88,6 +91,12 @@ template <typename TIn, typename TOut>
 std::function<void(FlowRuntime&)> make_from_component_wire(std::string registry_name,
                                                            std::string in_channel,
                                                            std::string out_channel);
+
+template <typename TIn0, typename TIn1, typename TOut>
+std::function<void(FlowRuntime&)> make_from_component2_wire(std::string registry_name,
+                                                            std::string in_channel0,
+                                                            std::string in_channel1,
+                                                            std::string out_channel);
 
 template <typename T>
 std::function<void(FlowRuntime&)> make_sink_wire(
@@ -182,7 +191,8 @@ class Flow {
   };
   struct FromDecl {
     std::string registry_name;
-    std::string in_channel;  // empty = source-like (timer-driven)
+    std::string in_channel;    // empty = source-like (timer-driven)
+    std::string in_channel_2;  // non-empty = two-input referenced component
     std::string out_channel;
     std::string out_type_name;
     std::chrono::milliseconds interval{};
@@ -244,9 +254,14 @@ class Flow {
       out += " span[" + s.trig_channel + " x " + s.data_channel + " -> " + s.out_channel + "]";
     }
     for (const auto& f : froms_) {
-      out += f.in_channel.empty() ? " from[" + f.registry_name + " -> " + f.out_channel + "]"
-                                  : " from[" + f.in_channel + " via " + f.registry_name + " -> " +
-                                        f.out_channel + "]";
+      if (f.in_channel.empty()) {
+        out += " from[" + f.registry_name + " -> " + f.out_channel + "]";
+      } else if (f.in_channel_2.empty()) {
+        out += " from[" + f.in_channel + " via " + f.registry_name + " -> " + f.out_channel + "]";
+      } else {
+        out += " from[" + f.in_channel + " + " + f.in_channel_2 + " via " + f.registry_name +
+               " -> " + f.out_channel + "]";
+      }
     }
     for (const auto& s : sinks_) {
       out += " sink[" + s.channel + "]";
@@ -372,6 +387,7 @@ class FlowBuilder {
     Flow::FromDecl decl{
         std::string(registry_name),
         {},
+        {},
         out,
         std::string(core::MessageTraits<TOut>::name()),
         interval,
@@ -391,11 +407,36 @@ class FlowBuilder {
     const std::string out = channel_for(out_name);
     Flow::FromDecl decl{std::string(registry_name),
                         in.stream_.channel(),
+                        {},
                         out,
                         std::string(core::MessageTraits<TOut>::name()),
                         {},
                         detail::make_from_component_wire<TIn, TOut>(std::string(registry_name),
                                                                     in.stream_.channel(), out)};
+    froms_.push_back(std::move(decl));
+    return FlowChain<TOut>(this, Stream<TOut>(out, std::string(core::MessageTraits<TOut>::name())));
+  }
+
+  // Two-input read-write overload: Component<TIn0, TIn1, TOut>. Both input
+  // channels come from the given chains; the component's visitor fuses them
+  // and every publish inside proc carries BOTH inputs' lineage (merged
+  // branches, same rule as a DSL join).
+  template <typename TOut, typename TIn0, typename TIn1>
+  FlowChain<TOut> from(std::string_view registry_name, const FlowChain<TIn0>& in0,
+                       const FlowChain<TIn1>& in1, std::string_view out_name) {
+    if (!detail::probe_component2_shape<TIn0, TIn1, TOut>(registry_name)) {
+      return FlowChain<TOut>(this, Stream<TOut>());
+    }
+    const std::string out = channel_for(out_name);
+    Flow::FromDecl decl{
+        std::string(registry_name),
+        in0.stream_.channel(),
+        in1.stream_.channel(),
+        out,
+        std::string(core::MessageTraits<TOut>::name()),
+        {},
+        detail::make_from_component2_wire<TIn0, TIn1, TOut>(
+            std::string(registry_name), in0.stream_.channel(), in1.stream_.channel(), out)};
     froms_.push_back(std::move(decl));
     return FlowChain<TOut>(this, Stream<TOut>(out, std::string(core::MessageTraits<TOut>::name())));
   }
@@ -609,9 +650,14 @@ inline void FlowBuilder::run_sla_analysis(Flow& flow) const {
   for (const auto& f : froms_) {
     if (f.in_channel.empty()) {
       sources.push_back(sla::SlaSource{.channel = f.out_channel, .interval = f.interval});
-    } else {
+    } else if (f.in_channel_2.empty()) {
       nodes.push_back(sla::SlaNode{.kind = "from",
                                    .in_channels = {f.in_channel},
+                                   .out_channel = f.out_channel,
+                                   .wcet = wcet_of(f.out_channel)});
+    } else {
+      nodes.push_back(sla::SlaNode{.kind = "from",
+                                   .in_channels = {f.in_channel, f.in_channel_2},
                                    .out_channel = f.out_channel,
                                    .wcet = wcet_of(f.out_channel)});
     }
