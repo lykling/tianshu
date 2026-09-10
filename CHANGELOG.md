@@ -8,6 +8,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 Phase 1 PoC — in progress.
 
+### Documentation — living architecture docs
+
+- docs/arch/: as-built architecture tree — README (module status table +
+  mandatory doc-sync maintenance contract), 01-architecture (layer map,
+  logical-layer <-> code-directory mapping, message lifecycle, Mermaid),
+  and 8 per-module pages (base / sched / core / transport / dsl / sla /
+  compiler / cli), each with a fixed seven-section template grounded in
+  current headers/tests/ADRs
+- docs/README.md: guided tour with three reading paths; README.md doc
+  index now links the arch tree; 00-overview §8 and 01-roadmap progress
+  refreshed to the current phase state
+
 ### Two-input referenced components (ADR-0025 amendment)
 
 - `from<TOut>(registry, chain0, chain1, out)`: TwoInputComponent fusion
