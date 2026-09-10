@@ -289,3 +289,57 @@ TEST(MonitorSchemaSidecarTest, AutoLoadsSchemaFromSidecarSegment) {
   kill(pid, SIGTERM);  // NOLINT(misc-include-cleaner)
   waitpid(pid, &status, 0);
 }
+
+// ---------------------------------------------------------------------------
+// App-level navigation surface (ADR-0020): select/jump/step control the
+// selected channel's buffer through the shared MonitorApp API.
+// ---------------------------------------------------------------------------
+
+TEST(MonitorAppTest, NavigationControlsOperateOnSelectedChannel) {
+  const char* ch_a = "/monitor/nav_a";
+  const char* ch_b = "/monitor/nav_b";
+  const pid_t pid = fork();  // NOLINT(misc-include-cleaner)  // glibc
+  ASSERT_GE(pid, 0);
+  if (pid == 0) {
+    tianshu::core::Node node(tianshu::transport::TransportMode::kShm);
+    auto wa = node.create_writer(ch_a);
+    auto wb = node.create_writer(ch_b);
+    for (int i = 0; i < 150; ++i) {
+      const Imu imu{.ax = static_cast<double>(i), .az = 9.81};
+      if (wa != nullptr) {
+        wa->write(&imu, sizeof(imu));
+      }
+      if (wb != nullptr) {
+        wb->write(&imu, sizeof(imu));
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    _exit(0);
+  }
+
+  tianshu::core::MonitorApp app(64);
+  ASSERT_TRUE(app.add_channel(ch_a));
+  ASSERT_TRUE(app.add_channel(ch_b));
+  static_cast<void>(app.wait_first_frames(std::chrono::milliseconds(5000)));
+
+  // select + select_delta move the cursor across channels.
+  app.select(1);
+  auto snap = app.snapshot();
+  ASSERT_EQ(snap.channels.size(), 2U);
+  EXPECT_EQ(snap.selected, 1U);
+  app.select_delta(-1);
+  EXPECT_EQ(app.snapshot().selected, 0U);
+  app.select(99);  // clamped to the last channel
+  EXPECT_EQ(app.snapshot().selected, 1U);
+
+  // step/jump while live are no-ops on the frame but valid calls.
+  app.pause();
+  EXPECT_TRUE(app.paused());
+  EXPECT_TRUE(app.step_frame(-1));
+  EXPECT_TRUE(app.jump_frame_first());
+  EXPECT_TRUE(app.jump_frame_last());
+  EXPECT_TRUE(app.jump_frame_by(-2));
+
+  int status = 0;
+  static_cast<void>(waitpid(pid, &status, 0));  // NOLINT(misc-include-cleaner)
+}
