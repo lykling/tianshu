@@ -178,3 +178,18 @@ TEST(FieldTableTest, SchemaCodecRejectsMalformedBlobs) {
   bad[0] ^= static_cast<std::uint8_t>(0xFF);
   EXPECT_FALSE(tianshu::core::decode_pod_schema(bad.data(), bad.size(), &table));
 }
+
+// A truncated schema blob must fail cleanly at EVERY prefix length — never
+// read past the buffer (schema blobs ride inside .trec files; a corrupt
+// file cannot crash the reader).
+TEST(FieldTableTest, SchemaDecodeRejectsEveryTruncatedPrefix) {
+  const auto blob = tianshu::core::encode_pod_schema("test.fuzz.PodMsg",
+                                                     tianshu::core::PodFieldTable<PodMsg>::kFields,
+                                                     tianshu::core::PodFieldTable<PodMsg>::kCount);
+  ASSERT_FALSE(blob.empty());
+  for (std::size_t cut = 0; cut < blob.size(); ++cut) {
+    tianshu::core::OwnedSchemaTable table;
+    EXPECT_FALSE(tianshu::core::decode_pod_schema(blob.data(), cut, &table))
+        << "decode accepted truncated blob at prefix length " << cut;
+  }
+}
