@@ -45,4 +45,4 @@ docs/
 
 ## 贡献者 / AI 代理须知
 
-改代码前先读目标模块的 `arch/modules/<m>.md`；改完后**必须**按 [arch/README.md 的维护契约](./arch/README.md#维护契约每次迭代必须执行)同步文档——这是本仓库迭代的收尾步骤，不是可选项。仓库根 `AGENTS.md` 有同样约束。
+改代码前先读目标模块的 `arch/modules/<m>.md`；改完后**必须**按 [arch/README.md 的维护契约](./arch/README.md#维护契约每次迭代必须执行)同步文档——这是本仓库迭代的收尾步骤，不是可选项。

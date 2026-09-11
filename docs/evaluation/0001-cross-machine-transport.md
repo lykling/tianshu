@@ -346,8 +346,7 @@
 1. 升级本文档为 ADR-0009
 2. 同步更新 02-development-plan（L4-TRANS-6 + 新增 L4-TRANS-13）
 3. 同步更新 ADR-0005 依赖白名单
-4. 同步更新 supermemory
-5. 同步更新 README（如需要）
+4. 同步更新 README（如需要）
 
 ---
 
