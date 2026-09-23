@@ -6,6 +6,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed — SmallVec heap-overflow double free
+
+- `SmallVec`'s overflow buffer was allocated with array `new T[]` and
+  released with `delete[]` on top of the placement-new discipline —
+  array `delete[]` runs `~T()` for every slot, so heap-backed vectors
+  holding live elements destroyed them twice (a double free of
+  `std::string` buffers inside `Lineage` hops). Invisible while hops
+  stayed within the inline capacity (<= 4); deterministic once a
+  feedback loop grew lineage past it — `full_chain_demo` aborted with
+  a corrupted heap at HEAD. The overflow storage is now raw
+  (`::operator new[]` / `::operator delete[]`), matching the inline
+  buffer's discipline; `destroy_elements()` is the only destructor
+  invocation. Regression-locked by two heap-backed unit tests
+  (`tests/base/small_vector_test.cc`) and the integration repro
+  (`tests/dsl/lineage_fanout_test.cc`, from()-bridge feedback shape)
+
 ### Added — public benchmark data page (M1 close-out)
 
 - `docs/06-benchmarks.md`: the Phase 1 verdict numbers in one public

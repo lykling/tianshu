@@ -118,11 +118,17 @@ class SmallVec {
 
   void grow() {
     const std::size_t new_capacity = capacity_ * 2;
+    // Raw storage, same discipline as inline_: array new[]/delete[] would
+    // run ~T() for every slot ON TOP of the explicit destroy_elements()
+    // calls below and in ~SmallVec/operator= — destroying live elements
+    // twice (a double free for owning members; regression-tested in
+    // tests/base/small_vector_test.cc). Default operator new[] alignment
+    // covers the T used here (LineageHop/Branch, alignof <= 16).
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    auto* fresh = new T[new_capacity];
+    auto* fresh = static_cast<T*>(::operator new[](new_capacity * sizeof(T)));
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     for (std::size_t i = 0; i < size_; ++i) {
-      fresh[i] = T(std::move(data()[i]));
+      new (&fresh[i]) T(std::move(data()[i]));
     }
     // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     destroy_elements();
@@ -162,8 +168,11 @@ class SmallVec {
   }
 
   void release_heap() {
+    // Raw deallocation matching the raw allocation in grow(): element
+    // destruction is owned by destroy_elements() alone, so the array
+    // form (delete[], which runs ~T() per slot) must never be used here.
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    delete[] heap_;
+    ::operator delete[](heap_);
     heap_ = nullptr;
     capacity_ = N;
   }

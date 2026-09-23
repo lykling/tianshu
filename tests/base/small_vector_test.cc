@@ -136,4 +136,33 @@ TEST(SmallVecTest, MoveAssignmentSelfSafety) {
   EXPECT_EQ(a[0], "solo");
 }
 
+// Regression (surfaced by a from()-bridge feedback loop whose lineage
+// grew past the inline capacity, 2026-09-22): the heap-overflow path used
+// array new[]/delete[] on top of the placement-new discipline, so live
+// elements in [0, size()) were destroyed twice — destroy_elements() plus
+// the array delete[] destructor pass — double-freeing heap-allocated
+// strings. Each element must die exactly once.
+TEST(SmallVecTest, HeapBackedDestructionFreesEachElementOnce) {
+  Vec v;
+  for (int i = 0; i < 5; ++i) {  // overflow 2 -> 4 -> 8; strings > SSO
+    v.push_back("heap-backed-element-" + std::to_string(i));
+  }
+  ASSERT_GT(v.size(), 2U);
+  const Vec copy = v;  // deep copy of a heap-backed vec
+  ASSERT_EQ(copy.size(), v.size());
+  EXPECT_NE(copy.data(), v.data());
+}  // both die holding live heap elements: a double free before the fix
+
+TEST(SmallVecTest, HeapBackedMoveAssignFreesEachElementOnce) {
+  Vec a;
+  Vec b;
+  for (int i = 0; i < 4; ++i) {  // both cross the inline boundary
+    a.push_back("source-heap-backed-element-" + std::to_string(i));
+    b.push_back("target-heap-backed-element-" + std::to_string(i));
+  }
+  a = std::move(b);  // destroys a's live heap elements: a double free before
+  ASSERT_EQ(a.size(), 4U);
+  EXPECT_EQ(a[3], "target-heap-backed-element-3");
+}
+
 }  // namespace

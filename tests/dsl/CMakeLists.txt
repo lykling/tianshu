@@ -29,3 +29,7 @@ gtest_discover_tests(specialize_test)
 add_executable(source_entry_test source_entry_test.cc)
 target_link_libraries(source_entry_test PRIVATE tianshu GTest::gtest_main)
 gtest_discover_tests(source_entry_test)
+
+add_executable(lineage_fanout_test lineage_fanout_test.cc)
+target_link_libraries(lineage_fanout_test PRIVATE tianshu GTest::gtest_main)
+gtest_discover_tests(lineage_fanout_test)

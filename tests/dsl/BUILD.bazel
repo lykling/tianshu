@@ -82,3 +82,13 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "lineage_fanout_test",
+    size = "small",
+    srcs = ["lineage_fanout_test.cc"],
+    deps = [
+        "//tianshu",
+        "@googletest//:gtest_main",
+    ],
+)

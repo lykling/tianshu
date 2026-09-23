@@ -4,7 +4,7 @@
 > 代码：`tianshu/include/tianshu/dsl/`（`flow.h` 声明层 · `dsl_runtime.h` 解释器 · `record.h` v0 遗留 · `record_v2.h` 流式记录）· `tianshu/src/{dsl_runtime,record,record_v2}.cc`
 > 关键 ADR：[ADR-0021 DSL v0](../../adr/0021-dsl-v0.md) · [ADR-0022 Lineage v0](../../adr/0022-lineage-v0.md) · [ADR-0024 op 原语](../../adr/0024-dsl-op-primitive.md) · [ADR-0025 from() 组件引用](../../adr/0025-from-component-reference.md) · [ADR-0026 切片输入模型](../../adr/0026-slice-input-model.md) · [ADR-0027 状态即数据](../../adr/0027-state-as-data-channel-taxonomy.md) · [ADR-0028 Record v2](../../adr/0028-record-format-v1.md) · [ADR-0031 降级阶梯](../../adr/0031-fallback-degradation.md) · [ADR-0032 逐消息特化](../../adr/0032-per-message-specialization.md)
 > 测试：`tests/dsl/`（7 文件：`dsl_test.cc` · `sla_test.cc` · `slice_state_test.cc` · `record_v2_test.cc` · `runtime_coverage_test.cc` · `flow_fallback_test.cc` · `specialize_test.cc`）· 示例：`examples/{dsl_demo,lidar_imu_demo,full_chain_demo,record_replay_demo,state_recovery_demo,traceable_flow_demo}.cc` + 设备库 `examples/{avp_devices.cc,avp_types.h}`
-> 最后同步：2026-09-17 · M-C 特化安装落地（ADR-0032）
+> 最后同步：2026-09-22 · SmallVec 双析构回归用例
 
 ---
 
@@ -233,6 +233,7 @@ flowchart LR
 | `runtime_coverage_test.cc` | live 录制生命周期（start/stop/double-stop）；stateful + span 经 `run_for` 全路径；未注册 from() 装配为 no-op 不崩不挂 |
 | `flow_fallback_test.cc` | 声明与携带（`fallback_flow()`）；默认无；未知名 / 自引用 build throw；运行期持续 miss 触发降级事件（events ≥ 1 + 最后违规端点）；健康流零事件；IR 往返（`IrGraph::fallback_flow()` + `.conf` 导出含 `fallback_flow = "..."`）；无声明不武装 watcher |
 | `specialize_test.cc` | H1 逐字节等价（ADR-0032）：五形状（1/4/9 跳线性、嵌套双 join 扇入、四分支扇出逐分支比对）+ 多生产者 map_to + 混合 op 段 + SLA 全通用回退 + 快路径确实启用（中间通道历史收窄）+ 录制内容一致（排除时间戳）+ 源通道回放等价 |
+| `lineage_fanout_test.cc` | 多消费者通道血缘健全性（SmallVec 堆路径双析构回归，2026-09-22）：线性单消费者 / join+sink 共道（均应健康）+ from() 桥反馈环（血缘 hops 超内联容量后曾被 double-free 摧毁，现为集成回归） |
 
 **示例**（`examples/`）：
 

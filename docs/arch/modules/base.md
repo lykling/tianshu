@@ -4,7 +4,7 @@
 > 代码：`tianshu/include/tianshu/base/`（header-only，无对应 `src/` 文件）
 > 关键 ADR：[ADR-0010 Transport/SHM 基础设施](../../adr/0010-transport-shm-infra.md) · [ADR-0018 C++ 风格指南](../../adr/0018-cpp-style-guide.md) · [ADR-0019 协程策略](../../adr/0019-coroutine-strategy.md) · [ADR-0030 L1 编译器](../../adr/0030-l1-compiler.md)
 > 测试：`tests/base/*.cc`（7 个文件） · 基准：`benchmarks/object_pool_benchmark.cc` · 示例：-
-> 最后同步：2026-09-09 · commit `86b9ff3`
+> 最后同步：2026-09-22 · SmallVec 堆路径存储纪律修复
 
 ## 1. 职责与边界（做什么 / 明确不做什么）
 
@@ -126,6 +126,7 @@ flowchart TD
 - **内存布局**：`inline_[N * sizeof(T)]` 原始未初始化字节 + `heap_` 溢出指针 + `size_/capacity_`；元素 push 时 placement-new、删除时显式析构。inline buffer 刻意不零初始化——否则每次 Lineage 构造白做 ~500 字节 memset（H2 回归教训，头文件注释存档）。
 - **用户提供的空构造函数体**（非 `= default`）：让 `const SmallVec EMPTY;`（Lineage::hops）合法且成员仍保 NSDMI。
 - 溢出 `grow()` 容量倍增；move 语义分两路：inline→inline 逐元素搬移并清空源，heap→直接窃取指针。
+- **堆存储纪律（2026-09-22 修复）**：溢出缓冲是**裸存储**（`::operator new[]` / `::operator delete[]`，不跑元素析构），与 inline buffer 同一纪律——元素析构只由 `destroy_elements()` 执行一次。此前 `grow()` 误用数组 `new T[]` + `delete[]`（数组 delete 会对每个槽再跑一次 `~T()`），导致堆后备且持活元素的 SmallVec 在析构/移动赋值/grow 时**双重析构**（`std::string` 双 free）——hops ≤ 4（纯 inline）不可见，血缘 hops 超过内联容量后必现；由 from() 反馈环 demo 触发、`tests/base/small_vector_test.cc` 两枚 HeapBacked 回归用例 + `tests/dsl/lineage_fanout_test.cc` 集成回归锁定。
 
 ## 4. 与其它模块的关系
 
