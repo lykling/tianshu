@@ -22,6 +22,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   (`tests/base/small_vector_test.cc`) and the integration repro
   (`tests/dsl/lineage_fanout_test.cc`, from()-bridge feedback shape)
 
+### Added — dual-system E2E autopilot example
+
+- `examples/e2e_ad_demo.cc`: the production E2E pattern on one
+  declarative flow — a one-stage mock net (planner head consumes fused
+  BEV tokens with a +25m depth bias, no structured perception
+  interface), a System 2 semantic advisory join (the VLA slot: yield
+  cap from redundant ranging), a rule safety shell (explicit brake
+  budget + standstill guard), and a registered plant box closing the
+  loop; layered closed-form counterfactuals (net alone impacts at
+  cruise / +advisory at cap / +shell stops 3.6m short), dual SLA
+  endpoints, three-branch per-message lineage. Documents a v0
+  limitation found on the way: AllLatest joins are synchronizers, not
+  latches — a slow directive rate-limits the whole downstream chain
+  (dsl.md §7)
+
 ### Added — public benchmark data page (M1 close-out)
 
 - `docs/06-benchmarks.md`: the Phase 1 verdict numbers in one public

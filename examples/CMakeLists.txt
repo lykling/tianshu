@@ -19,6 +19,11 @@ target_link_libraries(dsl_demo PRIVATE tianshu)
 add_executable(full_chain_demo full_chain_demo.cc avp_devices.cc)
 target_link_libraries(full_chain_demo PRIVATE tianshu)
 
+# One-stage E2E autopilot: net + rule safety shell, closed loop (the
+# plant registers itself as "e2e.plant", no separate device library).
+add_executable(e2e_ad_demo e2e_ad_demo.cc)
+target_link_libraries(e2e_ad_demo PRIVATE tianshu)
+
 add_executable(state_recovery_demo state_recovery_demo.cc)
 target_link_libraries(state_recovery_demo PRIVATE tianshu)
 

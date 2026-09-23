@@ -4,7 +4,7 @@
 > 代码：`tianshu/include/tianshu/dsl/`（`flow.h` 声明层 · `dsl_runtime.h` 解释器 · `record.h` v0 遗留 · `record_v2.h` 流式记录）· `tianshu/src/{dsl_runtime,record,record_v2}.cc`
 > 关键 ADR：[ADR-0021 DSL v0](../../adr/0021-dsl-v0.md) · [ADR-0022 Lineage v0](../../adr/0022-lineage-v0.md) · [ADR-0024 op 原语](../../adr/0024-dsl-op-primitive.md) · [ADR-0025 from() 组件引用](../../adr/0025-from-component-reference.md) · [ADR-0026 切片输入模型](../../adr/0026-slice-input-model.md) · [ADR-0027 状态即数据](../../adr/0027-state-as-data-channel-taxonomy.md) · [ADR-0028 Record v2](../../adr/0028-record-format-v1.md) · [ADR-0031 降级阶梯](../../adr/0031-fallback-degradation.md) · [ADR-0032 逐消息特化](../../adr/0032-per-message-specialization.md)
 > 测试：`tests/dsl/`（7 文件：`dsl_test.cc` · `sla_test.cc` · `slice_state_test.cc` · `record_v2_test.cc` · `runtime_coverage_test.cc` · `flow_fallback_test.cc` · `specialize_test.cc`）· 示例：`examples/{dsl_demo,lidar_imu_demo,full_chain_demo,record_replay_demo,state_recovery_demo,traceable_flow_demo}.cc` + 设备库 `examples/{avp_devices.cc,avp_types.h}`
-> 最后同步：2026-09-22 · SmallVec 双析构回归用例
+> 最后同步：2026-09-22 · SmallVec 双析构回归 + e2e_ad_demo 示例 + AllLatest 限速已知限制
 
 ---
 
@@ -245,6 +245,7 @@ flowchart LR
 | `record_replay_demo.cc` | v2 live 录制 → fresh runtime 回放（只重发源通道，中间通道级联重算），输出逐字节一致——离线 == 在线 |
 | `state_recovery_demo.cc` | 状态即数据恢复：checkpoint 血缘定吸收点 + 后缀重放，恢复终态与不间断运行 EXACT MATCH |
 | `traceable_flow_demo.cc` | `REGISTER_TRACEABLE_FLOW` 注册 → 按名 dry-run trace → `IrGraph` 规范化哈希与 fallback 阶梯 → `Pipeline::compile` 编译产物运行（含降级事件打印） |
+| `e2e_ad_demo.cc` | 双系统端到端自动驾驶示意：一段式网络（偏差深度 BEV tokens 直连 planner head，无结构化接口）+ System 2 语义建议（VLA 槽位，冗余测距 40m 视野 YIELD 限速）+ 规则安全壳（刹车预算 + 驻车守卫）+ from() plant 闭环；分层反事实（仅网络 12 m/s 撞 / +advisory 6 m/s 撞 / +壳 停稳 3.6m 前）、双 SLA 端点、三分支血缘 |
 | `avp_devices.cc` + `avp_types.h` | 注册设备库（双雷达 / GNSS / 底盘四个 `TIANSHU_REGISTER_COMPONENT`）：写一次，任何 flow 按名 `from()` 引用 |
 
 叙事讲解：全链路 demo 与设备库的演进故事见 [03-full-chain-demo.md](../../03-full-chain-demo.md)；切片 / 状态 / 记录回放的数据模型里程碑见 [04-data-model-generalization.md](../../04-data-model-generalization.md)；DSL 上手教程见 [05-dsl-getting-started.md](../../05-dsl-getting-started.md)。
@@ -259,3 +260,4 @@ flowchart LR
 - **stateful**：状态通道有意不进 v0 SLA 分析（恢复簿记，非数据路径契约）；跨进程恢复（kill -9 + SHM checkpoint）为后续。
 - **record v2**：chunk 索引的通道位图暂写全通道（per-chunk 精确位图 TODO）；`read_range` 仍是顺序扫描（真索引随机读依赖 message index type 0x05，未写）；metadata（0x04）/ dict patch（0x07）/ shard link（0x08）/ ts correction（0x09）预留未实现；全文件 CRC 推迟 v2.1；v2 reader 不认 v0/v1 legacy magic；回放 wallclock pacing（`replay(rate=1.0)`）未实现（当前 max-speed）。
 - **多端口 op**：多输入（AllLatest）/ 多输出（typed `OpPub` 元组返回）语义已在 ADR-0024 锁定，按需实现；`FlowBuilder::with_sla(string_view)` 仍为接受并忽略的兼容槽。
+- **AllLatest join 是同步器不是锁存器**：每次触发对每个输入各消耗一条——任何一路输入速率低于下游需求时，整条下游链被限速到最慢输入的速率（`e2e_ad_demo` 首版 1Hz advisory 把 10Hz 环锁到 1Hz 即此）。慢速建议进快速环需要"latest 值锁存"读语义（tap 变体或融合策略选项），v0 未提供，演进方向。

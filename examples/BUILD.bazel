@@ -51,6 +51,12 @@ cc_binary(
 )
 
 cc_binary(
+    name = "e2e_ad_demo",
+    srcs = ["e2e_ad_demo.cc"],
+    deps = ["//tianshu"],
+)
+
+cc_binary(
     name = "state_recovery_demo",
     srcs = ["state_recovery_demo.cc"],
     deps = ["//tianshu"],
